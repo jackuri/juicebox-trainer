@@ -3,7 +3,7 @@
 _Last updated: 2026-11-06 — v0.3.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.2.0.
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.3.0.
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -20,7 +20,9 @@ _Last updated: 2026-11-06 — v0.3.0_
 - v0.4.0 packs: pack schema + validator, value/patch ops, hotkeys, trainer UI, example packs vs testbed.
 
 ## Known issues
-- v0.3.0 not yet pushed, so CI hasn't run on it.
+- One CI run of v0.3.0 on `main` timed out in the frontend scanner test (51 s on the runner,
+  milliseconds locally, 15/15 local passes); the re-run and the tag run passed. If it recurs, give
+  that test more time or split it.
 - Scan results live in memory. Unknown-value scans copy all scanned memory and refuse above 4 GiB;
   a disk-backed store would lift that.
 - The scanner shows the first 200 results only (count is always exact).
