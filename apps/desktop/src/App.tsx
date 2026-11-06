@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { GuardVerdict } from "./components/GuardVerdict";
-import { MemoryPanel } from "./components/MemoryPanel";
-import { ModuleTable } from "./components/ModuleTable";
 import { ProcessList } from "./components/ProcessList";
+import { SessionTools } from "./components/SessionTools";
 import {
   api,
   type AppInfo,
@@ -71,11 +70,11 @@ export default function App() {
     setSession(null);
   }
 
-  function sessionLost(err: CommandError) {
+  const sessionLost = useCallback((err: CommandError) => {
     setSession(null);
     if (err.verdict) setVerdict(err.verdict);
     setError(err);
-  }
+  }, []);
 
   async function refreshModules() {
     try {
@@ -141,8 +140,11 @@ export default function App() {
                   Detach
                 </button>
               </div>
-              <MemoryPanel onSessionLost={sessionLost} />
-              <ModuleTable modules={session.modules} onRefresh={() => void refreshModules()} />
+              <SessionTools
+                session={session}
+                onSessionLost={sessionLost}
+                onRefreshModules={() => void refreshModules()}
+              />
             </>
           ) : selected ? (
             <div className="flex max-w-xl flex-col gap-3">

@@ -63,6 +63,8 @@ beforeEach(() => {
         return Promise.resolve(session);
       case "read_value":
         return Promise.resolve({ address: 0x1f0a10, value: "250", bytes: "FA 00 00 00" });
+      case "address_list":
+        return Promise.resolve([]);
       case "write_value":
         return Promise.resolve({ address: 0x1f0a10, value: String(args?.value), bytes: "0F 27 00 00" });
       default:
@@ -98,9 +100,12 @@ describe("App", () => {
     fireEvent.click(attach);
 
     expect(await screen.findByText(/Attached to testbed_native\.exe/)).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Scanner" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.click(screen.getByRole("tab", { name: "Modules" }));
     const modules = screen.getByRole("region", { name: "Modules" });
     expect(within(modules).getByText("0x7FF6A0000000")).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole("tab", { name: "Read / write" }));
     fireEvent.change(screen.getByLabelText("Address"), { target: { value: "0x1F0A10" } });
     fireEvent.click(screen.getByRole("button", { name: "Read" }));
     expect(await screen.findByDisplayValue("250")).toBeInTheDocument();
@@ -133,6 +138,7 @@ describe("App", () => {
         },
       }),
     );
+    fireEvent.click(screen.getByRole("tab", { name: "Read / write" }));
     fireEvent.change(screen.getByLabelText("Address"), { target: { value: "0x10" } });
     fireEvent.click(screen.getByRole("button", { name: "Read" }));
 

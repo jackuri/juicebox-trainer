@@ -74,6 +74,66 @@ export interface ReadResult {
   bytes: string;
 }
 
+export type FirstScanKind = "exact" | "between" | "unknown";
+export type NextScanKind =
+  | "exact"
+  | "between"
+  | "changed"
+  | "unchanged"
+  | "increased"
+  | "decreased";
+
+export type ScanMode =
+  | { kind: "exact"; value: string }
+  | { kind: "between"; min: string; max: string }
+  | { kind: "unknown" | "changed" | "unchanged" | "increased" | "decreased" };
+
+export interface ScanOptions {
+  writableOnly: boolean;
+  aligned: boolean;
+  floatTolerance: number | null;
+}
+
+export interface ScanSummary {
+  count: number;
+  ty: ValueType;
+  rounds: number;
+  memoryBytes: number;
+}
+
+export interface ScanProgress {
+  running: boolean;
+  done: number;
+  total: number;
+}
+
+export interface ScanHit {
+  address: number;
+  previous: string;
+  current: string | null;
+}
+
+export interface ScanResults {
+  count: number;
+  hits: ScanHit[];
+}
+
+export interface ListEntry {
+  id: number;
+  label: string;
+  address: number;
+  addressExpr: string;
+  ty: ValueType;
+  value: string | null;
+  error: string | null;
+  frozen: boolean;
+}
+
+/** Errors that mean the session is gone (the backend already dropped it). */
+export function isSessionLost(e: CommandError): boolean {
+  return e.kind === "blocked" || e.kind === "processExited" || e.kind === "notAttached";
+}
+
 export interface CommandError {
   kind: string;
   message: string;
@@ -108,4 +168,34 @@ export const api = {
     invoke<ReadResult>("read_value", { address, ty }),
   writeValue: (address: string, ty: ValueType, value: string) =>
     invoke<ReadResult>("write_value", { address, ty, value }),
+
+  scanFirst: (ty: ValueType, mode: ScanMode, options: ScanOptions) =>
+    invoke<ScanSummary>("scan_first", { ty, mode, options }),
+  scanNext: (mode: ScanMode) => invoke<ScanSummary>("scan_next", { mode }),
+  scanCancel: () => invoke<void>("scan_cancel"),
+  scanProgress: () => invoke<ScanProgress>("scan_progress"),
+  scanReset: () => invoke<void>("scan_reset"),
+  scanResults: (offset: number, limit: number) =>
+    invoke<ScanResults>("scan_results", { offset, limit }),
+
+  addressList: () => invoke<ListEntry[]>("address_list"),
+  addressAdd: (address: string, ty: ValueType, label: string) =>
+    invoke<ListEntry>("address_add", { address, ty, label }),
+  addressRemove: (id: number) => invoke<void>("address_remove", { id }),
+  addressRename: (id: number, label: string) => invoke<void>("address_rename", { id, label }),
+  addressSetFrozen: (id: number, frozen: boolean) =>
+    invoke<ListEntry>("address_set_frozen", { id, frozen }),
+  addressWrite: (id: number, value: string) =>
+    invoke<ListEntry>("address_write", { id, value }),
 };
+
+/** Builds the scan mode the backend expects from form fields. */
+export function scanMode(
+  kind: FirstScanKind | NextScanKind,
+  value: string,
+  max: string,
+): ScanMode {
+  if (kind === "exact") return { kind, value };
+  if (kind === "between") return { kind, min: value, max };
+  return { kind };
+}
