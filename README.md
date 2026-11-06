@@ -25,6 +25,14 @@ A free, open-source Windows app that combines a game **trainer**, a **save manag
 | `packs/examples` | Example packs for the testbed |
 | `testbed/native`, `testbed/harness` | Fake "game" used by tests (x64 and x86), and test helpers |
 | `scripts/` | `check.ps1` (all checks), `bump-version.mjs` |
+| `Try OpenTrainer.cmd` | Double-click: opens the test game and the app |
+
+## Try it (no typing)
+
+Double-click **`Try OpenTrainer.cmd`** in this folder. It opens two windows: the fake test game and
+OpenTrainer. (The first start takes a few minutes while everything is built. It needs Rust and
+Node.js installed.) Then follow "Use a cheat pack" below, typing commands like `hit 25` into the fake
+game's window.
 
 ## Develop
 
@@ -95,6 +103,26 @@ Trainer tab has **Open packs folder**), and check them with:
 cargo run -p ot-packs --bin otpack -- validate packs/examples/testbed-native/pack.json
 cargo run -p ot-packs --bin otpack -- schema        # the JSON Schema
 ```
+
+## Find a pointer path that survives a restart
+
+1. Attach to the testbed and find gold with the **Scanner** (see above). Copy its address.
+2. Open **Pointers**, paste the address, keep 4 levels and offset `1000`, click **Find pointers**.
+3. Close the testbed and start it again, attach again, find gold again with the scanner, and enter the
+   new address under "Restarted the game?". Click **Check paths**. The path
+   `[[[testbed_native.exe+0x…]+0x10]+0x10]+0xC` is still there.
+4. Click **Add** on it: the address list follows that path from now on.
+
+## Make a signature for a piece of code
+
+Open **Signatures** and enter a code address, e.g. the damage code: search the module for the
+pattern `0F 1F 80 54 4F 54 01` and add 7. **Make signature** gives the shortest pattern that finds
+only that code, with addresses wildcarded.
+
+## If OpenTrainer crashes
+
+Changes to game code are written down before they are made
+(`%LOCALAPPDATA%\OpenTrainer\restore`). The next start undoes anything left behind and shows a notice.
 
 To see the guard refuse, copy `target\debug\testbed_native.exe` into a new folder that also contains
 an empty `BattlEye` folder, run the copy, and pick it in OpenTrainer.

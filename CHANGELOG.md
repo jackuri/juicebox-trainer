@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-11-06
+
+### Added
+- **Crash-safe restore** (`ot_core::journal`): every code change (patch) is recorded with its original
+  bytes before it is written. The desktop app also writes that record to
+  `%LOCALAPPDATA%\OpenTrainer\restore\<pid>-<start time>.json`. If OpenTrainer crashes or is killed,
+  the next start puts the original code back (and says so in a notice), and a crash handler does the
+  same when the app itself fails. Recovery attaches through the anti-cheat guard like any attach, only
+  ever writes the recorded original bytes over the recorded patched bytes, and skips anything else.
+  Journals of games that have closed are deleted.
+- **Pointer scanner** (`ot_core::pointer`, desktop **Pointers** tab): finds paths from the exe or a
+  DLL to a value, Cheat Engine style (`[[game.exe+0x3A000]+0x10]+0x18`), shortest first, up to 7
+  levels. After restarting the game, enter the value's new address to keep only the paths that still
+  work. Results survive detaching and re-attaching. Paths can be added to the address list.
+- **Signature maker** (`ot_core::signature`, desktop **Signatures** tab): turns a code address into
+  the shortest byte pattern that matches once in its module. Jump and call targets, RIP-relative and
+  absolute addresses are wildcarded; struct offsets and constants are kept.
+- **Pointer paths in the address list** and every address field: `[[module.exe+0x10]+0x18]+0x40`.
+  Pointer entries follow the value when it moves.
+- **`Try OpenTrainer.cmd`**: double-click to open the fake test game and the app together.
+- Testbed: gold pickups (`earn`) now run fixed-byte code too (marker 4).
+
+### Changed
+- All code writes go through `AttachedProcess::apply_code` / `revert_code`, which check the bytes
+  first, refuse a change that overlaps another one, and record it. Raw code writes are no longer
+  public. Detaching restores every recorded change, even one the trainer never turned off.
+- The Trainer tab shows each patch as on or off from the bytes really in the game, refreshed on every
+  poll.
+- Code caves (`"kind": "cave"`) are not part of this version; the plan moves them to a later one.
+  Packs that use them still get a clear message.
+
 ## [0.4.0] - 2026-11-06
 
 ### Added

@@ -237,7 +237,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.2.0 | Core memory | Process list, attach/detach, read/write typed values, module map, anti-cheat guard + tests |
 | 0.3.0 | Scanner | Exact/unknown/changed scans (multithreaded), address list, freeze loop, manual-tools UI |
 | 0.4.0 | Packs | Pack schema + validator, value/patch ops, hotkeys, trainer UI, example packs vs testbed |
-| 0.5.0 | Stability | Pointer scanner, AOB maker, code caves, original-byte verification, restore-on-exit |
+| 0.5.0 | Stability | Pointer scanner, AOB maker, original-byte verification, restore-on-exit (crash-safe journal). Code caves moved to a later version |
 | 0.6.0 | Saves I | Locator, snapshots on launch/exit, restore, diff, Steam Cloud warnings |
 | 0.7.0 | Saves II | Codecs (JSON/zlib/GVAS/PlayerPrefs/SQLite), structured editor, hex fallback, checksum fixers, quick codes |
 | 0.8.0 | AI I | ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on testbed |
