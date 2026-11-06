@@ -2,7 +2,9 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod commands;
+mod hotkeys;
 
+use tauri::{Emitter, Manager, RunEvent};
 use tracing_subscriber::EnvFilter;
 
 fn main() {
@@ -10,8 +12,20 @@ fn main() {
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .manage(commands::AppState::default())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let service = hotkeys::HotkeyService::start(Box::new(move |generation, cheat| {
+                handle
+                    .state::<commands::AppState>()
+                    .on_hotkey(generation, cheat);
+                // Tell the UI to refresh right away instead of on its next poll.
+                let _ = handle.emit("trainer-changed", cheat);
+            }))?;
+            let _ = app.state::<commands::AppState>().hotkeys.set(service);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::app_info,
             commands::list_processes,
@@ -34,7 +48,24 @@ fn main() {
             commands::address_rename,
             commands::address_set_frozen,
             commands::address_write,
+            commands::packs_list,
+            commands::packs_folder,
+            commands::open_packs_folder,
+            commands::trainer_load,
+            commands::trainer_state,
+            commands::trainer_unload,
+            commands::trainer_toggle,
+            commands::trainer_set,
+            commands::trainer_release,
+            commands::trainer_press,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running OpenTrainer");
+        .build(tauri::generate_context!())
+        .expect("error while building OpenTrainer");
+
+    app.run(|app, event| {
+        if let RunEvent::Exit = event {
+            // Restore patches and stop freezes before the process ends.
+            app.state::<commands::AppState>().shutdown();
+        }
+    });
 }

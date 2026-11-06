@@ -1,16 +1,22 @@
 //! Tauri commands exposed to the web UI. Keep these thin: real work lives in
 //! the `ot-*` crates, which also enforce the anti-cheat guard.
 
+use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use ot_core::freeze::DEFAULT_FREEZE_INTERVAL;
 use ot_core::{
     AttachedProcess, FirstScan, Freezer, Module, NextScan, ProcessInfo, Scan, ScanControl,
     ScanOptions, Value, ValueType, Verdict,
 };
+use ot_packs::schema::PackArch;
+use ot_packs::{BuildMatch, CheatState, Issue, LoadError, Pack, Trainer, store};
 use serde::{Deserialize, Serialize};
 use tauri::State;
+use tracing::warn;
+
+use crate::hotkeys::{HotkeyService, Registration};
 
 /// App-wide state: at most one attached process.
 #[derive(Debug, Default)]
@@ -18,6 +24,8 @@ pub struct AppState {
     live: Mutex<Option<Live>>,
     scan_control: Arc<ScanControl>,
     scanning: AtomicBool,
+    /// Set once at startup; absent in unit tests (packs load without hotkeys).
+    pub hotkeys: OnceLock<HotkeyService>,
 }
 
 /// Everything tied to the attached process. Dropping it stops the freezer
@@ -29,6 +37,18 @@ struct Live {
     scan: Option<Scan>,
     list: Vec<ListEntry>,
     next_id: u64,
+    trainer: Option<LoadedTrainer>,
+}
+
+/// A pack applied to the attached game. Dropping it unregisters its hotkeys
+/// and restores every patch.
+#[derive(Debug)]
+struct LoadedTrainer {
+    key: String,
+    warnings: Vec<Issue>,
+    hotkey_errors: BTreeMap<String, String>,
+    hotkeys: Option<Registration>,
+    trainer: Trainer,
 }
 
 impl Live {
@@ -41,6 +61,7 @@ impl Live {
             scan: None,
             list: Vec::new(),
             next_id: 1,
+            trainer: None,
         }
     }
 }
@@ -55,6 +76,12 @@ struct ListEntry {
 }
 
 impl AppState {
+    /// Detaches (restoring patches, stopping freezes). Called on app exit.
+    pub fn shutdown(&self) {
+        self.scan_control.cancel();
+        self.live().take();
+    }
+
     fn live(&self) -> MutexGuard<'_, Option<Live>> {
         self.live.lock().unwrap_or_else(|e| e.into_inner())
     }
@@ -91,6 +118,15 @@ impl CommandError {
 
     fn is_fatal(&self) -> bool {
         matches!(self.kind, "blocked" | "processExited")
+    }
+}
+
+impl From<ot_packs::trainer::Error> for CommandError {
+    fn from(e: ot_packs::trainer::Error) -> Self {
+        match e {
+            ot_packs::trainer::Error::Core(core) => core.into(),
+            other => Self::new(other.kind(), other.to_string()),
+        }
     }
 }
 
@@ -626,6 +662,243 @@ pub async fn address_write(
     })
 }
 
+// ----- packs + trainer --------------------------------------------------------
+
+/// A pack the app can see, valid or not.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackSummary {
+    /// Pass to `trainer_load`.
+    pub key: String,
+    pub source: store::Source,
+    pub path: Option<String>,
+    pub id: Option<String>,
+    pub name: Option<String>,
+    pub exe: Option<String>,
+    pub arch: Option<PackArch>,
+    pub author: Option<String>,
+    pub ai: bool,
+    pub pack_version: Option<String>,
+    pub cheats: usize,
+    /// Why it can't be loaded, if it can't.
+    pub error: Option<String>,
+    pub issues: Vec<Issue>,
+}
+
+fn summarize(found: store::Found) -> PackSummary {
+    let mut s = PackSummary {
+        key: found.key,
+        source: found.source,
+        path: found.path.map(|p| p.display().to_string()),
+        id: None,
+        name: None,
+        exe: None,
+        arch: None,
+        author: None,
+        ai: false,
+        pack_version: None,
+        cheats: 0,
+        error: None,
+        issues: Vec::new(),
+    };
+    let text = match found.text {
+        Ok(text) => text,
+        Err(e) => {
+            s.error = Some(e);
+            return s;
+        }
+    };
+    match ot_packs::parse(&text) {
+        Ok((pack, warnings)) => {
+            s.id = Some(pack.game.id);
+            s.name = Some(pack.game.name);
+            s.exe = Some(pack.game.exe);
+            s.arch = pack.game.arch;
+            s.ai = pack.meta.is_ai();
+            s.author = Some(pack.meta.author);
+            s.pack_version = Some(pack.meta.pack_version);
+            s.cheats = pack.cheats.len();
+            s.issues = warnings;
+        }
+        Err(e) => {
+            s.error = Some(e.to_string());
+            if let LoadError::Invalid(issues) = e {
+                s.issues = issues;
+            }
+        }
+    }
+    s
+}
+
+/// Every pack: the built-in examples, then the user's pack folder.
+#[tauri::command]
+pub async fn packs_list() -> Vec<PackSummary> {
+    store::all().into_iter().map(summarize).collect()
+}
+
+/// The user's pack folder (created if missing).
+#[tauri::command]
+pub async fn packs_folder() -> CmdResult<String> {
+    let dir =
+        store::user_dir().ok_or_else(|| CommandError::new("noAppData", "%APPDATA% is not set"))?;
+    std::fs::create_dir_all(&dir)
+        .map_err(|e| CommandError::new("io", format!("{}: {e}", dir.display())))?;
+    Ok(dir.display().to_string())
+}
+
+#[tauri::command]
+pub async fn open_packs_folder() -> CmdResult<()> {
+    let dir = packs_folder().await?;
+    std::process::Command::new("explorer.exe")
+        .arg(&dir)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("could not open {dir}: {e}")))?;
+    Ok(())
+}
+
+/// Everything the trainer UI shows.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TrainerView {
+    pub key: String,
+    pub pack: Pack,
+    pub build: BuildMatch,
+    pub exe_sha256: Option<String>,
+    pub warnings: Vec<Issue>,
+    pub cheats: Vec<CheatState>,
+    /// Cheat id → why its hotkey could not be registered.
+    pub hotkey_errors: BTreeMap<String, String>,
+}
+
+fn trainer_view(t: &mut LoadedTrainer) -> CmdResult<TrainerView> {
+    t.trainer.refresh()?;
+    let cheats = t.trainer.states()?;
+    Ok(TrainerView {
+        key: t.key.clone(),
+        pack: t.trainer.pack().clone(),
+        build: t.trainer.build().clone(),
+        exe_sha256: t.trainer.exe_sha256().map(str::to_owned),
+        warnings: t.warnings.clone(),
+        cheats,
+        hotkey_errors: t.hotkey_errors.clone(),
+    })
+}
+
+fn no_trainer() -> CommandError {
+    CommandError::new("noTrainer", "no pack is loaded")
+}
+
+/// Runs `f` on the loaded trainer and returns the fresh view. A cheat-level
+/// error is returned as the error (the cheat also shows it on its row).
+fn with_trainer(
+    state: &AppState,
+    f: impl FnOnce(&mut Trainer) -> Result<(), ot_packs::trainer::Error>,
+) -> CmdResult<TrainerView> {
+    with_live(state, |l| {
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        f(&mut t.trainer)?;
+        trainer_view(t)
+    })
+}
+
+#[tauri::command]
+pub async fn trainer_load(key: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    let found = store::all()
+        .into_iter()
+        .find(|f| f.key == key)
+        .ok_or_else(|| CommandError::new("notFound", format!("no pack '{key}'")))?;
+    let text = found.text.map_err(|e| CommandError::new("io", e))?;
+    let (pack, warnings) =
+        ot_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
+    with_live(&state, |l| {
+        // Unload the old pack first so its patches are restored.
+        l.trainer = None;
+        let trainer = Trainer::load(Arc::clone(&l.process), pack)?;
+        let (hotkeys, hotkey_errors) = match state.hotkeys.get() {
+            Some(service) => {
+                let (reg, results) = service.register(trainer.hotkeys());
+                let errors = results
+                    .into_iter()
+                    .filter_map(|(id, e)| e.map(|e| (id, e)))
+                    .collect();
+                (Some(reg), errors)
+            }
+            None => (None, BTreeMap::new()),
+        };
+        let loaded = l.trainer.insert(LoadedTrainer {
+            key: key.clone(),
+            warnings,
+            hotkey_errors,
+            hotkeys,
+            trainer,
+        });
+        trainer_view(loaded)
+    })
+}
+
+#[tauri::command]
+pub async fn trainer_state(state: State<'_, AppState>) -> CmdResult<Option<TrainerView>> {
+    with_live(&state, |l| match l.trainer.as_mut() {
+        Some(t) => trainer_view(t).map(Some),
+        None => Ok(None),
+    })
+}
+
+#[tauri::command]
+pub async fn trainer_unload(state: State<'_, AppState>) -> CmdResult<()> {
+    with_live(&state, |l| {
+        l.trainer = None;
+        Ok(())
+    })
+}
+
+#[tauri::command]
+pub async fn trainer_toggle(
+    id: String,
+    on: bool,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_trainer(&state, |t| t.set_active(&id, on))
+}
+
+#[tauri::command]
+pub async fn trainer_set(
+    id: String,
+    value: String,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_trainer(&state, |t| t.set_value(&id, &value))
+}
+
+#[tauri::command]
+pub async fn trainer_release(id: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    with_trainer(&state, |t| t.release(&id))
+}
+
+#[tauri::command]
+pub async fn trainer_press(id: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    with_trainer(&state, |t| t.press(&id))
+}
+
+impl AppState {
+    /// A registered hotkey was pressed. Ignored unless `generation` is the
+    /// loaded trainer's registration.
+    pub fn on_hotkey(&self, generation: u64, cheat: &str) {
+        let result = with_live(self, |l| {
+            let Some(t) = l.trainer.as_mut() else {
+                return Ok(());
+            };
+            if t.hotkeys.as_ref().map(Registration::id) != Some(generation) {
+                return Ok(());
+            }
+            t.trainer.hotkey(cheat).map_err(CommandError::from)
+        });
+        if let Err(e) = result {
+            warn!(%cheat, "hotkey action failed: {}", e.message);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -671,6 +944,52 @@ mod tests {
             serde_json::from_str(r#"{"writableOnly":true,"aligned":false,"floatTolerance":null}"#)
                 .unwrap();
         assert!(!o.aligned);
+    }
+
+    #[test]
+    fn bundled_packs_summarize_as_valid() {
+        let list: Vec<_> = store::bundled().into_iter().map(summarize).collect();
+        assert!(list.len() >= 2);
+        for p in &list {
+            assert!(p.error.is_none(), "{}: {:?}", p.key, p.error);
+            assert_eq!(p.exe.as_deref(), Some("testbed_native.exe"));
+            assert!(p.cheats > 0);
+        }
+        let json = serde_json::to_value(&list[0]).unwrap();
+        assert_eq!(json["source"], "bundled");
+        assert!(json.get("packVersion").is_some());
+    }
+
+    #[test]
+    fn broken_pack_summarizes_with_error() {
+        let s = summarize(store::Found {
+            source: store::Source::User,
+            key: "x".into(),
+            path: None,
+            text: Ok(r#"{"schema": 2}"#.into()),
+        });
+        assert!(s.error.unwrap().contains("schema 2"));
+        assert_eq!(s.issues.len(), 1);
+    }
+
+    #[test]
+    fn trainer_errors_keep_core_kinds() {
+        let e = CommandError::from(ot_packs::trainer::Error::Core(
+            ot_core::Error::ProcessExited { pid: 3 },
+        ));
+        assert!(e.is_fatal());
+        let e = CommandError::from(ot_packs::trainer::Error::UnknownCheat("x".into()));
+        assert_eq!(e.kind, "unknownCheat");
+    }
+
+    #[test]
+    fn trainer_commands_need_a_session() {
+        let state = AppState::default();
+        assert_eq!(
+            with_trainer(&state, |_| Ok(())).unwrap_err().kind,
+            "notAttached"
+        );
+        state.on_hotkey(1, "x"); // no session: ignored, no panic
     }
 
     #[test]

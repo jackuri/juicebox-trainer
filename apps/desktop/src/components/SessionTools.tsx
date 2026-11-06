@@ -13,8 +13,9 @@ import { AddressList } from "./AddressList";
 import { MemoryPanel } from "./MemoryPanel";
 import { ModuleTable } from "./ModuleTable";
 import { ScannerPanel } from "./ScannerPanel";
+import { TrainerPanel } from "./TrainerPanel";
 
-const TABS = ["Scanner", "Read / write", "Modules"] as const;
+const TABS = ["Trainer", "Scanner", "Read / write", "Modules"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -23,9 +24,9 @@ interface Props {
   onRefreshModules: () => void;
 }
 
-/** Manual tools shown while attached: scanner, read/write, modules, address list. */
+/** Tools shown while attached: trainer (packs), scanner, read/write, modules, address list. */
 export function SessionTools({ session, onSessionLost, onRefreshModules }: Props) {
-  const [tab, setTab] = useState<Tab>("Scanner");
+  const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
 
   async function addToList(address: number, ty: ValueType) {
@@ -59,6 +60,9 @@ export function SessionTools({ session, onSessionLost, onRefreshModules }: Props
       </div>
 
       {/* Panels stay mounted so a scan or typed value survives switching tabs. */}
+      <div hidden={tab !== "Trainer"}>
+        <TrainerPanel session={session} onSessionLost={onSessionLost} />
+      </div>
       <div hidden={tab !== "Scanner"}>
         <ScannerPanel onAddToList={(a, t) => void addToList(a, t)} onSessionLost={onSessionLost} />
       </div>

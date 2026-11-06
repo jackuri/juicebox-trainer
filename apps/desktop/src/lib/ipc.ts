@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 // Types mirror the Rust structs in ot-core and src-tauri/src/commands.rs.
 
@@ -129,6 +130,117 @@ export interface ListEntry {
   frozen: boolean;
 }
 
+// ----- packs + trainer (mirror ot-packs and commands.rs) -----
+
+export type PackArch = "x86" | "x64";
+export type Ui = "toggle" | "slider" | "number" | "button";
+
+export interface Issue {
+  severity: "error" | "warning";
+  path: string;
+  message: string;
+}
+
+export interface PackSummary {
+  key: string;
+  source: "bundled" | "user";
+  path: string | null;
+  id: string | null;
+  name: string | null;
+  exe: string | null;
+  arch: PackArch | null;
+  author: string | null;
+  ai: boolean;
+  packVersion: string | null;
+  cheats: number;
+  error: string | null;
+  issues: Issue[];
+}
+
+export interface Cheat {
+  id: string;
+  name: string;
+  category?: string;
+  description?: string;
+  ui: Ui;
+  hotkey?: string;
+  toggle?: { value?: number };
+  slider?: { min: number; max: number; step: number; default?: number; hold?: boolean };
+  number?: { min?: number; max?: number; hold?: boolean };
+  button?: { add?: number; set?: number };
+  impl: { kind: "value" | "patch" } & Record<string, unknown>;
+}
+
+export interface Pack {
+  schema: number;
+  game: {
+    id: string;
+    name: string;
+    engine?: string;
+    exe: string;
+    arch?: PackArch;
+    builds: { sha256: string; label?: string; verified?: boolean }[];
+  };
+  meta: { author: string; created?: string; packVersion: string; notes?: string };
+  cheats: Cheat[];
+}
+
+export type BuildMatch =
+  | { status: "verified" | "listed"; label: string | null }
+  | { status: "unknown" | "untagged" | "unreadable" };
+
+export interface CheatState {
+  id: string;
+  status: "ready" | "active" | "failed";
+  active: boolean;
+  message: string | null;
+  value: string | null;
+  address: number | null;
+  hotkey: string | null;
+  touches: string[];
+}
+
+export interface TrainerView {
+  key: string;
+  pack: Pack;
+  build: BuildMatch;
+  exeSha256: string | null;
+  warnings: Issue[];
+  cheats: CheatState[];
+  hotkeyErrors: Record<string, string>;
+}
+
+/** Packs for this process: same exe name, and same arch when the pack says. */
+export function packsFor(packs: PackSummary[], p: ProcessInfo): PackSummary[] {
+  return packs.filter(
+    (k) =>
+      k.exe !== null &&
+      k.exe.toLowerCase() === p.name.toLowerCase() &&
+      (k.arch === null || k.arch === p.arch),
+  );
+}
+
+/**
+ * Calls `cb` when a hotkey changed the trainer. Returns an unsubscribe
+ * function. Outside Tauri (tests) this is a no-op.
+ */
+export function onTrainerChanged(cb: () => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen("trainer-changed", () => cb()).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri.
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
 /** Errors that mean the session is gone (the backend already dropped it). */
 export function isSessionLost(e: CommandError): boolean {
   return e.kind === "blocked" || e.kind === "processExited" || e.kind === "notAttached";
@@ -187,6 +299,17 @@ export const api = {
     invoke<ListEntry>("address_set_frozen", { id, frozen }),
   addressWrite: (id: number, value: string) =>
     invoke<ListEntry>("address_write", { id, value }),
+
+  packsList: () => invoke<PackSummary[]>("packs_list"),
+  packsFolder: () => invoke<string>("packs_folder"),
+  openPacksFolder: () => invoke<void>("open_packs_folder"),
+  trainerLoad: (key: string) => invoke<TrainerView>("trainer_load", { key }),
+  trainerState: () => invoke<TrainerView | null>("trainer_state"),
+  trainerUnload: () => invoke<void>("trainer_unload"),
+  trainerToggle: (id: string, on: boolean) => invoke<TrainerView>("trainer_toggle", { id, on }),
+  trainerSet: (id: string, value: string) => invoke<TrainerView>("trainer_set", { id, value }),
+  trainerRelease: (id: string) => invoke<TrainerView>("trainer_release", { id }),
+  trainerPress: (id: string) => invoke<TrainerView>("trainer_press", { id }),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

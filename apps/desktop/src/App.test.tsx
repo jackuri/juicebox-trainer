@@ -46,6 +46,9 @@ const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, args?: Record<string, unknown>) => invoke(cmd, args),
 }));
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: () => Promise.resolve(() => undefined),
+}));
 
 beforeEach(() => {
   invoke.mockReset();
@@ -100,7 +103,8 @@ describe("App", () => {
     fireEvent.click(attach);
 
     expect(await screen.findByText(/Attached to testbed_native\.exe/)).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Scanner" })).toHaveAttribute("aria-selected", "true");
+    // The trainer opens first; with no matching pack it says where packs go.
+    expect(screen.getByRole("tab", { name: "Trainer" })).toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Modules" }));
     const modules = screen.getByRole("region", { name: "Modules" });
     expect(within(modules).getByText("0x7FF6A0000000")).toBeInTheDocument();
