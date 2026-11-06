@@ -22,7 +22,18 @@ fn main() {
             commands::refresh_modules,
             commands::read_value,
             commands::write_value,
-            commands::read_bytes,
+            commands::scan_first,
+            commands::scan_next,
+            commands::scan_cancel,
+            commands::scan_progress,
+            commands::scan_reset,
+            commands::scan_results,
+            commands::address_list,
+            commands::address_add,
+            commands::address_remove,
+            commands::address_rename,
+            commands::address_set_frozen,
+            commands::address_write,
         ])
         .run(tauri::generate_context!())
         .expect("error while running OpenTrainer");
