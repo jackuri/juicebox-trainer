@@ -44,6 +44,26 @@ cargo run -p testbed-native --target i686-pc-windows-msvc            # x86 (WOW6
 cargo run -p testbed-native --features shifted                       # different offsets
 ```
 
+## Try attaching to the testbed
+
+1. In one terminal, start the fake game. It prints its PID and the addresses of its values:
+
+   ```powershell
+   cargo run -p testbed-native
+   ```
+
+   Type `hit 10`, `fire`, `earn 100` or `state` to change and show its values.
+2. In a second terminal, run `npm run dev` to open OpenTrainer.
+3. Pick `testbed_native.exe` (search for it or its PID). The guard should say "No anti-cheat found".
+   Click **Attach**.
+4. Paste the `gold` address from the testbed's `"addr"` line into **Address**, keep type `i32`, and
+   click **Read** (250). Type `9999`, click **Write**, then type `state` in the testbed terminal.
+5. Pointer chain: read `ptr` at the `chain.root` value (e.g. `testbed_native.exe+0x3A200`), add the
+   offsets from `chain.offsets` and you'll land on the same stats block.
+
+To see the guard refuse, copy `target\debug\testbed_native.exe` into a new folder that also contains
+an empty `BattlEye` folder, run the copy, and pick it in OpenTrainer.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).

@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.2.0] - 2026-11-06
+
+### Added
+- `ot-core` process list with image path and architecture (WOW64-aware via `IsWow64Process2`).
+- `AttachedProcess`: guarded attach/detach, typed read/write (`i8`…`u64`, `f32`, `f64`, pointer-sized
+  `ptr`), raw byte read/write, pointer reads, committed-region map (`VirtualQueryEx`), liveness check.
+  Every write is logged with `tracing`.
+- Module map via ToolHelp; 64-bit WOW64 layer modules are filtered out for x86 targets.
+- Address expressions: `0x1234ABCD`, bare hex, `module.exe+0x1F0`.
+- **Anti-cheat guard** (`ot_core::guard`) with no off switch: blocks on known anti-cheat processes,
+  services, kernel drivers, modules in the target, install-folder markers (exe folder plus 3 parents),
+  the built-in online-only list, or any check that fails to run. The signature list is compiled in.
+  Attached sessions re-run the guard every 5 s and stay blocked once it trips.
+- Desktop UI: process picker (search, hide Windows processes), guard verdict, attach/detach, read/write
+  panel with activity log, module table.
+- Tests: 34 `ot-core` unit tests (guard decisions, signature list shape, a source scan that fails if the
+  guard gains an env var or feature switch), 11 integration tests against live x64 and x86 testbeds
+  (read/write confirmed through the testbed's side channel, pointer chain, fake anti-cheat process,
+  BattlEye/EAC folder markers, online-only exe name, anti-cheat appearing after attach), 8 frontend tests.
+
 ## [0.1.0] - 2026-11-06
 
 ### Added
