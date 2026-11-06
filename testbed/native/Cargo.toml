@@ -1,0 +1,23 @@
+[package]
+name = "testbed-native"
+description = "Fake native 'game' used by OpenTrainer tests. Not a real game."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "testbed_native"
+path = "src/main.rs"
+
+[features]
+# Shifts struct layouts so offsets/pointer chains change between builds
+# (used later to test AOB self-healing, PLAN.md §7).
+shifted = []
+
+[dependencies]
+
+[lints]
+workspace = true

@@ -1,0 +1,303 @@
+//! `testbed_native` — a tiny fake "game" that OpenTrainer attaches to in tests.
+//!
+//! It keeps player stats on the heap behind a pointer chain:
+//!
+//! ```text
+//! testbed_native.exe+ROOT  ->  World  ->  Player  ->  Stats { health, max_health, ammo, gold, speed }
+//! ```
+//!
+//! Commands are read line by line from stdin. With `--json` every reply is a
+//! single JSON line, which is the side channel integration tests use to check
+//! values after OpenTrainer writes them. Build with `--features shifted` to get
+//! a layout with different offsets.
+
+use std::io::{self, BufRead, Write};
+use std::mem::offset_of;
+use std::ptr::{self, addr_of, addr_of_mut};
+use std::sync::atomic::{AtomicPtr, Ordering};
+
+const MAGIC: [u8; 8] = *b"OTTESTBD";
+const MAX_AMMO: i32 = 30;
+
+#[repr(C)]
+struct Stats {
+    #[cfg(feature = "shifted")]
+    _pad0: [u8; 24],
+    health: i32,
+    max_health: i32,
+    ammo: i32,
+    #[cfg(feature = "shifted")]
+    _pad1: [u8; 8],
+    gold: i32,
+    speed: f32,
+}
+
+#[repr(C)]
+struct Player {
+    name: [u8; 16],
+    #[cfg(feature = "shifted")]
+    _pad: [u8; 16],
+    stats: *mut Stats,
+}
+
+#[repr(C)]
+struct World {
+    magic: [u8; 8],
+    tick: u64,
+    player: *mut Player,
+}
+
+/// Static root of the pointer chain. Lives in the exe image, so its address is
+/// `module base + fixed offset`.
+static WORLD: AtomicPtr<World> = AtomicPtr::new(ptr::null_mut());
+
+unsafe extern "C" {
+    /// Provided by the MSVC linker: the base address of this image.
+    static __ImageBase: u8;
+}
+
+fn image_base() -> usize {
+    // Taking the address of an extern static is safe; we never read through it.
+    addr_of!(__ImageBase) as usize
+}
+
+fn new_world() -> *mut World {
+    let stats = Box::into_raw(Box::new(Stats {
+        #[cfg(feature = "shifted")]
+        _pad0: [0; 24],
+        health: 100,
+        max_health: 100,
+        ammo: MAX_AMMO,
+        #[cfg(feature = "shifted")]
+        _pad1: [0; 8],
+        gold: 250,
+        speed: 1.0,
+    }));
+    let mut name = [0u8; 16];
+    name[..6].copy_from_slice(b"Tester");
+    let player = Box::into_raw(Box::new(Player {
+        name,
+        #[cfg(feature = "shifted")]
+        _pad: [0; 16],
+        stats,
+    }));
+    Box::into_raw(Box::new(World {
+        magic: MAGIC,
+        tick: 0,
+        player,
+    }))
+}
+
+// All game-state access goes through volatile reads/writes because another
+// process (OpenTrainer) changes these values behind the compiler's back.
+
+fn world() -> *mut World {
+    WORLD.load(Ordering::Acquire)
+}
+
+fn stats() -> *mut Stats {
+    // SAFETY: WORLD is set once in main before any command runs and never freed.
+    unsafe { ptr::read_volatile(addr_of!((*(*world()).player).stats)) }
+}
+
+macro_rules! get {
+    ($field:ident) => {
+        // SAFETY: stats() points at a leaked, live Stats allocation.
+        unsafe { ptr::read_volatile(addr_of!((*stats()).$field)) }
+    };
+}
+
+macro_rules! set {
+    ($field:ident, $value:expr) => {{
+        let v = $value;
+        // SAFETY: stats() points at a leaked, live Stats allocation.
+        unsafe { ptr::write_volatile(addr_of_mut!((*stats()).$field), v) }
+    }};
+}
+
+#[inline(never)]
+fn take_damage(amount: i32) {
+    let hp = get!(health);
+    set!(health, hp.saturating_sub(amount).max(0));
+}
+
+#[inline(never)]
+fn fire(shots: i32) -> i32 {
+    let ammo = get!(ammo);
+    let fired = shots.clamp(0, ammo.max(0));
+    set!(ammo, ammo - fired);
+    fired
+}
+
+#[inline(never)]
+fn earn(amount: i32) {
+    set!(gold, get!(gold).saturating_add(amount));
+}
+
+fn bump_tick() -> u64 {
+    // SAFETY: world() is live for the whole program.
+    unsafe {
+        let p = addr_of_mut!((*world()).tick);
+        let t = ptr::read_volatile(p) + 1;
+        ptr::write_volatile(p, t);
+        t
+    }
+}
+
+fn module_name() -> String {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .unwrap_or_else(|| "testbed_native.exe".into())
+}
+
+fn state_json(event: &str, message: &str) -> String {
+    let base = image_base();
+    let s = stats();
+    let w = world();
+    // SAFETY: only addresses are taken; no memory is read here except `tick`.
+    let (health_at, ammo_at, gold_at, speed_at, tick) = unsafe {
+        (
+            addr_of!((*s).health) as usize,
+            addr_of!((*s).ammo) as usize,
+            addr_of!((*s).gold) as usize,
+            addr_of!((*s).speed) as usize,
+            ptr::read_volatile(addr_of!((*w).tick)),
+        )
+    };
+    let root_offset = addr_of!(WORLD) as usize - base;
+    format!(
+        concat!(
+            "{{\"event\":\"{event}\",\"message\":\"{message}\",",
+            "\"pid\":{pid},\"arch\":\"{arch}\",\"shifted\":{shifted},\"module\":\"{module}\",",
+            "\"tick\":{tick},\"health\":{health},\"max_health\":{max_health},\"ammo\":{ammo},",
+            "\"gold\":{gold},\"speed\":{speed},",
+            "\"addr\":{{\"module_base\":\"0x{base:X}\",\"health\":\"0x{health_at:X}\",",
+            "\"ammo\":\"0x{ammo_at:X}\",\"gold\":\"0x{gold_at:X}\",\"speed\":\"0x{speed_at:X}\"}},",
+            "\"chain\":{{\"root\":\"{module}+0x{root_offset:X}\",\"offsets\":[",
+            "\"0x{o_player:X}\",\"0x{o_stats:X}\"],\"fields\":{{\"health\":\"0x{o_health:X}\",",
+            "\"ammo\":\"0x{o_ammo:X}\",\"gold\":\"0x{o_gold:X}\",\"speed\":\"0x{o_speed:X}\"}}}}}}"
+        ),
+        event = event,
+        message = message.replace('\\', "\\\\").replace('"', "\\\""),
+        pid = std::process::id(),
+        arch = if cfg!(target_pointer_width = "64") {
+            "x64"
+        } else {
+            "x86"
+        },
+        shifted = cfg!(feature = "shifted"),
+        module = module_name(),
+        tick = tick,
+        health = get!(health),
+        max_health = get!(max_health),
+        ammo = get!(ammo),
+        gold = get!(gold),
+        speed = get!(speed),
+        base = base,
+        health_at = health_at,
+        ammo_at = ammo_at,
+        gold_at = gold_at,
+        speed_at = speed_at,
+        root_offset = root_offset,
+        o_player = offset_of!(World, player),
+        o_stats = offset_of!(Player, stats),
+        o_health = offset_of!(Stats, health),
+        o_ammo = offset_of!(Stats, ammo),
+        o_gold = offset_of!(Stats, gold),
+        o_speed = offset_of!(Stats, speed),
+    )
+}
+
+fn human_state() -> String {
+    format!(
+        "  HP {}/{}   Ammo {}/{}   Gold {}   Speed {:.2}",
+        get!(health),
+        get!(max_health),
+        get!(ammo),
+        MAX_AMMO,
+        get!(gold),
+        get!(speed)
+    )
+}
+
+const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | tick | help | quit";
+
+/// Runs one command. Returns `None` to quit.
+fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
+    let msg = match cmd {
+        "" | "state" => "state".to_string(),
+        "hit" => {
+            take_damage(arg.unwrap_or(10));
+            format!("took {} damage", arg.unwrap_or(10))
+        }
+        "heal" => {
+            set!(health, get!(max_health));
+            "healed".into()
+        }
+        "fire" => format!("fired {}", fire(arg.unwrap_or(1))),
+        "reload" => {
+            set!(ammo, MAX_AMMO);
+            "reloaded".into()
+        }
+        "earn" => {
+            earn(arg.unwrap_or(100));
+            format!("earned {}", arg.unwrap_or(100))
+        }
+        "spend" => {
+            let want = arg.unwrap_or(50);
+            if get!(gold) >= want {
+                earn(-want);
+                format!("spent {want}")
+            } else {
+                "not enough gold".into()
+            }
+        }
+        "tick" => format!("tick {}", bump_tick()),
+        "help" => HELP.into(),
+        "quit" | "exit" => return None,
+        other => format!("unknown command '{other}'. {HELP}"),
+    };
+    Some(msg)
+}
+
+fn main() {
+    let json = std::env::args().any(|a| a == "--json");
+    WORLD.store(new_world(), Ordering::Release);
+
+    let stdout = io::stdout();
+    let mut out = stdout.lock();
+    if json {
+        let _ = writeln!(out, "{}", state_json("ready", "ready"));
+    } else {
+        let _ = writeln!(
+            out,
+            "OpenTrainer testbed ({}, pid {}) — a fake game for testing. {HELP}",
+            if cfg!(target_pointer_width = "64") {
+                "x64"
+            } else {
+                "x86"
+            },
+            std::process::id()
+        );
+        let _ = writeln!(out, "{}", state_json("ready", "ready"));
+        let _ = writeln!(out, "{}", human_state());
+        let _ = write!(out, "> ");
+    }
+    let _ = out.flush();
+
+    for line in io::stdin().lock().lines() {
+        let Ok(line) = line else { break };
+        // PowerShell pipes may prepend a UTF-8 BOM.
+        let mut parts = line.trim_start_matches('\u{feff}').split_whitespace();
+        let cmd = parts.next().unwrap_or("").to_ascii_lowercase();
+        let arg = parts.next().and_then(|a| a.parse::<i32>().ok());
+        let Some(msg) = run(&cmd, arg) else { break };
+        if json {
+            let _ = writeln!(out, "{}", state_json("state", &msg));
+        } else {
+            let _ = writeln!(out, "{msg}\n{}\n> ", human_state());
+        }
+        let _ = out.flush();
+    }
+}
