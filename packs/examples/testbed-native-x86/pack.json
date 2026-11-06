@@ -1,0 +1,148 @@
+{
+  "schema": 1,
+  "game": {
+    "id": "testbed-native-x86",
+    "name": "OpenTrainer Testbed (x86)",
+    "engine": "native",
+    "exe": "testbed_native.exe",
+    "arch": "x86",
+    "builds": []
+  },
+  "meta": {
+    "author": "OpenTrainer",
+    "created": "2026-11-06",
+    "packVersion": "1.0.0",
+    "notes": "Example pack for testbed/native (a fake game, never a real one). Patch cheats use the testbed's fixed asm sites and work on every build; value offsets match the default (not shifted) build."
+  },
+  "cheats": [
+    {
+      "id": "inf_health",
+      "name": "Infinite Health",
+      "category": "Player",
+      "ui": "toggle",
+      "hotkey": "F1",
+      "description": "Removes the health decrement (sub eax,edx) in the damage code.",
+      "impl": {
+        "kind": "patch",
+        "aob": "0F 1F 80 54 4F 54 01 8B 01 ?? ?? 89 01",
+        "offset": 9,
+        "original": "29 D0",
+        "replace": "90 90"
+      }
+    },
+    {
+      "id": "inf_ammo",
+      "name": "Infinite Ammo",
+      "category": "Weapons",
+      "ui": "toggle",
+      "hotkey": "F2",
+      "description": "Firing no longer uses ammo.",
+      "impl": {
+        "kind": "patch",
+        "aob": "0F 1F 80 54 4F 54 02 8B 01 ?? ?? 89 01",
+        "offset": 9,
+        "original": "29 D0",
+        "replace": "90 90"
+      }
+    },
+    {
+      "id": "super_health",
+      "name": "Health Lock at 999",
+      "category": "Player",
+      "ui": "toggle",
+      "hotkey": "F3",
+      "toggle": {
+        "value": 999
+      },
+      "impl": {
+        "kind": "value",
+        "type": "i32",
+        "address": {
+          "aob": "0F 1F 80 54 4F 54 03 8B 0D ?? ?? ?? ??",
+          "offset": 9,
+          "operand": "abs32",
+          "offsets": [
+            "0x10",
+            "0x10",
+            "0x0"
+          ]
+        }
+      }
+    },
+    {
+      "id": "add_gold",
+      "name": "+1000 Gold",
+      "category": "Inventory",
+      "ui": "button",
+      "hotkey": "F4",
+      "button": {
+        "add": 1000
+      },
+      "impl": {
+        "kind": "value",
+        "type": "i32",
+        "address": {
+          "aob": "0F 1F 80 54 4F 54 03 8B 0D ?? ?? ?? ??",
+          "offset": 9,
+          "operand": "abs32",
+          "offsets": [
+            "0x10",
+            "0x10",
+            "0xC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "set_gold",
+      "name": "Set Gold",
+      "category": "Inventory",
+      "ui": "number",
+      "number": {
+        "min": 0,
+        "max": 99999999
+      },
+      "impl": {
+        "kind": "value",
+        "type": "i32",
+        "address": {
+          "aob": "0F 1F 80 54 4F 54 03 8B 0D ?? ?? ?? ??",
+          "offset": 9,
+          "operand": "abs32",
+          "offsets": [
+            "0x10",
+            "0x10",
+            "0xC"
+          ]
+        }
+      }
+    },
+    {
+      "id": "speed",
+      "name": "Move Speed",
+      "category": "Player",
+      "ui": "slider",
+      "slider": {
+        "min": 0.5,
+        "max": 5,
+        "step": 0.1,
+        "default": 1,
+        "hold": true
+      },
+      "impl": {
+        "kind": "value",
+        "type": "f32",
+        "address": {
+          "aob": "0F 1F 80 54 4F 54 03 8B 0D ?? ?? ?? ??",
+          "offset": 9,
+          "operand": "abs32",
+          "offsets": [
+            "0x10",
+            "0x10",
+            "0x10"
+          ]
+        }
+      }
+    }
+  ]
+}

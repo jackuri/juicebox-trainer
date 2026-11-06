@@ -1,6 +1,6 @@
 [package]
 name = "ot-packs"
-description = "Cheat pack schema, loader and validator (roadmap v0.4.0)."
+description = "Cheat pack schema, validator, store and the trainer runtime (value and patch ops)."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -8,7 +8,19 @@ license.workspace = true
 authors.workspace = true
 publish.workspace = true
 
+[[bin]]
+name = "otpack"
+path = "src/bin/otpack.rs"
+
 [dependencies]
+ot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+testbed-harness.workspace = true
 
 [lints]
 workspace = true
