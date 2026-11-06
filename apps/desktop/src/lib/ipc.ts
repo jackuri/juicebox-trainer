@@ -210,6 +210,53 @@ export interface TrainerView {
   hotkeyErrors: Record<string, string>;
 }
 
+export interface PointerScanOptions {
+  maxDepth: number;
+  maxOffset: number;
+  maxResults: number;
+}
+
+export interface PointerPathView {
+  /** Cheat Engine notation, e.g. `[[game.exe+0x1A2B0]+0x10]+0x18`. */
+  expression: string;
+  module: string;
+  moduleOffset: number;
+  offsets: number[];
+  /** Where the path leads now, if attached and readable. */
+  address: number | null;
+}
+
+export interface PointerResults {
+  exe: string;
+  target: number;
+  rounds: number;
+  count: number;
+  paths: PointerPathView[];
+}
+
+export interface DecodedInstr {
+  offset: number;
+  len: number;
+  text: string;
+}
+
+export interface Signature {
+  pattern: string;
+  module: string;
+  moduleOffset: number;
+  len: number;
+  instructions: DecodedInstr[];
+}
+
+/** Code changes undone at startup after OpenTrainer closed unexpectedly. */
+export interface Recovery {
+  exe: string;
+  pid: number;
+  gameClosed: boolean;
+  restored: number;
+  problems: string[];
+}
+
 /** Packs for this process: same exe name, and same arch when the pack says. */
 export function packsFor(packs: PackSummary[], p: ProcessInfo): PackSummary[] {
   return packs.filter(
@@ -310,6 +357,14 @@ export const api = {
   trainerSet: (id: string, value: string) => invoke<TrainerView>("trainer_set", { id, value }),
   trainerRelease: (id: string) => invoke<TrainerView>("trainer_release", { id }),
   trainerPress: (id: string) => invoke<TrainerView>("trainer_press", { id }),
+
+  pointerScan: (target: string, options: PointerScanOptions) =>
+    invoke<PointerResults>("pointer_scan", { target, options }),
+  pointerFilter: (target: string) => invoke<PointerResults>("pointer_filter", { target }),
+  pointerResults: () => invoke<PointerResults | null>("pointer_results"),
+  pointerClear: () => invoke<void>("pointer_clear"),
+  signatureMake: (address: string) => invoke<Signature>("signature_make", { address }),
+  recoveryReport: () => invoke<Recovery[]>("recovery_report"),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

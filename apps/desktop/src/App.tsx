@@ -7,6 +7,7 @@ import {
   type AppInfo,
   type CommandError,
   type ProcessInfo,
+  type Recovery,
   type SessionInfo,
   toCommandError,
   type Verdict,
@@ -21,6 +22,7 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<CommandError | null>(null);
+  const [recovered, setRecovered] = useState<Recovery[]>([]);
 
   const refresh = useCallback(async () => {
     setLoadingList(true);
@@ -36,6 +38,7 @@ export default function App() {
   useEffect(() => {
     api.appInfo().then(setInfo, (e: unknown) => setError(toCommandError(e)));
     api.currentSession().then(setSession, () => undefined);
+    api.recoveryReport().then(setRecovered, () => undefined);
     api.listProcesses().then(setProcesses, (e: unknown) => setError(toCommandError(e)));
   }, []);
 
@@ -117,6 +120,27 @@ export default function App() {
         />
 
         <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
+          {recovered.length > 0 && (
+            <div className="flex items-start gap-3 rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
+              <div className="flex-1">
+                <p>OpenTrainer closed unexpectedly last time. It put the games' original code back:</p>
+                <ul className="mt-1 list-disc pl-5 text-xs">
+                  {recovered.map((r) => (
+                    <li key={`${r.pid}-${r.exe}`}>
+                      {r.exe} (PID {r.pid}): {r.restored} change{r.restored === 1 ? "" : "s"} undone
+                      {r.problems.length > 0 && ` — not undone: ${r.problems.join("; ")}`}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <button
+                className="rounded bg-amber-900/60 px-2 py-0.5 text-xs hover:bg-amber-800/60"
+                onClick={() => setRecovered([])}
+              >
+                OK
+              </button>
+            </div>
+          )}
           {error && !error.verdict && (
             <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
               {error.message}

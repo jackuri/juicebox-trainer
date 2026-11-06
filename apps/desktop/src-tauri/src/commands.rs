@@ -2,10 +2,14 @@
 //! the `ot-*` crates, which also enforce the anti-cheat guard.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
 use ot_core::freeze::DEFAULT_FREEZE_INTERVAL;
+use ot_core::journal::Recovery;
+use ot_core::pointer::{PointerPath, PointerScanOptions};
+use ot_core::signature::Signature;
 use ot_core::{
     AttachedProcess, FirstScan, Freezer, Module, NextScan, ProcessInfo, Scan, ScanControl,
     ScanOptions, Value, ValueType, Verdict,
@@ -26,6 +30,22 @@ pub struct AppState {
     scanning: AtomicBool,
     /// Set once at startup; absent in unit tests (packs load without hotkeys).
     pub hotkeys: OnceLock<HotkeyService>,
+    /// Crash-safe journal folder for code changes. Set at startup; absent in
+    /// unit tests.
+    pub journal_dir: OnceLock<PathBuf>,
+    /// What startup recovery undid, for the UI to report once.
+    pub recovered: Mutex<Vec<Recovery>>,
+    /// Pointer scan results. Kept across sessions: after restarting the game
+    /// they are checked against the value's new address.
+    pointers: Mutex<Option<PointerResults>>,
+}
+
+#[derive(Debug, Clone)]
+struct PointerResults {
+    exe: String,
+    target: u64,
+    rounds: u32,
+    paths: Vec<PointerPath>,
 }
 
 /// Everything tied to the attached process. Dropping it stops the freezer
@@ -52,7 +72,13 @@ struct LoadedTrainer {
 }
 
 impl Live {
-    fn new(process: AttachedProcess) -> Self {
+    fn new(process: AttachedProcess, journal_dir: Option<&PathBuf>) -> Self {
+        if let Some(dir) = journal_dir
+            && let Err(e) = process.enable_journal(dir)
+        {
+            // Still restored on detach and exit; only a crash isn't covered.
+            warn!("no crash-safe journal for this session: {e}");
+        }
         let process = Arc::new(process);
         let freezer = Freezer::start(Arc::clone(&process), DEFAULT_FREEZE_INTERVAL);
         Self {
@@ -73,6 +99,8 @@ struct ListEntry {
     address_expr: String,
     address: u64,
     ty: ValueType,
+    /// A pointer path, re-resolved every time the list is read.
+    pointer: bool,
 }
 
 impl AppState {
@@ -218,7 +246,7 @@ pub async fn attach(pid: u32, state: State<'_, AppState>) -> CmdResult<SessionIn
     state.live().take();
     let process = AttachedProcess::attach(pid)?;
     let info = session_info(&process);
-    *state.live() = Some(Live::new(process));
+    *state.live() = Some(Live::new(process, state.journal_dir.get()));
     Ok(info)
 }
 
@@ -575,10 +603,47 @@ fn find_entry(l: &Live, id: u64) -> CmdResult<ListEntry> {
         .ok_or_else(|| CommandError::new("notFound", format!("no address list entry {id}")))
 }
 
+/// Follows pointer-path entries to where they lead now. A frozen entry
+/// whose target moved is unfrozen (its old value may not fit the new place).
+fn follow_pointers(l: &mut Live) -> CmdResult<Vec<(u64, String)>> {
+    let mut notes = Vec::new();
+    for i in 0..l.list.len() {
+        if !l.list[i].pointer {
+            continue;
+        }
+        match l.process.resolve(&l.list[i].address_expr) {
+            Ok(a) if a != l.list[i].address => {
+                let id = l.list[i].id;
+                if l.freezer.is_frozen(id) {
+                    l.freezer.remove(id);
+                    notes.push((id, "the pointer moved, so the freeze was stopped".into()));
+                }
+                l.list[i].address = a;
+            }
+            Ok(_) => {}
+            Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+                return Err(e.into());
+            }
+            Err(e) => notes.push((l.list[i].id, e.to_string())),
+        }
+    }
+    Ok(notes)
+}
+
 #[tauri::command]
 pub async fn address_list(state: State<'_, AppState>) -> CmdResult<Vec<ListEntryView>> {
     with_live(&state, |l| {
-        l.list.iter().map(|e| entry_view(l, e)).collect()
+        let notes = follow_pointers(l)?;
+        l.list
+            .iter()
+            .map(|e| {
+                let mut v = entry_view(l, e)?;
+                if let Some((_, note)) = notes.iter().find(|(id, _)| *id == e.id) {
+                    v.error = Some(note.clone());
+                }
+                Ok(v)
+            })
+            .collect()
     })
 }
 
@@ -591,12 +656,14 @@ pub async fn address_add(
 ) -> CmdResult<ListEntryView> {
     with_live(&state, |l| {
         let resolved = l.process.resolve(&address)?;
+        let pointer = ot_core::address::parse(&address)?.is_pointer();
         let entry = ListEntry {
             id: l.next_id,
             label: label.trim().to_string(),
             address_expr: address.trim().to_string(),
             address: resolved,
             ty,
+            pointer,
         };
         l.next_id += 1;
         l.list.push(entry.clone());
@@ -660,6 +727,144 @@ pub async fn address_write(
         }
         entry_view(l, &entry)
     })
+}
+
+// ----- pointer scanner + signature maker ----------------------------------------
+
+/// One pointer path for the UI.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointerPathView {
+    /// Cheat Engine notation; also accepted by the address list.
+    pub expression: String,
+    pub module: String,
+    pub module_offset: u64,
+    pub offsets: Vec<u64>,
+    /// Where it leads now, if attached and readable.
+    pub address: Option<u64>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PointerResultsView {
+    /// The game the paths were found in.
+    pub exe: String,
+    /// Address the last scan or check used.
+    pub target: u64,
+    /// 1 after a scan, +1 per check after a restart.
+    pub rounds: u32,
+    pub count: usize,
+    pub paths: Vec<PointerPathView>,
+}
+
+fn pointer_view(r: &PointerResults, live: Option<&Live>, limit: usize) -> PointerResultsView {
+    let paths = r
+        .paths
+        .iter()
+        .take(limit.min(500))
+        .map(|p| PointerPathView {
+            expression: p.to_string(),
+            module: p.module.clone(),
+            module_offset: p.module_offset,
+            offsets: p.offsets.clone(),
+            address: live.and_then(|l| p.resolve(&l.process).ok()),
+        })
+        .collect();
+    PointerResultsView {
+        exe: r.exe.clone(),
+        target: r.target,
+        rounds: r.rounds,
+        count: r.paths.len(),
+        paths,
+    }
+}
+
+impl AppState {
+    fn pointers(&self) -> MutexGuard<'_, Option<PointerResults>> {
+        self.pointers.lock().unwrap_or_else(|e| e.into_inner())
+    }
+}
+
+/// Finds pointer paths from a module to `target` (an address expression).
+#[tauri::command]
+pub async fn pointer_scan(
+    target: String,
+    options: PointerScanOptions,
+    state: State<'_, AppState>,
+) -> CmdResult<PointerResultsView> {
+    let _slot = claim_scan(&state)?;
+    let (process, address) = with_live(&state, |l| {
+        let a = l.process.resolve(&target)?;
+        Ok((Arc::clone(&l.process), a))
+    })?;
+    // Runs without the state lock, like the value scanner.
+    let result = ot_core::pointer::scan(&process, address, options, &state.scan_control);
+    let paths = state.settle(result.map_err(CommandError::from))?;
+    let results = PointerResults {
+        exe: process.info().name.clone(),
+        target: address,
+        rounds: 1,
+        paths,
+    };
+    let live = state.live();
+    let view = pointer_view(&results, live.as_ref(), 200);
+    *state.pointers() = Some(results);
+    Ok(view)
+}
+
+/// Keeps the paths that lead to `target` now (use after restarting the game).
+#[tauri::command]
+pub async fn pointer_filter(
+    target: String,
+    state: State<'_, AppState>,
+) -> CmdResult<PointerResultsView> {
+    let previous = state
+        .pointers()
+        .clone()
+        .ok_or_else(|| CommandError::new("noScan", "run a pointer scan first"))?;
+    with_live(&state, |l| {
+        let address = l.process.resolve(&target)?;
+        let paths = ot_core::pointer::filter(&l.process, &previous.paths, address)?;
+        let results = PointerResults {
+            exe: previous.exe.clone(),
+            target: address,
+            rounds: previous.rounds + 1,
+            paths,
+        };
+        let view = pointer_view(&results, Some(l), 200);
+        *state.pointers() = Some(results);
+        Ok(view)
+    })
+}
+
+#[tauri::command]
+pub async fn pointer_results(state: State<'_, AppState>) -> CmdResult<Option<PointerResultsView>> {
+    let results = state.pointers().clone();
+    let live = state.live();
+    Ok(results.map(|r| pointer_view(&r, live.as_ref(), 200)))
+}
+
+#[tauri::command]
+pub async fn pointer_clear(state: State<'_, AppState>) -> CmdResult<()> {
+    *state.pointers() = None;
+    Ok(())
+}
+
+/// Makes a unique byte signature for the code at `address`.
+#[tauri::command]
+pub async fn signature_make(address: String, state: State<'_, AppState>) -> CmdResult<Signature> {
+    with_live(&state, |l| {
+        let a = l.process.resolve(&address)?;
+        Ok(ot_core::signature::make(&l.process, a)?)
+    })
+}
+
+// ----- crash recovery -------------------------------------------------------------
+
+/// Code changes that startup recovery undid (left by a crash). Reported once.
+#[tauri::command]
+pub fn recovery_report(state: State<'_, AppState>) -> Vec<Recovery> {
+    std::mem::take(&mut *state.recovered.lock().unwrap_or_else(|e| e.into_inner()))
 }
 
 // ----- packs + trainer --------------------------------------------------------
@@ -990,6 +1195,36 @@ mod tests {
             "notAttached"
         );
         state.on_hotkey(1, "x"); // no session: ignored, no panic
+    }
+
+    #[test]
+    fn pointer_results_render_for_the_ui() {
+        let r = PointerResults {
+            exe: "game.exe".into(),
+            target: 0x1234,
+            rounds: 2,
+            paths: vec![PointerPath {
+                module: "game.exe".into(),
+                module_offset: 0x10,
+                offsets: vec![0x18, 0x4],
+            }],
+        };
+        let v = pointer_view(&r, None, 200);
+        assert_eq!(v.count, 1);
+        assert_eq!(v.paths[0].expression, "[[game.exe+0x10]+0x18]+0x4");
+        assert_eq!(v.paths[0].address, None);
+        let json = serde_json::to_value(&v).unwrap();
+        assert_eq!(json["paths"][0]["moduleOffset"], 0x10);
+        let o: PointerScanOptions =
+            serde_json::from_str(r#"{"maxDepth":3,"maxOffset":4096,"maxResults":500}"#).unwrap();
+        assert_eq!(o.max_depth, 3);
+    }
+
+    #[test]
+    fn new_state_has_no_journal_or_results() {
+        let state = AppState::default();
+        assert!(state.journal_dir.get().is_none());
+        assert!(state.pointers().is_none());
     }
 
     #[test]

@@ -5,16 +5,56 @@ mod commands;
 mod hotkeys;
 
 use tauri::{Emitter, Manager, RunEvent};
+use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
+
+/// If OpenTrainer itself fails, put the games' original code back before it
+/// goes down. Uses the on-disk journal, so it doesn't depend on app state.
+fn install_crash_handler(dir: std::path::PathBuf) {
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |panic| {
+        default(panic);
+        for r in ot_core::journal::recover(&dir) {
+            if r.restored > 0 || !r.problems.is_empty() {
+                eprintln!(
+                    "OpenTrainer: restored {} code change(s) in {} (pid {}) after an error",
+                    r.restored, r.exe, r.pid
+                );
+            }
+        }
+    }));
+}
 
 fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
+    let journal_dir = ot_core::journal::default_dir();
+    if let Some(dir) = &journal_dir {
+        install_crash_handler(dir.clone());
+    }
+
     let app = tauri::Builder::default()
         .manage(commands::AppState::default())
-        .setup(|app| {
+        .setup(move |app| {
+            if let Some(dir) = journal_dir.clone() {
+                // Undo code changes a crashed or killed earlier run left behind.
+                let undone: Vec<_> = ot_core::journal::recover(&dir)
+                    .into_iter()
+                    .filter(|r| r.restored > 0 || !r.problems.is_empty())
+                    .collect();
+                for r in &undone {
+                    if r.problems.is_empty() {
+                        info!(exe = %r.exe, restored = r.restored, "recovered after a crash");
+                    } else {
+                        warn!(exe = %r.exe, problems = ?r.problems, "recovery incomplete");
+                    }
+                }
+                let state = app.state::<commands::AppState>();
+                *state.recovered.lock().unwrap_or_else(|e| e.into_inner()) = undone;
+                let _ = state.journal_dir.set(dir);
+            }
             let handle = app.handle().clone();
             let service = hotkeys::HotkeyService::start(Box::new(move |generation, cheat| {
                 handle
@@ -58,6 +98,12 @@ fn main() {
             commands::trainer_set,
             commands::trainer_release,
             commands::trainer_press,
+            commands::pointer_scan,
+            commands::pointer_filter,
+            commands::pointer_results,
+            commands::pointer_clear,
+            commands::signature_make,
+            commands::recovery_report,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");

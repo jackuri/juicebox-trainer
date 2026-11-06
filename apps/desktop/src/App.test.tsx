@@ -68,6 +68,10 @@ beforeEach(() => {
         return Promise.resolve({ address: 0x1f0a10, value: "250", bytes: "FA 00 00 00" });
       case "address_list":
         return Promise.resolve([]);
+      case "recovery_report":
+        return Promise.resolve([]);
+      case "pointer_results":
+        return Promise.resolve(null);
       case "write_value":
         return Promise.resolve({ address: 0x1f0a10, value: String(args?.value), bytes: "0F 27 00 00" });
       default:
@@ -82,6 +86,20 @@ describe("App", () => {
     expect(await screen.findByTestId("version")).toHaveTextContent("v9.9.9");
     expect(await screen.findByRole("option", { name: /testbed_native\.exe/ })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: /cs2\.exe/ })).toBeInTheDocument();
+  });
+
+  it("reports code changes undone after a crash, once", async () => {
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "recovery_report"
+        ? Promise.resolve([{ exe: "testbed_native.exe", pid: 77, gameClosed: false, restored: 2, problems: [] }])
+        : base(cmd, args),
+    );
+    render(<App />);
+    const note = await screen.findByText(/closed unexpectedly/);
+    expect(note.parentElement).toHaveTextContent("testbed_native.exe (PID 77): 2 changes undone");
+    fireEvent.click(screen.getByRole("button", { name: "OK" }));
+    expect(screen.queryByText(/closed unexpectedly/)).not.toBeInTheDocument();
   });
 
   it("blocks attaching when the guard finds anti-cheat or an online-only game", async () => {

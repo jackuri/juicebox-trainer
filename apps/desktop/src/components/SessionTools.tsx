@@ -12,10 +12,12 @@ import {
 import { AddressList } from "./AddressList";
 import { MemoryPanel } from "./MemoryPanel";
 import { ModuleTable } from "./ModuleTable";
+import { PointerPanel } from "./PointerPanel";
 import { ScannerPanel } from "./ScannerPanel";
+import { SignaturePanel } from "./SignaturePanel";
 import { TrainerPanel } from "./TrainerPanel";
 
-const TABS = ["Trainer", "Scanner", "Read / write", "Modules"] as const;
+const TABS = ["Trainer", "Scanner", "Pointers", "Signatures", "Read / write", "Modules"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -24,14 +26,17 @@ interface Props {
   onRefreshModules: () => void;
 }
 
-/** Tools shown while attached: trainer (packs), scanner, read/write, modules, address list. */
+/**
+ * Tools shown while attached: trainer (packs), scanner, pointer scanner,
+ * signature maker, read/write, modules, address list.
+ */
 export function SessionTools({ session, onSessionLost, onRefreshModules }: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
 
-  async function addToList(address: number, ty: ValueType) {
+  async function addToList(address: number | string, ty: ValueType) {
     try {
-      await api.addressAdd(hex(address), ty, "");
+      await api.addressAdd(typeof address === "number" ? hex(address) : address, ty, "");
       setEntries(await api.addressList());
     } catch (e) {
       const err = toCommandError(e);
@@ -65,6 +70,12 @@ export function SessionTools({ session, onSessionLost, onRefreshModules }: Props
       </div>
       <div hidden={tab !== "Scanner"}>
         <ScannerPanel onAddToList={(a, t) => void addToList(a, t)} onSessionLost={onSessionLost} />
+      </div>
+      <div hidden={tab !== "Pointers"}>
+        <PointerPanel onAddToList={(e, t) => void addToList(e, t)} onSessionLost={onSessionLost} />
+      </div>
+      <div hidden={tab !== "Signatures"}>
+        <SignaturePanel onSessionLost={onSessionLost} />
       </div>
       <div hidden={tab !== "Read / write"}>
         <MemoryPanel onSessionLost={onSessionLost} />
