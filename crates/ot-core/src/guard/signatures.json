@@ -1,0 +1,125 @@
+{
+  "_comment": "Built into the binary at compile time; not configurable at runtime. Names are matched case-insensitively and exactly. Add entries freely; removing one needs a reason in the PR. Only add names you have verified.",
+  "version": 1,
+  "products": [
+    {
+      "name": "Easy Anti-Cheat",
+      "processes": ["EasyAntiCheat.exe", "EasyAntiCheat_EOS.exe"],
+      "services": ["EasyAntiCheat", "EasyAntiCheat_EOS"],
+      "drivers": ["EasyAntiCheat.sys", "EasyAntiCheat_EOS.sys"],
+      "modules": ["EasyAntiCheat_x64.dll", "EasyAntiCheat_x86.dll", "EasyAntiCheat_EOS_x64.dll"],
+      "installMarkers": ["EasyAntiCheat", "start_protected_game.exe"]
+    },
+    {
+      "name": "BattlEye",
+      "processes": ["BEService.exe", "BEService_x64.exe"],
+      "services": ["BEService"],
+      "drivers": ["BEDaisy.sys"],
+      "modules": ["BEClient.dll", "BEClient_x64.dll"],
+      "installMarkers": ["BattlEye"]
+    },
+    {
+      "name": "Riot Vanguard",
+      "processes": ["vgc.exe", "vgtray.exe"],
+      "services": ["vgc", "vgk"],
+      "drivers": ["vgk.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "EA Anti-Cheat (Javelin)",
+      "processes": ["EAAntiCheat.GameService.exe"],
+      "services": ["EAAntiCheatService"],
+      "drivers": ["EAAntiCheat.sys"],
+      "modules": [],
+      "installMarkers": ["EAAntiCheat"]
+    },
+    {
+      "name": "Activision Ricochet",
+      "processes": [],
+      "services": ["atvi-randgrid_sr"],
+      "drivers": ["atvi-randgrid_sr.sys", "randgrid.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "Anti-Cheat Expert (ACE)",
+      "processes": ["SGuard64.exe", "SGuardSvc64.exe"],
+      "services": ["ACE-BASE", "ACE-GAME"],
+      "drivers": ["ACE-BASE.sys", "ACE-GAME.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "nProtect GameGuard",
+      "processes": ["GameMon.des", "GameMon64.des", "GameGuard.des"],
+      "services": [],
+      "drivers": [],
+      "modules": [],
+      "installMarkers": ["GameGuard"]
+    },
+    {
+      "name": "XIGNCODE3",
+      "processes": ["x3.xem", "xxd-0.xem"],
+      "services": ["xhunter1"],
+      "drivers": ["xhunter1.sys"],
+      "modules": [],
+      "installMarkers": ["XIGNCODE"]
+    },
+    {
+      "name": "mhyprot (HoYoverse)",
+      "processes": [],
+      "services": ["mhyprot2", "mhyprot3"],
+      "drivers": ["mhyprot.sys", "mhyprot2.sys", "mhyprot3.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "FACEIT",
+      "processes": ["FACEITService.exe"],
+      "services": ["FACEIT", "FACEITService"],
+      "drivers": ["FACEIT.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "ESEA",
+      "processes": [],
+      "services": [],
+      "drivers": ["ESEADriver2.sys"],
+      "modules": [],
+      "installMarkers": []
+    },
+    {
+      "name": "PunkBuster",
+      "processes": ["PnkBstrA.exe", "PnkBstrB.exe"],
+      "services": ["PnkBstrA", "PnkBstrB"],
+      "drivers": [],
+      "modules": [],
+      "installMarkers": []
+    }
+  ],
+  "onlineOnly": [
+    { "name": "Counter-Strike 2", "exes": ["cs2.exe", "csgo.exe"] },
+    { "name": "Dota 2", "exes": ["dota2.exe"] },
+    { "name": "VALORANT", "exes": ["VALORANT-Win64-Shipping.exe", "VALORANT.exe"] },
+    { "name": "Fortnite", "exes": ["FortniteClient-Win64-Shipping.exe"] },
+    { "name": "Apex Legends", "exes": ["r5apex.exe", "r5apex_dx12.exe"] },
+    { "name": "Call of Duty", "exes": ["cod.exe", "ModernWarfare.exe"] },
+    { "name": "Destiny 2", "exes": ["destiny2.exe"] },
+    { "name": "Overwatch", "exes": ["Overwatch.exe"] },
+    { "name": "Rainbow Six Siege", "exes": ["RainbowSix.exe", "RainbowSix_Vulkan.exe"] },
+    { "name": "PUBG: Battlegrounds", "exes": ["TslGame.exe"] },
+    { "name": "League of Legends", "exes": ["League of Legends.exe"] },
+    { "name": "Roblox", "exes": ["RobloxPlayerBeta.exe"] },
+    { "name": "Warframe", "exes": ["Warframe.x64.exe"] },
+    { "name": "Rust", "exes": ["RustClient.exe"] },
+    { "name": "Escape from Tarkov", "exes": ["EscapeFromTarkov.exe"] },
+    { "name": "Dead by Daylight", "exes": ["DeadByDaylight-Win64-Shipping.exe"] },
+    { "name": "World of Warcraft", "exes": ["Wow.exe", "WowClassic.exe"] },
+    { "name": "Hearthstone", "exes": ["Hearthstone.exe"] },
+    { "name": "Diablo IV", "exes": ["Diablo IV.exe"] },
+    { "name": "Path of Exile", "exes": ["PathOfExile.exe", "PathOfExile_x64.exe", "PathOfExileSteam.exe"] },
+    { "name": "Final Fantasy XIV", "exes": ["ffxiv_dx11.exe"] }
+  ]
+}

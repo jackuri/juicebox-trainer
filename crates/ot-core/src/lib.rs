@@ -1,5 +1,27 @@
-//! OpenTrainer core: process attach, memory read/write, module map and the
-//! anti-cheat guard. See `docs/PLAN.md` §3.
+//! OpenTrainer core: process list, attach/detach, typed memory read/write,
+//! module map and the anti-cheat guard. See `docs/PLAN.md` §3.
+//!
+//! The only way to get access to another process's memory is
+//! [`AttachedProcess::attach`], which runs the [`guard`] first and refuses if
+//! anti-cheat is present. The guard has no off switch.
+
+pub mod address;
+pub mod error;
+pub mod guard;
+pub mod memory;
+pub mod modules;
+pub mod process;
+pub mod session;
+pub mod value;
+mod win;
+
+pub use error::{Error, Result};
+pub use guard::{Finding, FindingKind, Verdict};
+pub use memory::Region;
+pub use modules::Module;
+pub use process::{Arch, ProcessInfo, list_processes};
+pub use session::AttachedProcess;
+pub use value::{Value, ValueType};
 
 /// Version of this crate (the workspace version).
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
