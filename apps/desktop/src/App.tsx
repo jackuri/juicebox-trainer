@@ -1,28 +1,177 @@
-import { useEffect, useState } from "react";
-import { appInfo, type AppInfo } from "./lib/ipc";
+import { useCallback, useEffect, useState } from "react";
+import { GuardVerdict } from "./components/GuardVerdict";
+import { MemoryPanel } from "./components/MemoryPanel";
+import { ModuleTable } from "./components/ModuleTable";
+import { ProcessList } from "./components/ProcessList";
+import {
+  api,
+  type AppInfo,
+  type CommandError,
+  type ProcessInfo,
+  type SessionInfo,
+  toCommandError,
+  type Verdict,
+} from "./lib/ipc";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [processes, setProcesses] = useState<ProcessInfo[]>([]);
+  const [loadingList, setLoadingList] = useState(false);
+  const [selected, setSelected] = useState<ProcessInfo | null>(null);
+  const [verdict, setVerdict] = useState<Verdict | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [session, setSession] = useState<SessionInfo | null>(null);
+  const [error, setError] = useState<CommandError | null>(null);
 
-  useEffect(() => {
-    appInfo()
-      .then(setInfo)
-      .catch((e: unknown) => setError(String(e)));
+  const refresh = useCallback(async () => {
+    setLoadingList(true);
+    try {
+      setProcesses(await api.listProcesses());
+    } catch (e) {
+      setError(toCommandError(e));
+    } finally {
+      setLoadingList(false);
+    }
   }, []);
 
+  useEffect(() => {
+    api.appInfo().then(setInfo, (e: unknown) => setError(toCommandError(e)));
+    api.currentSession().then(setSession, () => undefined);
+    api.listProcesses().then(setProcesses, (e: unknown) => setError(toCommandError(e)));
+  }, []);
+
+  async function select(p: ProcessInfo) {
+    setSelected(p);
+    setVerdict(null);
+    setError(null);
+    setChecking(true);
+    try {
+      setVerdict(await api.checkGuard(p.pid));
+    } catch (e) {
+      setError(toCommandError(e));
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function attach() {
+    if (!selected) return;
+    setError(null);
+    try {
+      setSession(await api.attach(selected.pid));
+    } catch (e) {
+      const err = toCommandError(e);
+      if (err.verdict) setVerdict(err.verdict);
+      setError(err);
+    }
+  }
+
+  async function detach() {
+    await api.detach().catch(() => undefined);
+    setSession(null);
+  }
+
+  function sessionLost(err: CommandError) {
+    setSession(null);
+    if (err.verdict) setVerdict(err.verdict);
+    setError(err);
+  }
+
+  async function refreshModules() {
+    try {
+      const modules = await api.refreshModules();
+      setSession((s) => (s ? { ...s, modules } : s));
+    } catch (e) {
+      const err = toCommandError(e);
+      if (err.kind === "blocked" || err.kind === "processExited") sessionLost(err);
+      else setError(err);
+    }
+  }
+
   return (
-    <main className="flex h-full flex-col items-center justify-center gap-3">
-      <h1 className="text-3xl font-semibold tracking-tight">OpenTrainer</h1>
-      <p className="text-sm text-zinc-400">
-        Trainer + save editor for PC single-player games.
-      </p>
-      {info && (
-        <p className="font-mono text-xs text-zinc-500" data-testid="version">
-          v{info.version} · core {info.coreVersion}
-        </p>
-      )}
-      {error && <p className="text-xs text-red-400">{error}</p>}
-    </main>
+    <div className="grid h-full grid-rows-[auto_1fr]">
+      <header className="flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
+        <h1 className="text-lg font-semibold tracking-tight">OpenTrainer</h1>
+        {info && (
+          <span className="font-mono text-xs text-zinc-500" data-testid="version">
+            v{info.version}
+          </span>
+        )}
+        <span className="ml-auto text-xs text-zinc-400">
+          {session ? (
+            <span className="text-emerald-400">
+              Attached to {session.process.name} ({session.process.pid})
+            </span>
+          ) : (
+            "Not attached"
+          )}
+        </span>
+      </header>
+
+      <div className="grid min-h-0 grid-cols-[320px_1fr]">
+        <ProcessList
+          processes={processes}
+          selectedPid={session?.process.pid ?? selected?.pid ?? null}
+          loading={loadingList}
+          onSelect={(p) => void select(p)}
+          onRefresh={() => void refresh()}
+        />
+
+        <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
+          {error && !error.verdict && (
+            <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+              {error.message}
+            </p>
+          )}
+
+          {session ? (
+            <>
+              <div className="flex items-center gap-3">
+                <div className="min-w-0">
+                  <p className="font-medium">{session.process.name}</p>
+                  <p className="truncate text-xs text-zinc-500">
+                    PID {session.process.pid} · {session.process.arch} ·{" "}
+                    {session.process.exePath ?? "path unknown"}
+                  </p>
+                </div>
+                <button
+                  className="ml-auto rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700"
+                  onClick={() => void detach()}
+                >
+                  Detach
+                </button>
+              </div>
+              <MemoryPanel onSessionLost={sessionLost} />
+              <ModuleTable modules={session.modules} onRefresh={() => void refreshModules()} />
+            </>
+          ) : selected ? (
+            <div className="flex max-w-xl flex-col gap-3">
+              <div>
+                <p className="font-medium">{selected.name}</p>
+                <p className="truncate text-xs text-zinc-500">
+                  PID {selected.pid} · {selected.arch} · {selected.exePath ?? "path unknown"}
+                </p>
+              </div>
+              {checking && <p className="text-sm text-zinc-400">Checking for anti-cheat…</p>}
+              {verdict && verdict.pid === selected.pid && <GuardVerdict verdict={verdict} />}
+              <button
+                className="self-start rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={!verdict?.allowed || verdict.pid !== selected.pid || checking}
+                onClick={() => void attach()}
+              >
+                Attach
+              </button>
+            </div>
+          ) : (
+            <div className="m-auto max-w-sm text-center text-sm text-zinc-400">
+              <p>Pick a single-player game from the list to check it and attach.</p>
+              <p className="mt-2 text-xs text-zinc-500">
+                Try the testbed: <code>cargo run -p testbed-native</code>
+              </p>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
   );
 }

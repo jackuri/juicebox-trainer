@@ -11,7 +11,19 @@ fn main() {
         .init();
 
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![commands::app_info])
+        .manage(commands::AppState::default())
+        .invoke_handler(tauri::generate_handler![
+            commands::app_info,
+            commands::list_processes,
+            commands::check_guard,
+            commands::attach,
+            commands::detach,
+            commands::current_session,
+            commands::refresh_modules,
+            commands::read_value,
+            commands::write_value,
+            commands::read_bytes,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running OpenTrainer");
 }
