@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! Shared helpers for integration tests against `testbed/native` (never a real game).
 //!
 //! The testbed is built on demand into `target/testbed` (a separate target dir
@@ -76,6 +75,7 @@ pub fn testbed_exe(flavor: Flavor) -> PathBuf {
 }
 
 /// A running testbed with its JSON side channel.
+#[derive(Debug)]
 pub struct Testbed {
     child: Child,
     stdin: ChildStdin,
@@ -141,12 +141,19 @@ pub fn hex(v: &Json) -> u64 {
     u64::from_str_radix(s.trim_start_matches("0x"), 16).expect("hex value")
 }
 
-/// A scratch folder removed on drop.
+/// A scratch folder under `target/tmp`, removed on drop.
+#[derive(Debug)]
 pub struct TempDir(pub PathBuf);
 
 impl TempDir {
     pub fn new(name: &str) -> Self {
-        let p = std::env::temp_dir().join(format!("ot-it-{}-{name}", std::process::id()));
+        // Under target/, not %TEMP%: the guard looks at the exe folder and
+        // three parents, and %LOCALAPPDATA% may hold a real anti-cheat
+        // folder (e.g. BattlEye) on a developer's PC.
+        let p = workspace_root()
+            .join("target")
+            .join("tmp")
+            .join(format!("ot-it-{}-{name}", std::process::id()));
         let _ = std::fs::remove_dir_all(&p);
         std::fs::create_dir_all(&p).unwrap();
         Self(p)

@@ -10,7 +10,19 @@
 //! single JSON line, which is the side channel integration tests use to check
 //! values after OpenTrainer writes them. Build with `--features shifted` to get
 //! a layout with different offsets.
+//!
+//! Three small pieces of code are written in inline assembly so their bytes are
+//! the same on every build, compiler version and architecture (x64 and x86).
+//! Each starts with a marker `nop dword ptr [rax+0x0N544F54]` (bytes
+//! `0F 1F 80 54 4F 54 0N`), which cheat packs use as an AOB signature:
+//!
+//! | N | Site | Bytes after the marker |
+//! |---|------|------------------------|
+//! | 1 | damage: `health -= amount` | `8B 01 29 D0 89 01` (`mov eax,[rcx]; sub eax,edx; mov [rcx],eax`) |
+//! | 2 | fire: `ammo -= shots` | `8B 01 29 D0 89 01` |
+//! | 3 | load the static root | x64 `48 8B 0D rel32` (`mov rcx,[rip+WORLD]`), x86 `8B 0D abs32` |
 
+use std::arch::asm;
 use std::io::{self, BufRead, Write};
 use std::mem::offset_of;
 use std::ptr::{self, addr_of, addr_of_mut};
@@ -91,8 +103,65 @@ fn new_world() -> *mut World {
 // All game-state access goes through volatile reads/writes because another
 // process (OpenTrainer) changes these values behind the compiler's back.
 
+/// Loads the static root with code at a fixed byte pattern (marker 3).
+#[inline(never)]
 fn world() -> *mut World {
-    WORLD.load(Ordering::Acquire)
+    let w: *mut World;
+    // SAFETY: reads the WORLD static (a pointer-sized atomic) into a register;
+    // the marker is a NOP. No stack use, no other memory touched.
+    unsafe {
+        #[cfg(target_arch = "x86_64")]
+        asm!(
+            "nop dword ptr [rax + 0x03544F54]",
+            "mov rcx, qword ptr [rip + {w}]",
+            w = sym WORLD,
+            out("rcx") w,
+            options(nostack, readonly),
+        );
+        #[cfg(target_arch = "x86")]
+        asm!(
+            "nop dword ptr [eax + 0x03544F54]",
+            "mov ecx, dword ptr [{w}]",
+            w = sym WORLD,
+            out("ecx") w,
+            options(nostack, readonly),
+        );
+    }
+    w
+}
+
+/// `*field -= amount` at a fixed byte pattern. `site` 1 = damage, 2 = fire.
+macro_rules! asm_sub {
+    ($marker:literal, $field:expr, $amount:expr) => {{
+        let field: *mut i32 = $field;
+        let amount: i32 = $amount;
+        // SAFETY: `field` points at a live i32 in the leaked Stats block. The
+        // marker is a NOP; the rest is a plain load, subtract and store.
+        unsafe {
+            #[cfg(target_arch = "x86_64")]
+            asm!(
+                concat!("nop dword ptr [rax + ", $marker, "]"),
+                "mov eax, dword ptr [rcx]",
+                "sub eax, edx",
+                "mov dword ptr [rcx], eax",
+                in("rcx") field,
+                in("edx") amount,
+                out("eax") _,
+                options(nostack),
+            );
+            #[cfg(target_arch = "x86")]
+            asm!(
+                concat!("nop dword ptr [eax + ", $marker, "]"),
+                "mov eax, dword ptr [ecx]",
+                "sub eax, edx",
+                "mov dword ptr [ecx], eax",
+                in("ecx") field,
+                in("edx") amount,
+                out("eax") _,
+                options(nostack),
+            );
+        }
+    }};
 }
 
 fn stats() -> *mut Stats {
@@ -117,15 +186,18 @@ macro_rules! set {
 
 #[inline(never)]
 fn take_damage(amount: i32) {
-    let hp = get!(health);
-    set!(health, hp.saturating_sub(amount).max(0));
+    let amount = amount.clamp(0, get!(health).max(0));
+    // SAFETY: only the field address is taken; stats() is live.
+    let field = unsafe { addr_of_mut!((*stats()).health) };
+    asm_sub!("0x01544F54", field, amount);
 }
 
 #[inline(never)]
 fn fire(shots: i32) -> i32 {
-    let ammo = get!(ammo);
-    let fired = shots.clamp(0, ammo.max(0));
-    set!(ammo, ammo - fired);
+    let fired = shots.clamp(0, get!(ammo).max(0));
+    // SAFETY: only the field address is taken; stats() is live.
+    let field = unsafe { addr_of_mut!((*stats()).ammo) };
+    asm_sub!("0x02544F54", field, fired);
     fired
 }
 

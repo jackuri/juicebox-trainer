@@ -1,0 +1,16 @@
+[package]
+name = "testbed-harness"
+description = "Test helpers that build, run and talk to the testbed game. Dev-dependency only."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+ot-core.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

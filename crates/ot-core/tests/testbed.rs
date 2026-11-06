@@ -1,12 +1,10 @@
 //! Integration tests against `testbed/native` (never a real game): attach,
 //! typed read/write, module map and the anti-cheat guard. Helpers are in
-//! `common/mod.rs`.
+//! `testbed/harness`.
 
-mod common;
-
-use common::*;
 use ot_core::modules::find;
 use ot_core::{AttachedProcess, Error, FindingKind, Value, ValueType};
+use testbed_harness::*;
 
 fn read_write_roundtrip(flavor: Flavor) {
     let _g = serial();

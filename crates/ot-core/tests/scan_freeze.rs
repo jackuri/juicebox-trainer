@@ -1,15 +1,13 @@
 //! Scanner and freezer integration tests against `testbed/native`.
 
-mod common;
-
 use std::sync::Arc;
 use std::time::Duration;
 
-use common::*;
 use ot_core::{
     AttachedProcess, Error, FirstScan, Freezer, NextScan, Scan, ScanControl, ScanOptions, Value,
     ValueType,
 };
+use testbed_harness::*;
 
 fn contains(scan: &Scan, address: u64) -> bool {
     scan.hits(0, scan.count())
