@@ -149,7 +149,16 @@ impl AttachedProcess {
         if !self.is_alive() {
             return Err(Error::ProcessExited { pid: self.pid() });
         }
-        let due = lock(&self.last_guard_check).elapsed() >= GUARD_RECHECK_INTERVAL;
+        // Claim the recheck before running it so parallel scan threads don't
+        // all re-run the guard at once.
+        let due = {
+            let mut last = lock(&self.last_guard_check);
+            let due = last.elapsed() >= GUARD_RECHECK_INTERVAL;
+            if due {
+                *last = Instant::now();
+            }
+            due
+        };
         if due {
             self.recheck_guard()?;
         }
@@ -220,6 +229,23 @@ impl AttachedProcess {
 
     /// Writes `data` at `address`. Every write is logged.
     pub fn write_bytes(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.write_raw(address, data)?;
+        info!(
+            pid = self.pid(),
+            address = format_args!("{address:#X}"),
+            len = data.len(),
+            "memory write"
+        );
+        Ok(())
+    }
+
+    /// Like [`write_bytes`](Self::write_bytes) without the per-write log line.
+    /// Only the freezer uses this; it logs each freeze once instead.
+    pub(crate) fn write_bytes_quiet(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.write_raw(address, data)
+    }
+
+    fn write_raw(&self, address: u64, data: &[u8]) -> Result<()> {
         self.gate()?;
         self.check_range(address, data.len())?;
         let mut written = 0usize;
@@ -245,12 +271,6 @@ impl AttachedProcess {
                 len: data.len(),
             });
         }
-        info!(
-            pid = self.pid(),
-            address = format_args!("{address:#X}"),
-            len = data.len(),
-            "memory write"
-        );
         Ok(())
     }
 

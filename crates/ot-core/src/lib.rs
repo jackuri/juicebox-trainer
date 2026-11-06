@@ -7,19 +7,23 @@
 
 pub mod address;
 pub mod error;
+pub mod freeze;
 pub mod guard;
 pub mod memory;
 pub mod modules;
 pub mod process;
+pub mod scan;
 pub mod session;
 pub mod value;
 mod win;
 
 pub use error::{Error, Result};
+pub use freeze::Freezer;
 pub use guard::{Finding, FindingKind, Verdict};
 pub use memory::Region;
 pub use modules::Module;
 pub use process::{Arch, ProcessInfo, list_processes};
+pub use scan::{FirstScan, Hit, NextScan, Scan, ScanControl, ScanOptions};
 pub use session::AttachedProcess;
 pub use value::{Value, ValueType};
 

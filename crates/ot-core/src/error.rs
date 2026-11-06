@@ -6,8 +6,17 @@ use crate::value::ValueType;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
+    #[error("cancelled")]
+    Cancelled,
+
+    #[error(
+        "an unknown-value scan would copy {bytes} bytes (limit {limit}); start with an exact or \
+         range scan instead"
+    )]
+    ScanTooLarge { bytes: u64, limit: u64 },
+
     /// The anti-cheat guard refused. There is no way to override this.
     #[error("blocked by the anti-cheat guard: {0}")]
     Blocked(Verdict),
@@ -62,6 +71,8 @@ impl Error {
     /// Short machine-readable kind, used by the UI.
     pub fn kind(&self) -> &'static str {
         match self {
+            Error::Cancelled => "cancelled",
+            Error::ScanTooLarge { .. } => "scanTooLarge",
             Error::Blocked(_) => "blocked",
             Error::AccessDenied { .. } => "accessDenied",
             Error::ProcessNotFound { .. } => "processNotFound",
