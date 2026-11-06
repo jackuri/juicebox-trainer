@@ -6,7 +6,7 @@
 //! compares, near jumps that stay inside the game's module, and `ret`.
 //! Anything that could reach code outside the game or the OS directly (calls,
 //! indirect jumps, `syscall`/`int`, far transfers, port I/O, privileged
-//! instructions) is rejected. Code caves arrive in v0.5 with their own checks.
+//! instructions) is rejected. Code caves are planned for a later version.
 
 use std::ops::Range;
 
@@ -21,7 +21,8 @@ use crate::process::Arch;
 pub const MAX_PATCH_LEN: usize = 32;
 
 /// One decoded instruction.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DecodedInstr {
     /// Offset from the start of the bytes.
     pub offset: usize,

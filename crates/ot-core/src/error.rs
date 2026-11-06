@@ -65,6 +65,32 @@ pub enum Error {
     #[error("null pointer read at {at:#X} while following a pointer chain")]
     NullPointer { at: u64 },
 
+    /// The bytes at a code site are not what was expected (usually a game
+    /// update). Nothing was written.
+    #[error("needs repair: expected {expected} at {address:#X}, found {found}")]
+    BytesMismatch {
+        address: u64,
+        expected: String,
+        found: String,
+    },
+
+    /// Another change already owns some of these bytes.
+    #[error(
+        "the code at {address:#X} overlaps a change already made at {other:#X}; turn that          cheat off first"
+    )]
+    CodeOverlap { address: u64, other: u64 },
+
+    #[error(
+        "the pointer map would hold {entries} entries (limit {limit}); close other programs in          the game or lower the search depth"
+    )]
+    PointerMapTooLarge { entries: u64, limit: u64 },
+
+    #[error("no unique signature found at {address:#X} within {len} bytes; try a nearby address")]
+    SignatureNotUnique { address: u64, len: usize },
+
+    #[error("restore journal: {0}")]
+    Journal(String),
+
     #[error("{op} failed: {source}")]
     Win32 {
         op: &'static str,
@@ -96,6 +122,11 @@ impl Error {
             Error::InvalidPattern(_) => "invalidPattern",
             Error::PatchRejected(_) => "patchRejected",
             Error::NullPointer { .. } => "nullPointer",
+            Error::BytesMismatch { .. } => "needsRepair",
+            Error::CodeOverlap { .. } => "codeOverlap",
+            Error::PointerMapTooLarge { .. } => "pointerMapTooLarge",
+            Error::SignatureNotUnique { .. } => "signatureNotUnique",
+            Error::Journal(_) => "journal",
             Error::Win32 { .. } => "win32",
         }
     }

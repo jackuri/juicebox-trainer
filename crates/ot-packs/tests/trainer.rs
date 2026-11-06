@@ -259,12 +259,49 @@ fn a_site_left_patched_is_recognized_and_restored() {
     let mut first = Trainer::load(Arc::clone(&process), example(Flavor::X64)).unwrap();
     let site = first.states().unwrap()[0].address.unwrap();
     drop(first);
-    // Simulate a crash that left the patch in place.
-    process.write_code(site, &[0x90, 0x90]).unwrap();
+    // Simulate a crash that left the patch in place: another session patches
+    // and never cleans up.
+    let crashed = attach(&tb);
+    crashed
+        .apply_code(site, &[0x29, 0xD0], &[0x90, 0x90])
+        .unwrap();
+    std::mem::forget(crashed);
     assert_eq!(tb.send("hit 5")["health"], 100);
 
     let mut t = Trainer::load(Arc::clone(&process), example(Flavor::X64)).unwrap();
     assert_eq!(status(&mut t, "inf_health").0, "active");
     t.set_active("inf_health", false).unwrap();
+    assert_eq!(tb.send("hit 5")["health"], 95);
+
+    drop(t);
+
+    // A site found patched is recorded with the session, so detaching (or
+    // the crash journal) restores it even if the cheat is never turned off.
+    let again = attach(&tb);
+    again
+        .apply_code(site, &[0x29, 0xD0], &[0x90, 0x90])
+        .unwrap();
+    std::mem::forget(again);
+    assert!(process.code_changes().is_empty());
+    let t2 = Trainer::load(Arc::clone(&process), example(Flavor::X64)).unwrap();
+    assert_eq!(process.code_changes().len(), 1);
+    assert!(process.restore_code().is_empty());
+    assert_eq!(tb.send("hit 5")["health"], 90);
+    drop(t2);
+}
+
+#[test]
+fn shown_state_follows_the_bytes_in_the_game() {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let process = attach(&tb);
+    let mut t = Trainer::load(Arc::clone(&process), example(Flavor::X64)).unwrap();
+    t.set_active("inf_health", true).unwrap();
+    // Something else (e.g. the crash handler) restores the code.
+    process.restore_code();
+    t.refresh().unwrap();
+    assert_eq!(status(&mut t, "inf_health").0, "ready");
+    assert_eq!(tb.send("hit 5")["health"], 95);
+    t.set_active("inf_health", true).unwrap();
     assert_eq!(tb.send("hit 5")["health"], 95);
 }

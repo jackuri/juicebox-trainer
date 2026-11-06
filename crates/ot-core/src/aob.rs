@@ -41,6 +41,19 @@ impl Pattern {
         Ok(Self { bytes, anchor })
     }
 
+    /// Builds a pattern from bytes and wildcards. Fails if every byte is a
+    /// wildcard.
+    pub fn from_masked(bytes: Vec<Option<u8>>) -> Result<Self> {
+        let anchor = bytes
+            .iter()
+            .enumerate()
+            .find_map(|(i, b)| b.map(|v| (i, v)))
+            .ok_or_else(|| {
+                Error::InvalidPattern("a pattern needs at least one fixed byte".into())
+            })?;
+        Ok(Self { bytes, anchor })
+    }
+
     /// Parses plain hex bytes with no wildcards (e.g. patch bytes).
     pub fn parse_exact(input: &str) -> Result<Vec<u8>> {
         let p = Self::parse(input)?;

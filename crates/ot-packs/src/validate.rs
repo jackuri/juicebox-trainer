@@ -97,7 +97,7 @@ fn precheck(raw: &serde_json::Value) -> Result<(), LoadError> {
             if c.pointer("/impl/kind").and_then(|k| k.as_str()) == Some("cave") {
                 return Err(err(
                     &format!("cheats[{i}].impl.kind"),
-                    "code caves arrive in v0.5; this version supports value and patch".into(),
+                    "code caves are not supported yet (planned for a later version); use value or patch".into(),
                 ));
             }
         }
@@ -659,7 +659,7 @@ mod tests {
         );
         has_error(
             &with(|v| v["cheats"][0]["impl"]["kind"] = "cave".into()),
-            "v0.5",
+            "not supported yet",
         );
     }
 

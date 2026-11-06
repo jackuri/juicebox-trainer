@@ -4,6 +4,7 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use windows::Win32::Foundation::{ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER};
+use windows::Win32::Foundation::{FILETIME, WAIT_TIMEOUT};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
@@ -12,8 +13,9 @@ use windows::Win32::System::SystemInformation::{
     IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_UNKNOWN,
 };
 use windows::Win32::System::Threading::{
-    IsWow64Process2, OpenProcess, PROCESS_ACCESS_RIGHTS, PROCESS_NAME_WIN32,
-    PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+    GetProcessTimes, IsWow64Process2, OpenProcess, PROCESS_ACCESS_RIGHTS, PROCESS_NAME_WIN32,
+    PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, QueryFullProcessImageNameW,
+    WaitForSingleObject,
 };
 use windows::core::PWSTR;
 
@@ -195,6 +197,39 @@ fn machine_to_arch(process: IMAGE_FILE_MACHINE, native: IMAGE_FILE_MACHINE) -> A
         IMAGE_FILE_MACHINE_ARM64 => Arch::Arm64,
         _ => Arch::Unknown,
     }
+}
+
+/// When the process started (a `FILETIME` as 100 ns ticks). Together with the
+/// pid it identifies one run of a program, since pids are reused.
+pub(crate) fn start_time_of(handle: &OwnedHandle) -> Option<u64> {
+    let (mut created, mut exited, mut kernel, mut user) = (
+        FILETIME::default(),
+        FILETIME::default(),
+        FILETIME::default(),
+        FILETIME::default(),
+    );
+    // SAFETY: all four out-pointers are valid FILETIMEs; the handle has
+    // (limited) query rights.
+    unsafe {
+        GetProcessTimes(
+            handle.raw(),
+            &mut created,
+            &mut exited,
+            &mut kernel,
+            &mut user,
+        )
+    }
+    .ok()?;
+    Some((u64::from(created.dwHighDateTime) << 32) | u64::from(created.dwLowDateTime))
+}
+
+/// Start time of `pid`, if it is still running and can be queried. (A
+/// process that exited but whose handle someone still holds doesn't count.)
+pub fn start_time(pid: u32) -> Option<u64> {
+    let handle = open(pid, PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_SYNCHRONIZE).ok()?;
+    // SAFETY: the handle was opened with SYNCHRONIZE.
+    let running = unsafe { WaitForSingleObject(handle.raw(), 0) } == WAIT_TIMEOUT;
+    running.then(|| start_time_of(&handle)).flatten()
 }
 
 /// File name part of a Windows path.

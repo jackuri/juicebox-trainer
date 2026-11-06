@@ -1,5 +1,7 @@
 //! Address expressions typed by the user: `0x1234ABCD`, `1234ABCD` (hex, like
-//! Cheat Engine) or `module.exe+0x1234`. Pointer chains arrive with packs (v0.4).
+//! Cheat Engine), `module.exe+0x1234`, or a pointer path in Cheat Engine
+//! notation, `[[module.exe+0x1234]+0x10]+0x18` (read a pointer, add an
+//! offset, repeat).
 
 use crate::error::{Error, Result};
 
@@ -12,6 +14,72 @@ pub enum AddressExpr {
         module: String,
         offset: u64,
     },
+    /// Start at `base`, then for each offset read a pointer and add it.
+    Pointer {
+        base: Box<AddressExpr>,
+        offsets: Vec<i64>,
+    },
+}
+
+impl AddressExpr {
+    /// True for pointer paths, whose target can move while the game runs.
+    pub fn is_pointer(&self) -> bool {
+        matches!(self, AddressExpr::Pointer { .. })
+    }
+}
+
+/// Deepest pointer path accepted.
+const MAX_LEVELS: usize = 16;
+
+/// Parses `[inner]+off`, `[inner]-off` or `[inner]`.
+fn parse_pointer(s: &str, input: &str) -> Result<AddressExpr> {
+    let bad = || Error::InvalidAddress(input.to_string());
+    // Find the bracket that closes the first one.
+    let mut depth = 0usize;
+    let mut close = None;
+    for (i, c) in s.char_indices() {
+        match c {
+            '[' => depth += 1,
+            ']' => {
+                depth = depth.checked_sub(1).ok_or_else(bad)?;
+                if depth == 0 {
+                    close = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+    let close = close.ok_or_else(bad)?;
+    let inner = parse_inner(&s[1..close], input)?;
+    let rest = s[close + 1..].trim();
+    let offset = if rest.is_empty() {
+        0
+    } else if let Some(r) = rest.strip_prefix('+') {
+        i64::try_from(parse_hex(r).ok_or_else(bad)?).map_err(|_| bad())?
+    } else if let Some(r) = rest.strip_prefix('-') {
+        -i64::try_from(parse_hex(r).ok_or_else(bad)?).map_err(|_| bad())?
+    } else {
+        return Err(bad());
+    };
+    let (base, mut offsets) = match inner {
+        AddressExpr::Pointer { base, offsets } => (base, offsets),
+        plain => (Box::new(plain), Vec::new()),
+    };
+    offsets.push(offset);
+    if offsets.len() > MAX_LEVELS {
+        return Err(bad());
+    }
+    Ok(AddressExpr::Pointer { base, offsets })
+}
+
+fn parse_inner(s: &str, input: &str) -> Result<AddressExpr> {
+    let s = s.trim();
+    if s.starts_with('[') {
+        parse_pointer(s, input)
+    } else {
+        parse(s).map_err(|_| Error::InvalidAddress(input.to_string()))
+    }
 }
 
 /// Parses an address expression. Numbers are always hexadecimal.
@@ -19,6 +87,12 @@ pub fn parse(input: &str) -> Result<AddressExpr> {
     let s = input.trim();
     let bad = || Error::InvalidAddress(input.to_string());
     if s.is_empty() {
+        return Err(bad());
+    }
+    if s.starts_with('[') {
+        return parse_pointer(s, input);
+    }
+    if s.contains(['[', ']']) {
         return Err(bad());
     }
     if let Some((module, offset)) = s.split_once('+') {
@@ -98,6 +172,49 @@ mod tests {
                 offset: 0
             }
         );
+    }
+
+    #[test]
+    fn pointer_forms() {
+        let p = parse("[[game.exe+0x10]+0x18]+0x40").unwrap();
+        assert_eq!(
+            p,
+            AddressExpr::Pointer {
+                base: Box::new(AddressExpr::ModuleOffset {
+                    module: "game.exe".into(),
+                    offset: 0x10
+                }),
+                offsets: vec![0x18, 0x40],
+            }
+        );
+        assert!(p.is_pointer());
+        assert_eq!(
+            parse(" [ 0x1000 ] - 8 ").unwrap(),
+            AddressExpr::Pointer {
+                base: Box::new(AddressExpr::Absolute(0x1000)),
+                offsets: vec![-8],
+            }
+        );
+        assert_eq!(
+            parse("[game.exe+4]").unwrap(),
+            AddressExpr::Pointer {
+                base: Box::new(AddressExpr::ModuleOffset {
+                    module: "game.exe".into(),
+                    offset: 4
+                }),
+                offsets: vec![0],
+            }
+        );
+        for s in [
+            "[game.exe+4",
+            "game.exe+4]",
+            "[]",
+            "[game.exe]*4",
+            "[[x]]+zz",
+            "a[b]",
+        ] {
+            assert!(parse(s).is_err(), "{s:?} should be rejected");
+        }
     }
 
     #[test]

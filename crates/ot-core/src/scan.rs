@@ -124,12 +124,12 @@ impl ScanControl {
         )
     }
 
-    fn begin(&self, total: u64) {
+    pub(crate) fn begin(&self, total: u64) {
         self.done.store(0, Ordering::Relaxed);
         self.total.store(total, Ordering::Relaxed);
     }
 
-    fn add(&self, n: u64) {
+    pub(crate) fn add(&self, n: u64) {
         self.done.fetch_add(n, Ordering::Relaxed);
     }
 }
@@ -671,7 +671,11 @@ struct FirstJob {
 
 /// Reads target memory; unreadable memory (freed, protection changed) is
 /// skipped, but a guard block or exited process stops the scan.
-fn read_or_skip(p: &AttachedProcess, address: u64, len: usize) -> Result<Option<Vec<u8>>> {
+pub(crate) fn read_or_skip(
+    p: &AttachedProcess,
+    address: u64,
+    len: usize,
+) -> Result<Option<Vec<u8>>> {
     match p.read_bytes(address, len) {
         Ok(b) => Ok(Some(b)),
         Err(e @ (Error::Blocked(_) | Error::ProcessExited { .. })) => Err(e),
@@ -741,7 +745,7 @@ fn next_typed<T: Scalar>(
 }
 
 /// Runs `f` over `items` on all cores, keeping input order in the output.
-fn parallel<I, O, F>(items: &[I], control: &ScanControl, f: F) -> Result<Vec<O>>
+pub(crate) fn parallel<I, O, F>(items: &[I], control: &ScanControl, f: F) -> Result<Vec<O>>
 where
     I: Sync,
     O: Send,

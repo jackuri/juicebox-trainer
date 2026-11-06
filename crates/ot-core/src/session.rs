@@ -22,6 +22,7 @@ use crate::address::{self, AddressExpr};
 use crate::aob::Pattern;
 use crate::error::{Error, Result};
 use crate::guard::{self, Verdict};
+use crate::journal::{self, CodeChange, JournalTarget, Ledger};
 use crate::memory::{Region, decode_protect};
 use crate::modules::{self, Module};
 use crate::process::{self, Arch, ProcessInfo};
@@ -43,6 +44,11 @@ pub struct AttachedProcess {
     modules: Mutex<Vec<Module>>,
     last_guard_check: Mutex<Instant>,
     blocked: Mutex<Option<Verdict>>,
+    /// Process start time, with the pid naming this run of the game.
+    started: Option<u64>,
+    /// Code changes made through this session, for restore. Also serializes
+    /// code writes.
+    ledger: Mutex<Ledger>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
@@ -77,6 +83,7 @@ impl AttachedProcess {
             .map(|p| p.parent_pid)
             .unwrap_or(0);
         let modules = modules::modules_of(pid, arch)?;
+        let started = process::start_time_of(&handle);
         info!(pid, %name, %arch, modules = modules.len(), "attached");
         Ok(Self {
             handle,
@@ -91,7 +98,28 @@ impl AttachedProcess {
             modules: Mutex::new(modules),
             last_guard_check: Mutex::new(Instant::now()),
             blocked: Mutex::new(None),
+            started,
+            ledger: Mutex::new(Ledger::default()),
         })
+    }
+
+    /// Keeps a crash-safe journal of code changes in `dir` (see
+    /// [`crate::journal`]). Changes an earlier run left for this same run of
+    /// the game are taken over, so detaching restores them too. Returns how
+    /// many were taken over.
+    pub fn enable_journal(&self, dir: &std::path::Path) -> Result<usize> {
+        let started = self
+            .started
+            .ok_or_else(|| Error::Journal("the game's start time could not be read".into()))?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| Error::Journal(format!("could not create {}: {e}", dir.display())))?;
+        let target = JournalTarget {
+            path: dir.join(journal::file_name(self.pid(), started)),
+            pid: self.pid(),
+            started,
+            exe: self.info.name.clone(),
+        };
+        lock(&self.ledger).attach_file(target)
     }
 
     /// Detaches. (Dropping the value does the same.)
@@ -182,7 +210,8 @@ impl AttachedProcess {
         }
     }
 
-    /// Resolves an address expression (`0x…` or `module.exe+0x…`).
+    /// Resolves an address expression (`0x…`, `module.exe+0x…` or a pointer
+    /// path like `[[module.exe+0x…]+0x10]+0x8`, which reads the target).
     pub fn resolve(&self, expr: &str) -> Result<u64> {
         match address::parse(expr)? {
             AddressExpr::Absolute(a) => Ok(a),
@@ -198,6 +227,22 @@ impl AttachedProcess {
                 base.checked_add(offset)
                     .ok_or_else(|| Error::InvalidAddress(expr.to_string()))
             }
+            AddressExpr::Pointer { base, offsets } => {
+                let start = self.resolve_expr(&base, expr)?;
+                self.resolve_chain(start, &offsets)
+            }
+        }
+    }
+
+    fn resolve_expr(&self, e: &AddressExpr, input: &str) -> Result<u64> {
+        match e {
+            AddressExpr::Absolute(a) => Ok(*a),
+            AddressExpr::ModuleOffset { module, offset } => self
+                .module(module)?
+                .base
+                .checked_add(*offset)
+                .ok_or_else(|| Error::InvalidAddress(input.to_string())),
+            AddressExpr::Pointer { .. } => Err(Error::InvalidAddress(input.to_string())),
         }
     }
 
@@ -298,11 +343,117 @@ impl AttachedProcess {
         }
     }
 
-    /// Writes code bytes (e.g. a patch) at `address`: makes the page writable
-    /// for the write, restores its protection and flushes the instruction
-    /// cache. Logged like every other write. Callers check the bytes first
-    /// (see [`crate::code::check_patch`]).
-    pub fn write_code(&self, address: u64, data: &[u8]) -> Result<()> {
+    /// Changes code at `address` from `original` to `patched`, verifying the
+    /// bytes first. The change is recorded (and journaled, if enabled) before
+    /// it is written, and undone by [`revert_code`](Self::revert_code),
+    /// [`restore_code`](Self::restore_code) or detaching.
+    ///
+    /// Returns `false` if the bytes were already `patched`. Fails with
+    /// [`Error::BytesMismatch`] if they are neither, and with
+    /// [`Error::CodeOverlap`] if another recorded change owns any of them.
+    /// Callers check `patched` first (see [`crate::code::check_patch`]).
+    pub fn apply_code(&self, address: u64, original: &[u8], patched: &[u8]) -> Result<bool> {
+        if original.len() != patched.len() || original.is_empty() {
+            return Err(Error::PatchRejected(
+                "original and new bytes must be the same, non-zero length".into(),
+            ));
+        }
+        let mut ledger = lock(&self.ledger);
+        check_owner(&ledger, address, original, patched)?;
+        let found = self.read_bytes(address, patched.len())?;
+        let change = CodeChange {
+            address,
+            original: original.to_vec(),
+            written: patched.to_vec(),
+        };
+        if found == patched {
+            // Already patched (e.g. left by an earlier run): track it so it
+            // is restored like any other change.
+            if ledger.get(address).is_none() {
+                ledger.insert(change);
+                ledger.persist()?;
+            }
+            return Ok(false);
+        }
+        if found != original {
+            return Err(mismatch(address, original, &found));
+        }
+        // Journal first: a crash right after the write must still find it.
+        let before = ledger.insert(change);
+        if let Err(e) = ledger.persist() {
+            restore_entry(&mut ledger, address, before);
+            return Err(e);
+        }
+        if let Err(e) = self.write_code(address, patched) {
+            restore_entry(&mut ledger, address, before);
+            let _ = ledger.persist();
+            return Err(e);
+        }
+        Ok(true)
+    }
+
+    /// Undoes [`apply_code`](Self::apply_code): puts `original` back if the
+    /// bytes are `patched`. Returns `false` if they were already `original`.
+    /// Fails with [`Error::BytesMismatch`] if they are neither (nothing is
+    /// written) and with [`Error::CodeOverlap`] if another change owns them.
+    pub fn revert_code(&self, address: u64, original: &[u8], patched: &[u8]) -> Result<bool> {
+        if original.len() != patched.len() || original.is_empty() {
+            return Err(Error::PatchRejected(
+                "original and new bytes must be the same, non-zero length".into(),
+            ));
+        }
+        let mut ledger = lock(&self.ledger);
+        check_owner(&ledger, address, original, patched)?;
+        let found = self.read_bytes(address, patched.len())?;
+        let wrote = if found == original {
+            false
+        } else if found == patched {
+            self.write_code(address, original)?;
+            true
+        } else {
+            return Err(mismatch(address, patched, &found));
+        };
+        if ledger.remove(address).is_some()
+            && let Err(e) = ledger.persist()
+        {
+            warn!(pid = self.pid(), "{e}");
+        }
+        Ok(wrote)
+    }
+
+    /// Code changes currently recorded for this session.
+    pub fn code_changes(&self) -> Vec<CodeChange> {
+        lock(&self.ledger).all()
+    }
+
+    /// Restores every recorded code change. Returns what could not be
+    /// restored. Bytes that are neither original nor patched any more are left
+    /// alone and forgotten; other failures (guard, access) stay recorded.
+    pub fn restore_code(&self) -> Vec<Error> {
+        let mut problems = Vec::new();
+        for c in self.code_changes() {
+            match self.revert_code(c.address, &c.original, &c.written) {
+                Ok(_) => {}
+                Err(e @ Error::BytesMismatch { .. }) => {
+                    warn!(pid = self.pid(), "not restored: {e}");
+                    let mut ledger = lock(&self.ledger);
+                    ledger.remove(c.address);
+                    let _ = ledger.persist();
+                    problems.push(e);
+                }
+                Err(e) => {
+                    warn!(pid = self.pid(), "not restored: {e}");
+                    problems.push(e);
+                }
+            }
+        }
+        problems
+    }
+
+    /// Writes code bytes at `address`: makes the page writable for the write,
+    /// restores its protection and flushes the instruction cache. Logged like
+    /// every other write. Only reached through the checked paths above.
+    fn write_code(&self, address: u64, data: &[u8]) -> Result<()> {
         self.gate()?;
         self.check_range(address, data.len())?;
         let ptr = address as usize as *const c_void;
@@ -367,11 +518,9 @@ impl AttachedProcess {
         self.module(&self.info.name)
     }
 
-    /// Searches the readable parts of a module's image for `pattern`.
-    /// Returns at most `limit` match addresses, lowest first.
-    pub fn aob_scan(&self, module: &Module, pattern: &Pattern, limit: usize) -> Result<Vec<u64>> {
-        let mut out = Vec::new();
-        // Contiguous readable runs inside the module.
+    /// Reads the readable parts of a module's image: `(start, bytes)` per
+    /// contiguous run. Pages that can't be read are skipped.
+    pub fn module_image(&self, module: &Module) -> Result<Vec<(u64, Vec<u8>)>> {
         let mut runs: Vec<(u64, u64)> = Vec::new();
         for r in self.regions()? {
             let start = r.base.max(module.base);
@@ -384,24 +533,27 @@ impl AttachedProcess {
                 _ => runs.push((start, end)),
             }
         }
+        let mut out = Vec::new();
         for (start, end) in runs {
             let len = usize::try_from(end - start).map_err(|_| Error::Read {
                 address: start,
                 len: usize::MAX,
             })?;
             let mut buf = vec![0u8; len];
-            if self.read_into(start, &mut buf).is_err() {
+            match self.read_into(start, &mut buf) {
+                Ok(()) => out.push((start, buf)),
+                Err(e @ (Error::Blocked(_) | Error::ProcessExited { .. })) => return Err(e),
                 // A page may have been decommitted since the region walk.
-                continue;
-            }
-            for at in pattern.find_all(&buf, limit - out.len()) {
-                out.push(start + at as u64);
-            }
-            if out.len() >= limit {
-                break;
+                Err(_) => {}
             }
         }
         Ok(out)
+    }
+
+    /// Searches the readable parts of a module's image for `pattern`.
+    /// Returns at most `limit` match addresses, lowest first.
+    pub fn aob_scan(&self, module: &Module, pattern: &Pattern, limit: usize) -> Result<Vec<u64>> {
+        Ok(find_in_image(&self.module_image(module)?, pattern, limit))
     }
 
     /// SHA-256 of the target's executable file, if its path is known.
@@ -456,8 +608,69 @@ impl AttachedProcess {
     }
 }
 
+/// Matches of `pattern` in an image read by [`AttachedProcess::module_image`].
+pub(crate) fn find_in_image(image: &[(u64, Vec<u8>)], pattern: &Pattern, limit: usize) -> Vec<u64> {
+    let mut out = Vec::new();
+    for (start, buf) in image {
+        if out.len() >= limit {
+            break;
+        }
+        for at in pattern.find_all(buf, limit - out.len()) {
+            out.push(start + at as u64);
+        }
+    }
+    out
+}
+
+fn mismatch(address: u64, expected: &[u8], found: &[u8]) -> Error {
+    Error::BytesMismatch {
+        address,
+        expected: crate::aob::hex_string(expected),
+        found: crate::aob::hex_string(found),
+    }
+}
+
+/// Fails if a recorded change other than exactly `original → patched` at
+/// `address` owns any of these bytes.
+fn check_owner(ledger: &Ledger, address: u64, original: &[u8], patched: &[u8]) -> Result<()> {
+    if let Some(other) = ledger.overlap(address, patched.len()) {
+        return Err(Error::CodeOverlap { address, other });
+    }
+    match ledger.get(address) {
+        Some(c) if c.original != original || c.written != patched => Err(Error::CodeOverlap {
+            address,
+            other: address,
+        }),
+        _ => Ok(()),
+    }
+}
+
+fn restore_entry(ledger: &mut Ledger, address: u64, before: Option<CodeChange>) {
+    match before {
+        Some(c) => {
+            ledger.insert(c);
+        }
+        None => {
+            ledger.remove(address);
+        }
+    }
+}
+
 impl Drop for AttachedProcess {
     fn drop(&mut self) {
+        if self.is_alive() {
+            let problems = self.restore_code();
+            if !problems.is_empty() {
+                warn!(
+                    pid = self.info.pid,
+                    "{} code change(s) could not be restored",
+                    problems.len()
+                );
+            }
+        } else {
+            // The game is gone and its code changes with it.
+            lock(&self.ledger).delete_file();
+        }
         info!(pid = self.info.pid, name = %self.info.name, "detached");
     }
 }

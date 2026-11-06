@@ -12,11 +12,14 @@ pub mod error;
 pub mod freeze;
 pub mod guard;
 pub mod hash;
+pub mod journal;
 pub mod memory;
 pub mod modules;
+pub mod pointer;
 pub mod process;
 pub mod scan;
 pub mod session;
+pub mod signature;
 pub mod value;
 mod win;
 

@@ -1,9 +1,11 @@
 //! Runs a loaded pack against an attached game.
 //!
 //! Every read and write goes through [`AttachedProcess`], so the anti-cheat
-//! guard applies to all of it. Patches check the original bytes before each
-//! write and are restored when turned off, when the trainer is unloaded and
-//! when it is dropped. Value toggles and held values use a freeze thread.
+//! guard applies to all of it. Patches change code only through
+//! [`AttachedProcess::apply_code`], which checks the original bytes before
+//! each write and records the change (crash-safe when the session keeps a
+//! journal). They are restored when turned off, when the trainer is unloaded
+//! and when it is dropped. Value toggles and held values use a freeze thread.
 
 use std::sync::Arc;
 
@@ -314,6 +316,9 @@ impl Trainer {
         let patched = if found == original {
             false
         } else if found == replace {
+            // Left patched (e.g. by an earlier run): record it so unloading
+            // or detaching restores it. Nothing is written.
+            self.process.apply_code(address, &original, &replace)?;
             true
         } else {
             return Err(Error::BytesChanged {
@@ -438,26 +443,18 @@ impl Trainer {
                     .unwrap_or_else(|| "patch site not found".into()),
             )
         })?;
-        let (from, to) = if on {
-            (&site.original, &site.replace)
+        // Both check the bytes first and refuse on a mismatch.
+        let wrote = if on {
+            self.process
+                .apply_code(site.address, &site.original, &site.replace)?
         } else {
-            (&site.replace, &site.original)
+            self.process
+                .revert_code(site.address, &site.original, &site.replace)?
         };
-        let found = self.process.read_bytes(site.address, from.len())?;
-        if found == *to {
-            self.slots[i].active = on;
-            return Ok(());
-        }
-        if found != *from {
-            return Err(Error::BytesChanged {
-                address: site.address,
-                expected: ot_core::aob::hex_string(from),
-                found: ot_core::aob::hex_string(&found),
-            });
-        }
-        self.process.write_code(site.address, to)?;
         self.slots[i].active = on;
-        info!(cheat = %self.cheat(i).id, on, "patch");
+        if wrote {
+            info!(cheat = %self.cheat(i).id, on, "patch");
+        }
         Ok(())
     }
 
@@ -593,6 +590,7 @@ impl Trainer {
         if let Some(fatal) = self.freezer.fatal() {
             return Err(fatal.into());
         }
+        self.sync_patches()?;
         for i in 0..self.slots.len() {
             let Some((old, value)) = self.slots[i].frozen else {
                 continue;
@@ -607,6 +605,42 @@ impl Trainer {
                 }
                 Err(e) if e.is_fatal() => return Err(e),
                 Err(e) => self.slots[i].error = Some(e.to_string()),
+            }
+        }
+        Ok(())
+    }
+
+    /// Reads every patch site so the on/off state shown is what is really in
+    /// the game (e.g. after a crash handler restored it).
+    fn sync_patches(&mut self) -> Result<()> {
+        for i in 0..self.slots.len() {
+            let Some(site) = self.slots[i].site.clone() else {
+                continue;
+            };
+            let found = match self.process.read_bytes(site.address, site.original.len()) {
+                Ok(b) => b,
+                Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+                    return Err(e.into());
+                }
+                Err(e) => {
+                    self.slots[i].error = Some(e.to_string());
+                    continue;
+                }
+            };
+            if found == site.replace {
+                self.slots[i].active = true;
+            } else if found == site.original {
+                self.slots[i].active = false;
+            } else {
+                self.slots[i].active = false;
+                self.slots[i].error = Some(
+                    Error::BytesChanged {
+                        address: site.address,
+                        expected: ot_core::aob::hex_string(&site.original),
+                        found: ot_core::aob::hex_string(&found),
+                    }
+                    .to_string(),
+                );
             }
         }
         Ok(())
