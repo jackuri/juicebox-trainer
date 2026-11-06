@@ -1,0 +1,41 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/ot-core",
+    "crates/ot-packs",
+    "crates/ot-saves",
+    "crates/ot-mcp",
+    "testbed/native",
+    "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT"
+authors = ["OpenTrainer contributors"]
+publish = false
+
+[workspace.dependencies]
+ot-core = { path = "crates/ot-core" }
+ot-packs = { path = "crates/ot-packs" }
+ot-saves = { path = "crates/ot-saves" }
+ot-mcp = { path = "crates/ot-mcp" }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = "warn"
+dbg_macro = "warn"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1

@@ -1,0 +1,14 @@
+[package]
+name = "ot-saves"
+description = "Save locator, snapshots and safe structural codecs (roadmap v0.6.0+)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

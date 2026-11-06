@@ -1,0 +1,22 @@
+{
+  "name": "opentrainer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Free, open-source trainer + save editor for PC single-player games.",
+  "license": "MIT",
+  "workspaces": [
+    "apps/desktop"
+  ],
+  "scripts": {
+    "dev": "npm run tauri --workspace @opentrainer/desktop -- dev",
+    "build:web": "npm run build --workspace @opentrainer/desktop",
+    "lint": "npm run lint --workspace @opentrainer/desktop",
+    "typecheck": "npm run typecheck --workspace @opentrainer/desktop",
+    "test": "npm run test --workspace @opentrainer/desktop",
+    "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",
+    "bump": "node scripts/bump-version.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

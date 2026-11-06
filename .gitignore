@@ -1,0 +1,26 @@
+# Rust
+/target/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Tauri generated
+apps/desktop/src-tauri/gen/schemas/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Never commit game files, dumps or unpacked binaries (see CLAUDE.md)
+*.dmp
+/games/
+/dumps/
