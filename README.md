@@ -61,6 +61,19 @@ cargo run -p testbed-native --features shifted                       # different
 5. Pointer chain: read `ptr` at the `chain.root` value (e.g. `testbed_native.exe+0x3A200`), add the
    offsets from `chain.offsets` and you'll land on the same stats block.
 
+## Find and freeze a value with the scanner
+
+1. Attach to the testbed as above. The **Scanner** tab opens first.
+2. Type `250` (the starting gold), keep `i32`, click **First scan**.
+3. In the testbed terminal type `earn 17`. Back in OpenTrainer type `267`, click **Next scan**. One
+   result should be left: the gold address.
+4. Click **Add** on it. It appears in the **Address list** below with its live value.
+5. Tick **Freeze**, then type `spend 100` and `state` in the testbed: gold snaps back to 267.
+   Click the value, type `5000` and press Enter to freeze it at a new value. Untick to let it change.
+6. Unknown values: click **New scan**, pick **Unknown initial value**, **First scan**. Type `hit 5` in
+   the testbed, pick **Decreased**, **Next scan**. Repeat with `heal` + **Increased** and with no change
+   + **Unchanged** until health is one of the few results.
+
 To see the guard refuse, copy `target\debug\testbed_native.exe` into a new folder that also contains
 an empty `BattlEye` folder, run the copy, and pick it in OpenTrainer.
 
