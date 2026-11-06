@@ -20,8 +20,10 @@ A free, open-source Windows app that combines a game **trainer**, a **save manag
 |---|---|
 | `apps/desktop` | Tauri 2 + React + TypeScript + Tailwind desktop app |
 | `crates/ot-core` | Process attach, memory read/write, module map, anti-cheat guard |
-| `crates/ot-packs`, `ot-saves`, `ot-mcp` | Cheat packs, saves, guarded MCP server (later versions) |
-| `testbed/native` | Fake "game" used by tests (x64 and x86) |
+| `crates/ot-packs` | Cheat pack schema, validator, store, trainer runtime, `otpack` CLI |
+| `crates/ot-saves`, `ot-mcp` | Saves, guarded MCP server (later versions) |
+| `packs/examples` | Example packs for the testbed |
+| `testbed/native`, `testbed/harness` | Fake "game" used by tests (x64 and x86), and test helpers |
 | `scripts/` | `check.ps1` (all checks), `bump-version.mjs` |
 
 ## Develop
@@ -73,6 +75,26 @@ cargo run -p testbed-native --features shifted                       # different
 6. Unknown values: click **New scan**, pick **Unknown initial value**, **First scan**. Type `hit 5` in
    the testbed, pick **Decreased**, **Next scan**. Repeat with `heal` + **Increased** and with no change
    + **Unchanged** until health is one of the few results.
+
+## Use a cheat pack (trainer)
+
+1. Start the testbed (`cargo run -p testbed-native`) and `npm run dev`, then attach as above. The
+   **Trainer** tab opens first and lists **OpenTrainer Testbed (x64)**. Click **Load**.
+2. Turn on **Infinite Health** (or press **F1**), then type `hit 25` in the testbed: health stays 100.
+   Open **What it changes** to see `29 D0 → 90 90` (`sub eax,edx → nop; nop`). Turn it off and `hit 25`
+   again: 75.
+3. **F2** toggles Infinite Ammo (`fire 5`). **Health Lock at 999** (F3) freezes health at 999.
+   **+1000 Gold** (F4) adds gold; **Set Gold** writes what you type (try `-1`: refused, out of range).
+   Drag **Move Speed** and type `state`; it shows *held* until you click **Release**.
+4. Click **Unload pack** (or Detach): every patch is restored and the hotkeys are released.
+
+Packs are plain JSON. Put your own in `%APPDATA%\OpenTrainer\packs\<game-id>\pack.json` (the
+Trainer tab has **Open packs folder**), and check them with:
+
+```powershell
+cargo run -p ot-packs --bin otpack -- validate packs/examples/testbed-native/pack.json
+cargo run -p ot-packs --bin otpack -- schema        # the JSON Schema
+```
 
 To see the guard refuse, copy `target\debug\testbed_native.exe` into a new folder that also contains
 an empty `BattlEye` folder, run the copy, and pick it in OpenTrainer.

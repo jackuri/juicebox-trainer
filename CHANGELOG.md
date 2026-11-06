@@ -4,6 +4,58 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.0] - 2026-11-06
+
+### Added
+- **Cheat packs** (`ot-packs`): the v1 pack format from `docs/PLAN.md` §4 as strict Rust types
+  (unknown fields rejected) plus a JSON Schema at `crates/ot-packs/schema/pack.v1.json`.
+- **Validator** with JSON paths in every message: unique ids, hotkey syntax and conflicts, settings that
+  match the cheat's UI, numbers that fit their value type, slider ranges, address forms, AOB and byte
+  syntax, patch length and safe instructions, SemVer and build hashes. Clear messages for an unknown
+  schema version and for `cave` (arrives in v0.5).
+- **`value` op**: a typed value at a static base (`module.exe+0x…`) or an AOB signature (raw, `abs32`
+  for x86 code, `rip32` for x64 code), then a Cheat Engine-style pointer chain. Toggles freeze (at a
+  fixed value or the current one), sliders and number inputs set (optionally held), buttons add or set.
+  Frozen pointer chains are re-resolved on every refresh, so a moved object is followed.
+- **`patch` op**: replaces a few bytes at an AOB-located site. The signature must match exactly once,
+  the original bytes are checked before every write and on restore, and a site left patched (e.g. by a
+  crash) is recognised. Replacement bytes are decoded with iced-x86 and only plain instructions are
+  allowed: no calls, indirect jumps, system calls, interrupts, privileged or I/O instructions, and
+  near jumps must land inside the game module. Limit 32 bytes.
+- **Trainer runtime** (`ot_packs::Trainer`): checks the exe name, architecture and SHA-256 build
+  against the pack (verified / listed / unknown / untagged), restores every patch on toggle off,
+  unload, detach, drop and app exit. Shows what each cheat touches (module offset, bytes and
+  disassembly for patches, address chain for values).
+- **Hotkeys**: `F1`, `Ctrl+Num1`, `Alt+Shift+F5`, `Num+` … parsed and normalised; letters, digits and
+  Space need Ctrl or Alt. The desktop app registers them with Win32 `RegisterHotKey` (no keyboard hooks)
+  on its own thread while a pack is loaded, reports keys another app already holds, and unregisters
+  them with the pack.
+- **Pack store**: example packs built into the app and user packs in
+  `%APPDATA%\OpenTrainer\packs\<game-id>\pack.json` (4 MiB limit).
+- **`otpack` CLI**: `otpack validate <pack.json>...` and `otpack schema`.
+- **Example packs** for the x64 and x86 testbed (`packs/examples/`): Infinite Health and Infinite Ammo
+  (patches), Health Lock at 999 (freeze), +1000 Gold (button), Set Gold (number), Move Speed (slider).
+- Desktop: **Trainer** tab (now the first tab): packs for the attached exe and arch, load/unload,
+  cheats grouped by category with switches, buttons, number inputs and sliders, hotkey badges and
+  conflicts, held values with Release, failed cheats with the reason, build badge and warning,
+  AI-made badge, "What it changes" details, pack warnings. Hotkey presses refresh the UI at once.
+- `ot-core`: AOB patterns and module scanning, guarded code writes (`write_code`: temporary
+  protection change, restore, instruction-cache flush, logged), pointer-chain resolution, exe SHA-256,
+  iced-x86 patch checker and disassembler.
+- Testbed: the damage, fire and root-pointer code are inline assembly behind fixed marker bytes, so
+  AOB signatures are identical on every build, compiler version and architecture.
+- Tests: 25 `ot-packs` unit tests; 7 trainer integration tests on live x64 and x86 testbeds (every
+  example cheat, hotkeys, restore on drop, static pointer chain, drifted/missing/ambiguous signatures,
+  null pointer, build hash match, wrong exe/arch refused, leftover patch restored); 8 new `ot-core`
+  unit tests (AOB, patch checker, hashing); desktop command tests; a local-only hotkey test that
+  presses a real key (`cargo test -p opentrainer-desktop -- --ignored hotkeys`); 7 new frontend tests.
+
+### Changed
+- Testbed test helpers moved to a `testbed-harness` crate shared by `ot-core` and `ot-packs`. Their
+  scratch folders now live under `target/tmp` instead of `%TEMP%` (the guard looks three folders up,
+  and `%LOCALAPPDATA%` can hold a real anti-cheat folder on a developer PC).
+- The app restores patches and stops freezes on exit.
+
 ## [0.3.0] - 2026-11-06
 
 ### Added
