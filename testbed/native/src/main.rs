@@ -11,7 +11,7 @@
 //! values after OpenTrainer writes them. Build with `--features shifted` to get
 //! a layout with different offsets.
 //!
-//! Three small pieces of code are written in inline assembly so their bytes are
+//! Four small pieces of code are written in inline assembly so their bytes are
 //! the same on every build, compiler version and architecture (x64 and x86).
 //! Each starts with a marker `nop dword ptr [rax+0x0N544F54]` (bytes
 //! `0F 1F 80 54 4F 54 0N`), which cheat packs use as an AOB signature:
@@ -21,6 +21,7 @@
 //! | 1 | damage: `health -= amount` | `8B 01 29 D0 89 01` (`mov eax,[rcx]; sub eax,edx; mov [rcx],eax`) |
 //! | 2 | fire: `ammo -= shots` | `8B 01 29 D0 89 01` |
 //! | 3 | load the static root | x64 `48 8B 0D rel32` (`mov rcx,[rip+WORLD]`), x86 `8B 0D abs32` |
+//! | 4 | earn: `gold += amount` | `8B 01 01 D0 89 01` (`mov eax,[rcx]; add eax,edx; mov [rcx],eax`) |
 
 use std::arch::asm;
 use std::io::{self, BufRead, Write};
@@ -130,9 +131,10 @@ fn world() -> *mut World {
     w
 }
 
-/// `*field -= amount` at a fixed byte pattern. `site` 1 = damage, 2 = fire.
-macro_rules! asm_sub {
-    ($marker:literal, $field:expr, $amount:expr) => {{
+/// `*field -= amount` (`sub`) or `*field += amount` (`add`) at a fixed byte
+/// pattern. Marker 1 = damage, 2 = fire, 4 = earn.
+macro_rules! asm_op {
+    ($op:literal, $marker:literal, $field:expr, $amount:expr) => {{
         let field: *mut i32 = $field;
         let amount: i32 = $amount;
         // SAFETY: `field` points at a live i32 in the leaked Stats block. The
@@ -142,7 +144,7 @@ macro_rules! asm_sub {
             asm!(
                 concat!("nop dword ptr [rax + ", $marker, "]"),
                 "mov eax, dword ptr [rcx]",
-                "sub eax, edx",
+                concat!($op, " eax, edx"),
                 "mov dword ptr [rcx], eax",
                 in("rcx") field,
                 in("edx") amount,
@@ -153,7 +155,7 @@ macro_rules! asm_sub {
             asm!(
                 concat!("nop dword ptr [eax + ", $marker, "]"),
                 "mov eax, dword ptr [ecx]",
-                "sub eax, edx",
+                concat!($op, " eax, edx"),
                 "mov dword ptr [ecx], eax",
                 in("ecx") field,
                 in("edx") amount,
@@ -189,7 +191,7 @@ fn take_damage(amount: i32) {
     let amount = amount.clamp(0, get!(health).max(0));
     // SAFETY: only the field address is taken; stats() is live.
     let field = unsafe { addr_of_mut!((*stats()).health) };
-    asm_sub!("0x01544F54", field, amount);
+    asm_op!("sub", "0x01544F54", field, amount);
 }
 
 #[inline(never)]
@@ -197,13 +199,16 @@ fn fire(shots: i32) -> i32 {
     let fired = shots.clamp(0, get!(ammo).max(0));
     // SAFETY: only the field address is taken; stats() is live.
     let field = unsafe { addr_of_mut!((*stats()).ammo) };
-    asm_sub!("0x02544F54", field, fired);
+    asm_op!("sub", "0x02544F54", field, fired);
     fired
 }
 
+/// Gold pickups: `gold += amount` at marker 4 (wraps like the game would).
 #[inline(never)]
 fn earn(amount: i32) {
-    set!(gold, get!(gold).saturating_add(amount));
+    // SAFETY: only the field address is taken; stats() is live.
+    let field = unsafe { addr_of_mut!((*stats()).gold) };
+    asm_op!("add", "0x04544F54", field, amount.max(0));
 }
 
 fn bump_tick() -> u64 {
@@ -319,7 +324,7 @@ fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
         "spend" => {
             let want = arg.unwrap_or(50);
             if get!(gold) >= want {
-                earn(-want);
+                set!(gold, get!(gold) - want);
                 format!("spent {want}")
             } else {
                 "not enough gold".into()
