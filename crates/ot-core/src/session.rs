@@ -6,9 +6,12 @@ use std::time::{Duration, Instant};
 
 use tracing::{info, warn};
 use windows::Win32::Foundation::WAIT_TIMEOUT;
-use windows::Win32::System::Diagnostics::Debug::{ReadProcessMemory, WriteProcessMemory};
+use windows::Win32::System::Diagnostics::Debug::{
+    FlushInstructionCache, ReadProcessMemory, WriteProcessMemory,
+};
 use windows::Win32::System::Memory::{
-    MEM_COMMIT, MEM_IMAGE, MEMORY_BASIC_INFORMATION, VirtualQueryEx,
+    MEM_COMMIT, MEM_IMAGE, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS,
+    VirtualProtectEx, VirtualQueryEx,
 };
 use windows::Win32::System::Threading::{
     PROCESS_QUERY_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_VM_OPERATION, PROCESS_VM_READ,
@@ -16,6 +19,7 @@ use windows::Win32::System::Threading::{
 };
 
 use crate::address::{self, AddressExpr};
+use crate::aob::Pattern;
 use crate::error::{Error, Result};
 use crate::guard::{self, Verdict};
 use crate::memory::{Region, decode_protect};
@@ -292,6 +296,118 @@ impl AttachedProcess {
             crate::Value::Ptr(p) => Ok(p),
             _ => unreachable!("read_value(Ptr) returns Value::Ptr"),
         }
+    }
+
+    /// Writes code bytes (e.g. a patch) at `address`: makes the page writable
+    /// for the write, restores its protection and flushes the instruction
+    /// cache. Logged like every other write. Callers check the bytes first
+    /// (see [`crate::code::check_patch`]).
+    pub fn write_code(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.gate()?;
+        self.check_range(address, data.len())?;
+        let ptr = address as usize as *const c_void;
+        let mut old = PAGE_PROTECTION_FLAGS(0);
+        // SAFETY: plain Win32 call on our handle (opened with VM_OPERATION).
+        unsafe {
+            VirtualProtectEx(
+                self.handle.raw(),
+                ptr,
+                data.len(),
+                PAGE_EXECUTE_READWRITE,
+                &mut old,
+            )
+        }
+        .map_err(|e| Error::win32("VirtualProtectEx", e))?;
+        let written = self.write_raw(address, data);
+        let mut ignored = PAGE_PROTECTION_FLAGS(0);
+        // SAFETY: restores the protection we just changed on the same range.
+        let _ = unsafe { VirtualProtectEx(self.handle.raw(), ptr, data.len(), old, &mut ignored) };
+        // SAFETY: flushes the written range in the target; harmless if it fails.
+        let _ = unsafe { FlushInstructionCache(self.handle.raw(), Some(ptr), data.len()) };
+        written?;
+        info!(
+            pid = self.pid(),
+            address = format_args!("{address:#X}"),
+            len = data.len(),
+            "code write"
+        );
+        Ok(())
+    }
+
+    /// Follows a pointer chain the way Cheat Engine does: for each offset,
+    /// read the pointer at the current address and add the offset.
+    /// `[[base]+o1]+o2`. With no offsets the result is `base`.
+    pub fn resolve_chain(&self, base: u64, offsets: &[i64]) -> Result<u64> {
+        let mut address = base;
+        for &offset in offsets {
+            let p = self.read_pointer(address)?;
+            if p == 0 {
+                return Err(Error::NullPointer { at: address });
+            }
+            address = p
+                .checked_add_signed(offset)
+                .ok_or_else(|| Error::InvalidAddress(format!("{p:#X}{offset:+#X}")))?;
+        }
+        Ok(address)
+    }
+
+    /// Finds a loaded module by name (refreshing the map once if needed).
+    pub fn module(&self, name: &str) -> Result<Module> {
+        if let Some(m) = modules::find(&lock(&self.modules), name) {
+            return Ok(m.clone());
+        }
+        modules::find(&self.refresh_modules()?, name)
+            .cloned()
+            .ok_or_else(|| Error::ModuleNotFound(name.to_string()))
+    }
+
+    /// The main executable's module (the first module whose name matches the
+    /// process name).
+    pub fn main_module(&self) -> Result<Module> {
+        self.module(&self.info.name)
+    }
+
+    /// Searches the readable parts of a module's image for `pattern`.
+    /// Returns at most `limit` match addresses, lowest first.
+    pub fn aob_scan(&self, module: &Module, pattern: &Pattern, limit: usize) -> Result<Vec<u64>> {
+        let mut out = Vec::new();
+        // Contiguous readable runs inside the module.
+        let mut runs: Vec<(u64, u64)> = Vec::new();
+        for r in self.regions()? {
+            let start = r.base.max(module.base);
+            let end = (r.base + r.size).min(module.end());
+            if start >= end || !r.readable {
+                continue;
+            }
+            match runs.last_mut() {
+                Some(last) if last.1 == start => last.1 = end,
+                _ => runs.push((start, end)),
+            }
+        }
+        for (start, end) in runs {
+            let len = usize::try_from(end - start).map_err(|_| Error::Read {
+                address: start,
+                len: usize::MAX,
+            })?;
+            let mut buf = vec![0u8; len];
+            if self.read_into(start, &mut buf).is_err() {
+                // A page may have been decommitted since the region walk.
+                continue;
+            }
+            for at in pattern.find_all(&buf, limit - out.len()) {
+                out.push(start + at as u64);
+            }
+            if out.len() >= limit {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
+    /// SHA-256 of the target's executable file, if its path is known.
+    pub fn exe_sha256(&self) -> Option<String> {
+        let path = self.info.exe_path.as_deref()?;
+        crate::hash::sha256_file(path).ok()
     }
 
     /// Committed memory regions of the target.

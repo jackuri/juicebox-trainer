@@ -6,9 +6,12 @@
 //! anti-cheat is present. The guard has no off switch.
 
 pub mod address;
+pub mod aob;
+pub mod code;
 pub mod error;
 pub mod freeze;
 pub mod guard;
+pub mod hash;
 pub mod memory;
 pub mod modules;
 pub mod process;
@@ -17,6 +20,7 @@ pub mod session;
 pub mod value;
 mod win;
 
+pub use aob::Pattern;
 pub use error::{Error, Result};
 pub use freeze::Freezer;
 pub use guard::{Finding, FindingKind, Verdict};

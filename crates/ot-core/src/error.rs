@@ -55,6 +55,16 @@ pub enum Error {
     #[error("invalid {ty} value '{input}'")]
     InvalidValue { input: String, ty: ValueType },
 
+    #[error("invalid byte pattern {0}")]
+    InvalidPattern(String),
+
+    /// Code bytes failed the safety check in [`crate::code::check_patch`].
+    #[error("patch rejected: {0}")]
+    PatchRejected(String),
+
+    #[error("null pointer read at {at:#X} while following a pointer chain")]
+    NullPointer { at: u64 },
+
     #[error("{op} failed: {source}")]
     Win32 {
         op: &'static str,
@@ -83,6 +93,9 @@ impl Error {
             Error::InvalidAddress(_) => "invalidAddress",
             Error::ModuleNotFound(_) => "moduleNotFound",
             Error::InvalidValue { .. } => "invalidValue",
+            Error::InvalidPattern(_) => "invalidPattern",
+            Error::PatchRejected(_) => "patchRejected",
+            Error::NullPointer { .. } => "nullPointer",
             Error::Win32 { .. } => "win32",
         }
     }
