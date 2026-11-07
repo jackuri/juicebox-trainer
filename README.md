@@ -21,7 +21,8 @@ A free, open-source Windows app that combines a game **trainer**, a **save manag
 | `apps/desktop` | Tauri 2 + React + TypeScript + Tailwind desktop app |
 | `crates/ot-core` | Process attach, memory read/write, module map, anti-cheat guard |
 | `crates/ot-packs` | Cheat pack schema, validator, store, trainer runtime, `otpack` CLI |
-| `crates/ot-saves`, `ot-mcp` | Saves, guarded MCP server (later versions) |
+| `crates/ot-saves` | Save locator, backups, compare, guarded restore |
+| `crates/ot-mcp` | Guarded MCP server for the AI agent (later versions) |
 | `packs/examples` | Example packs for the testbed |
 | `testbed/native`, `testbed/harness` | Fake "game" used by tests (x64 and x86), and test helpers |
 | `scripts/` | `check.ps1` (all checks), `bump-version.mjs` |
@@ -118,6 +119,23 @@ cargo run -p ot-packs --bin otpack -- schema        # the JSON Schema
 Open **Signatures** and enter a code address, e.g. the damage code: search the module for the
 pattern `0F 1F 80 54 4F 54 01` and add 7. **Make signature** gives the shortest pattern that finds
 only that code, with addresses wildcarded.
+
+## Back up and restore saves
+
+1. Start the fake game (or double-click `Try OpenTrainer.cmd`) and type `save` in its window. It
+   writes a save file, like a real game would.
+2. In OpenTrainer click **Save backups** at the top, pick **testbed_native.exe** under "Add a game"
+   and click **Add**. OpenTrainer finds the save folder (`AppData\LocalLow\TestCo\Testbed`) by itself.
+   (Attaching to a game adds it too, and backs up its saves before you use any cheat.)
+3. Click **Back up now**. Then type `earn 1000` and `save` in the fake game.
+4. Click **Compare with now** on the backup: it shows `"gold"` going up by 1000.
+5. Type `quit` in the fake game (OpenTrainer backs up again when a game closes). Click **Restore** on
+   the first backup and confirm. Start the fake game again and type `load`: the gold is back to what
+   it was.
+
+Restoring needs the game closed and is refused for games with anti-cheat. Your saves from just
+before a restore are kept as a "Before a restore" backup, so you can undo it. Backups are stored in
+`%LOCALAPPDATA%\OpenTrainer\saves`.
 
 ## If OpenTrainer crashes
 

@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.0] - 2026-11-07
+
+### Added
+- **Save backups** (`ot-saves`, desktop **Save backups** view). OpenTrainer finds where a game keeps
+  its saves and backs them up when the game starts, when it closes, when you attach to it (before
+  any cheat), and whenever you click **Back up now** (with an optional note).
+  - Save locator: Unity (`<exe>_Data\app.info` → `AppData\LocalLow\<company>\<product>`), Unreal
+    (`Saved\SaveGames`), Steam Cloud folders (`Steam\userdata\<id>\<appid>\remote`), and folders
+    named like the game in `Documents\My Games`, `Documents`, `Saved Games`, `%APPDATA%`,
+    `%LOCALAPPDATA%` and `LocalLow`. The game's install folder is never picked. You can add or
+    remove folders yourself.
+  - Backups live in `%LOCALAPPDATA%\OpenTrainer\saves`. Each file's contents are stored once, so
+    repeated backups of unchanged saves cost no space. Automatic backups identical to the newest one
+    are skipped, and only the newest 30 automatic backups are kept; your own backups stay until you
+    delete them. Folders over 20,000 files or 2 GB are refused.
+  - **Compare**: any backup with the saves now, or with the backup before it. Text saves show the
+    changed lines (long one-line JSON is cut to the part that changed); other files show changed bytes
+    with the 32-bit number at that spot.
+  - **Restore**: only while the game is closed, after the anti-cheat guard checks the game's folder
+    (no restores for online games). Every stored file is checked first, and your current saves are
+    backed up ("Before a restore") so a restore can be undone. Files not in the backup are left alone
+    unless you tick the box to delete them.
+  - **Steam Cloud warnings** when Steam syncs a game's saves (and whether Steam is running).
+- Guard: `ot_core::guard::check_install(exe)` checks a game that isn't running (install-folder markers
+  and the online-only list), failing closed.
+- Testbed: `save` writes `AppData\LocalLow\TestCo\Testbed\save1.json`, `load` reads it back, and the
+  testbed writes a Unity-style `testbed_native_Data\app.info` so the locator finds it.
+- New dependency: `similar` (Apache-2.0) for line diffs.
+
 ## [0.5.0] - 2026-11-06
 
 ### Added

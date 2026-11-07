@@ -1,13 +1,14 @@
 # Used by "Try OpenTrainer.cmd" before starting the app.
 # - Stops a leftover OpenTrainer dev web server (it holds port 5173 and the app can't start).
-# - Exits with 2 if OpenTrainer from this folder is already open.
+# - Exits with 2 if OpenTrainer from this folder is already open (the launcher then
+#   opens only the fake game).
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 $app = Get-CimInstance Win32_Process -Filter "Name='opentrainer-desktop.exe'" |
     Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($root, 'OrdinalIgnoreCase') }
 if ($app) {
-    Write-Host 'OpenTrainer is already open. Look for its window on the taskbar.'
+    Write-Host 'OpenTrainer is already open (look for its window on the taskbar).'
     exit 2
 }
 

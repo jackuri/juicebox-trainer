@@ -33,7 +33,9 @@ if not exist node_modules (
 
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\try-prepare.ps1
 if errorlevel 2 (
-  pause
+  echo Opening only the fake game in a new window.
+  start "OpenTrainer testbed (fake game)" cmd /k cargo run -q -p testbed-native --target-dir target\try
+  timeout /t 5 >nul
   exit /b 0
 )
 if errorlevel 1 (
