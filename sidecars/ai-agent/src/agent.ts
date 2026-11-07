@@ -5,7 +5,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { kickoff, SYSTEM_PROMPT } from "./prompt.js";
+import { EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools ot-mcp offers (crates/ot-mcp/src/tools.rs). */
@@ -30,7 +30,14 @@ export const OT_TOOLS = [
   "save_snapshot",
   "save_diff",
   "save_read",
+  "game_recon",
+  "watch_writes_start",
+  "watch_writes_stop",
+  "pack_heal",
 ] as const;
+
+/** The read-only save tools the "explain a save" task gets. */
+export const EXPLAIN_TOOLS = ["save_diff", "save_read"] as const;
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
 export const DEFAULT_BUDGET_USD = 5;
@@ -71,6 +78,7 @@ export function buildOptions(
     }),
   );
   const ui = createSdkMcpServer({ name: "ui", version: "1.0.0", tools: [askPlayer] });
+  const explain = start.task === "explainSave";
 
   const env: Record<string, string | undefined> = { ...process.env };
   // Settings inherited from another Claude program (if OpenTrainer was
@@ -88,17 +96,19 @@ export function buildOptions(
   return {
     model: start.model ?? DEFAULT_MODEL,
     effort: "high",
-    systemPrompt: SYSTEM_PROMPT,
+    systemPrompt: explain ? EXPLAIN_SAVE_PROMPT : SYSTEM_PROMPT,
     tools: [],
     mcpServers: {
       ot: { type: "stdio", command: mcp.command, args: mcp.args },
       ui,
     },
-    allowedTools: [...OT_TOOLS.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"],
+    allowedTools: explain
+      ? EXPLAIN_TOOLS.map((t) => `mcp__ot__${t}`)
+      : [...OT_TOOLS.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"],
     permissionMode: "dontAsk",
     settingSources: [],
     persistSession: false,
-    maxTurns: 300,
+    maxTurns: explain ? 20 : 300,
     maxBudgetUsd: start.maxBudgetUsd ?? DEFAULT_BUDGET_USD,
     abortController: abort,
     env,
@@ -126,6 +136,10 @@ const ACTIVITY: Record<string, string> = {
   save_snapshot: "Backing up saves",
   save_diff: "Comparing saves",
   save_read: "Reading saves",
+  game_recon: "Checking the game engine",
+  watch_writes_start: "Watching what changes the value",
+  watch_writes_stop: "Finding the game code",
+  pack_heal: "Repairing the cheat pack",
 };
 
 /** `mcp__ot__scan_first` → `scan_first`. */

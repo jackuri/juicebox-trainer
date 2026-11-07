@@ -35,6 +35,8 @@ describe("protocol", () => {
       backend: "subscription",
       model: undefined,
       maxBudgetUsd: undefined,
+      task: "trainer",
+      backup: undefined,
     });
     expect(parseInbound('{"type":"answer","id":"q1","text":"yes"}')).toEqual({
       type: "answer",
@@ -94,6 +96,30 @@ function fakeQuery(messages: unknown[]): QueryFn {
     for (const m of messages) yield m as SDKMessage;
   };
 }
+
+describe("explain a save", () => {
+  it("gets only the read-only save tools and its own prompt", () => {
+    const o = buildOptions(
+      { ...start, task: "explainSave", backup: "1700000000000" },
+      mcp,
+      io(),
+      new AbortController(),
+      "0.9.0",
+    );
+    expect(o.allowedTools).toEqual(["mcp__ot__save_diff", "mcp__ot__save_read"]);
+    expect(String(o.systemPrompt)).toContain("what changed in the save");
+    expect(kickoff({ ...start, task: "explainSave", backup: "17", notes: "bought a sword" })).toContain(
+      "bought a sword",
+    );
+  });
+
+  it("parses the task", () => {
+    const m = parseInbound(
+      JSON.stringify({ type: "start", task: "explainSave", backup: "9", game: { pid: 0, name: "g.exe", exe: "C:/g.exe" } }),
+    );
+    expect(m).toMatchObject({ task: "explainSave", backup: "9" });
+  });
+});
 
 describe("runSession", () => {
   it("relays text, tool activity and the result", async () => {

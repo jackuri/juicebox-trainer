@@ -10,8 +10,14 @@ export interface GameRef {
   exe: string | null;
 }
 
+export type Task = "trainer" | "explainSave";
+
 export interface StartMessage {
   type: "start";
+  /** What to do; "trainer" by default. */
+  task?: Task;
+  /** For "explainSave": the backup made before the player's action. */
+  backup?: string;
   game: GameRef;
   /** Cheats the player asked for, in plain words. */
   wishes: string[];
@@ -63,6 +69,8 @@ export function parseInbound(line: string): Inbound | null {
         backend: m.backend === "apiKey" ? "apiKey" : "subscription",
         model: typeof m.model === "string" ? m.model : undefined,
         maxBudgetUsd: typeof m.maxBudgetUsd === "number" ? m.maxBudgetUsd : undefined,
+        task: m.task === "explainSave" ? "explainSave" : "trainer",
+        backup: typeof m.backup === "string" ? m.backup : undefined,
       };
     }
     case "answer":
