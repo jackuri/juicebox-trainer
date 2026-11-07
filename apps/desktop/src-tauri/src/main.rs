@@ -3,6 +3,7 @@
 
 mod commands;
 mod hotkeys;
+mod saves;
 
 use tauri::{Emitter, Manager, RunEvent};
 use tracing::{info, warn};
@@ -37,7 +38,9 @@ fn main() {
 
     let app = tauri::Builder::default()
         .manage(commands::AppState::default())
+        .manage(saves::SavesState::open(ot_saves::default_root()))
         .setup(move |app| {
+            saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
                 // Undo code changes a crashed or killed earlier run left behind.
                 let undone: Vec<_> = ot_core::journal::recover(&dir)
@@ -104,6 +107,20 @@ fn main() {
             commands::pointer_clear,
             commands::signature_make,
             commands::recovery_report,
+            saves::saves_overview,
+            saves::saves_add_process,
+            saves::saves_add_exe,
+            saves::saves_remove_game,
+            saves::saves_relocate,
+            saves::saves_add_folder,
+            saves::saves_remove_folder,
+            saves::saves_backups,
+            saves::saves_backup_now,
+            saves::saves_delete_backup,
+            saves::saves_set_note,
+            saves::saves_diff,
+            saves::saves_restore,
+            saves::saves_open_folder,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { describeFinding, filterProcesses, hex, isSystemProcess } from "./format";
+import {
+  backupReason,
+  describeFinding,
+  fileSize,
+  filterProcesses,
+  hex,
+  isSystemProcess,
+  timeAgo,
+} from "./format";
 import type { ProcessInfo } from "./ipc";
 
 const proc = (name: string, pid: number, exePath: string | null): ProcessInfo => ({
@@ -44,5 +52,19 @@ describe("describeFinding", () => {
     expect(
       describeFinding({ kind: "installMarker", product: "BattlEye", detail: "BattlEye" }),
     ).toBe("BattlEye: found in the game folder (BattlEye)");
+  });
+});
+
+describe("save formatting", () => {
+  it("formats sizes, ages and reasons", () => {
+    expect(fileSize(512)).toBe("512 B");
+    expect(fileSize(2048)).toBe("2.0 KB");
+    expect(fileSize(5 * 1024 * 1024)).toBe("5.0 MB");
+    const now = 1_000_000_000;
+    expect(timeAgo(now - 10_000, now)).toBe("just now");
+    expect(timeAgo(now - 5 * 60_000, now)).toBe("5 min ago");
+    expect(timeAgo(now - 3 * 3_600_000, now)).toBe("3 h ago");
+    expect(timeAgo(now - 3 * 86_400_000, now)).toBe("3 days ago");
+    expect(backupReason("beforeRestore")).toBe("Before a restore");
   });
 });

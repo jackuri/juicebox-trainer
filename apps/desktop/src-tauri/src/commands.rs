@@ -136,7 +136,7 @@ pub struct CommandError {
 }
 
 impl CommandError {
-    fn new(kind: &'static str, message: impl Into<String>) -> Self {
+    pub(crate) fn new(kind: &'static str, message: impl Into<String>) -> Self {
         Self {
             kind,
             message: message.into(),
@@ -241,12 +241,20 @@ fn session_info(p: &AttachedProcess) -> SessionInfo {
 }
 
 #[tauri::command]
-pub async fn attach(pid: u32, state: State<'_, AppState>) -> CmdResult<SessionInfo> {
+pub async fn attach(
+    pid: u32,
+    state: State<'_, AppState>,
+    saves: State<'_, crate::saves::SavesState>,
+) -> CmdResult<SessionInfo> {
     // Detach first so a failed attach never leaves the old session half-alive.
     state.live().take();
     let process = AttachedProcess::attach(pid)?;
     let info = session_info(&process);
     *state.live() = Some(Live::new(process, state.journal_dir.get()));
+    // Back up the game's saves before any cheat is used (PLAN.md §5.5).
+    if let Some(exe) = &info.process.exe_path {
+        saves.on_attach(exe);
+    }
     Ok(info)
 }
 

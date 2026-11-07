@@ -72,6 +72,8 @@ beforeEach(() => {
         return Promise.resolve([]);
       case "pointer_results":
         return Promise.resolve(null);
+      case "saves_overview":
+        return Promise.resolve({ games: [], steamRunning: false, root: null });
       case "write_value":
         return Promise.resolve({ address: 0x1f0a10, value: String(args?.value), bytes: "0F 27 00 00" });
       default:
@@ -166,5 +168,15 @@ describe("App", () => {
 
     expect(await screen.findByText("Not attached")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Easy Anti-Cheat: process running");
+  });
+
+  it("switches to save backups and back", async () => {
+    render(<App />);
+    await screen.findByRole("option", { name: /testbed_native\.exe/ });
+    fireEvent.click(screen.getByRole("button", { name: "Save backups" }));
+    expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Save backups" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Cheats" }));
+    expect(await screen.findByRole("option", { name: /testbed_native\.exe/ })).toBeInTheDocument();
   });
 });

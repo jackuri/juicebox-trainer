@@ -288,6 +288,120 @@ export function onTrainerChanged(cb: () => void): () => void {
   };
 }
 
+// ----- save backups (ot-saves, src-tauri/src/saves.rs) -----
+
+export interface SaveFolder {
+  path: string;
+  reason: string;
+  userAdded: boolean;
+  steamCloud: boolean;
+}
+
+export interface SaveGame {
+  id: string;
+  name: string;
+  exe: string;
+  steam: { appId: number; name: string | null } | null;
+  cloud: { synced: boolean; reason: string | null };
+  folders: SaveFolder[];
+  addedMs: number;
+  running: boolean;
+  cloudSynced: boolean;
+  backups: number;
+  latestMs: number | null;
+}
+
+export interface SavesOverview {
+  games: SaveGame[];
+  steamRunning: boolean;
+  root: string | null;
+}
+
+export type BackupReason = "launch" | "exit" | "manual" | "beforeRestore";
+
+export interface Backup {
+  id: string;
+  createdMs: number;
+  reason: BackupReason;
+  note: string;
+  files: number;
+  totalSize: number;
+  skipped: { folder: number; path: string; error: string }[];
+  folders: string[];
+}
+
+export interface BackupCreated {
+  snapshot: Backup;
+  new: boolean;
+}
+
+export interface RestoreReport {
+  snapshot: string;
+  safetySnapshot: string;
+  written: number;
+  unchanged: number;
+  removed: string[];
+  extra: string[];
+  cloudWarning: string | null;
+}
+
+export type LineTag = "same" | "removed" | "added";
+
+export interface TextHunk {
+  oldLine: number;
+  newLine: number;
+  lines: { tag: LineTag; text: string }[];
+}
+
+export interface ByteRange {
+  offset: number;
+  len: number;
+  old: string;
+  new: string;
+  oldI32: number | null;
+  newI32: number | null;
+}
+
+export type DiffDetail =
+  | { kind: "text"; hunks: TextHunk[]; more: number }
+  | { kind: "binary"; ranges: ByteRange[]; more: number }
+  | { kind: "tooLarge" };
+
+export interface FileChange {
+  folder: string;
+  path: string;
+  change: "added" | "removed" | "changed";
+  oldSize: number | null;
+  newSize: number | null;
+  detail: DiffDetail | null;
+}
+
+export interface SaveDiff {
+  files: FileChange[];
+  unchanged: number;
+}
+
+/**
+ * Calls `cb` when the save watcher backed something up or a game started or
+ * closed. Returns an unsubscribe function. Outside Tauri this is a no-op.
+ */
+export function onSavesChanged(cb: () => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen("saves-changed", () => cb()).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri.
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
 /** Errors that mean the session is gone (the backend already dropped it). */
 export function isSessionLost(e: CommandError): boolean {
   return e.kind === "blocked" || e.kind === "processExited" || e.kind === "notAttached";
@@ -365,6 +479,30 @@ export const api = {
   pointerClear: () => invoke<void>("pointer_clear"),
   signatureMake: (address: string) => invoke<Signature>("signature_make", { address }),
   recoveryReport: () => invoke<Recovery[]>("recovery_report"),
+
+  savesOverview: () => invoke<SavesOverview>("saves_overview"),
+  savesAddProcess: (pid: number) => invoke<SaveGame>("saves_add_process", { pid }),
+  savesAddExe: (path: string) => invoke<SaveGame>("saves_add_exe", { path }),
+  savesRemoveGame: (id: string, deleteBackups: boolean) =>
+    invoke<void>("saves_remove_game", { id, deleteBackups }),
+  savesRelocate: (id: string) => invoke<SaveGame>("saves_relocate", { id }),
+  savesAddFolder: (id: string, path: string) => invoke<SaveGame>("saves_add_folder", { id, path }),
+  savesRemoveFolder: (id: string, path: string) =>
+    invoke<SaveGame>("saves_remove_folder", { id, path }),
+  savesBackups: (id: string) => invoke<Backup[]>("saves_backups", { id }),
+  savesBackupNow: (id: string, note: string) =>
+    invoke<BackupCreated>("saves_backup_now", { id, note }),
+  savesDeleteBackup: (id: string, backup: string) =>
+    invoke<void>("saves_delete_backup", { id, backup }),
+  savesSetNote: (id: string, backup: string, note: string) =>
+    invoke<Backup>("saves_set_note", { id, backup, note }),
+  /** `null` means the saves as they are now. */
+  savesDiff: (id: string, from: string | null, to: string | null) =>
+    invoke<SaveDiff>("saves_diff", { id, from, to }),
+  savesRestore: (id: string, backup: string, removeExtra: boolean) =>
+    invoke<RestoreReport>("saves_restore", { id, backup, removeExtra }),
+  savesOpenFolder: (id: string, path: string) =>
+    invoke<void>("saves_open_folder", { id, path }),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

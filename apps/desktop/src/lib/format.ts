@@ -1,4 +1,4 @@
-import type { Finding, ProcessInfo } from "./ipc";
+import type { BackupReason, Finding, ProcessInfo } from "./ipc";
 
 /** `0x`-prefixed uppercase hex. Addresses stay below 2^53, so numbers are exact. */
 export function hex(n: number): string {
@@ -36,4 +36,39 @@ const KIND_TEXT: Record<Finding["kind"], string> = {
 
 export function describeFinding(f: Finding): string {
   return `${f.product}: ${KIND_TEXT[f.kind]} (${f.detail})`;
+}
+
+/** "512 B", "12.3 KB", "4.0 MB". */
+export function fileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB"];
+  let v = bytes / 1024;
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  return `${v.toFixed(1)} ${units[i]}`;
+}
+
+/** "just now", "5 min ago", "3 h ago", "2 days ago". */
+export function timeAgo(ms: number, now: number = Date.now()): string {
+  const s = Math.max(0, Math.round((now - ms) / 1000));
+  if (s < 60) return "just now";
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min ago`;
+  const h = Math.round(m / 60);
+  if (h < 48) return `${h} h ago`;
+  return `${Math.round(h / 24)} days ago`;
+}
+
+const REASON_TEXT: Record<BackupReason, string> = {
+  launch: "Game started",
+  exit: "Game closed",
+  manual: "Made by you",
+  beforeRestore: "Before a restore",
+};
+
+export function backupReason(r: BackupReason): string {
+  return REASON_TEXT[r];
 }
