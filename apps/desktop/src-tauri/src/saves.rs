@@ -7,8 +7,8 @@ use std::time::Duration;
 
 use ot_saves::diff::Side;
 use ot_saves::{
-    Created, Diff, Game, Library, Limits, Reason, RestoreOptions, RestoreReport, Roots, Store,
-    Summary, WatchKind, Watcher,
+    Created, Diff, Edit, EditReport, FileView, Game, Library, Limits, Reason, RestoreOptions,
+    RestoreReport, Roots, SaveFile, Store, Summary, WatchKind, Watcher, editor,
 };
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -396,6 +396,156 @@ pub async fn saves_open_folder(
     Ok(())
 }
 
+// ----- save editor (v0.7.0) -------------------------------------------------
+
+#[tauri::command]
+pub async fn saves_files(id: String, state: State<'_, SavesState>) -> CmdResult<Vec<SaveFile>> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(editor::files(&game)?)
+}
+
+#[tauri::command]
+pub async fn saves_open_file(
+    id: String,
+    folder: String,
+    path: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<FileView> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(editor::open(&game, &folder, &path)?)
+}
+
+#[tauri::command]
+pub async fn saves_hex(
+    id: String,
+    folder: String,
+    path: String,
+    offset: u64,
+    len: u64,
+    state: State<'_, SavesState>,
+) -> CmdResult<Vec<u8>> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(editor::hex(&game, &folder, &path, offset, len)?)
+}
+
+/// Saves edits to one file (game closed, guard check, backup first).
+#[tauri::command]
+pub async fn saves_edit(
+    id: String,
+    folder: String,
+    path: String,
+    edits: Vec<Edit>,
+    state: State<'_, SavesState>,
+) -> CmdResult<EditReport> {
+    let (game, store) = state.game_and_store(&id)?;
+    Ok(editor::save(&game, &store, &folder, &path, &edits)?)
+}
+
+/// A save code from a cheat pack, as the UI lists it.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QuickCodeView {
+    pub pack_key: String,
+    pub pack_name: String,
+    pub id: String,
+    pub name: String,
+    pub codec: String,
+    pub file: String,
+    pub path: String,
+    pub value: serde_json::Value,
+    /// Why it can't be used right now (e.g. the save file doesn't exist yet).
+    pub problem: Option<String>,
+}
+
+/// Valid packs for this game's exe (by file name).
+fn packs_for(game: &Game) -> Vec<(String, ot_packs::Pack)> {
+    let exe = Path::new(&game.exe)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    ot_packs::store::all()
+        .into_iter()
+        .filter_map(|f| {
+            let pack = ot_packs::parse(f.text.as_ref().ok()?).ok()?.0;
+            (pack.game.exe.to_lowercase() == exe).then_some((f.key, pack))
+        })
+        .collect()
+}
+
+fn quick_codes(game: &Game, roots: &Roots) -> Vec<QuickCodeView> {
+    let mut out: Vec<QuickCodeView> = Vec::new();
+    for (key, pack) in packs_for(game) {
+        for c in &pack.save_codes {
+            // The x64 and x86 packs of one game often share codes.
+            let same = out.iter().any(|o| {
+                o.file == c.file
+                    && o.path == c.set.path
+                    && o.value == c.set.value
+                    && o.codec == c.codec
+            });
+            if same {
+                continue;
+            }
+            let problem = ot_saves::quick::resolve(&c.file, roots)
+                .and_then(|resolved| {
+                    let (folder, rel) = ot_saves::quick::place(game, &resolved)?;
+                    editor::open(game, &folder, &rel).map(|_| ())
+                })
+                .err()
+                .map(|e| e.to_string());
+            out.push(QuickCodeView {
+                pack_key: key.clone(),
+                pack_name: pack.game.name.clone(),
+                id: c.id.clone(),
+                name: c.name.clone(),
+                codec: c.codec.clone(),
+                file: c.file.clone(),
+                path: c.set.path.clone(),
+                value: c.set.value.clone(),
+                problem,
+            });
+        }
+    }
+    out
+}
+
+#[tauri::command]
+pub async fn saves_quick_codes(
+    id: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<Vec<QuickCodeView>> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(quick_codes(&game, &Roots::current()))
+}
+
+#[tauri::command]
+pub async fn saves_apply_quick_code(
+    id: String,
+    pack_key: String,
+    code_id: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<EditReport> {
+    let (game, store) = state.game_and_store(&id)?;
+    let (_, pack) = packs_for(&game)
+        .into_iter()
+        .find(|(k, _)| *k == pack_key)
+        .ok_or_else(|| CommandError::new("unknownPack", "that cheat pack isn't available"))?;
+    let code = pack
+        .save_codes
+        .iter()
+        .find(|c| c.id == code_id)
+        .ok_or_else(|| CommandError::new("unknownCode", "that save code isn't in the pack"))?;
+    Ok(ot_saves::quick::apply(
+        &game,
+        &store,
+        &Roots::current(),
+        &code.codec,
+        &code.file,
+        &code.set.path,
+        &code.set.value,
+    )?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -459,6 +609,48 @@ mod tests {
 
         let e = CommandError::from(ot_saves::Error::GameRunning("G".into()));
         assert_eq!(e.kind, "gameRunning");
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn pack_and_saves_agree_on_placeholders_and_codecs() {
+        assert_eq!(
+            ot_packs::schema::SAVE_PLACEHOLDERS,
+            ot_saves::quick::PLACEHOLDERS
+        );
+        assert_eq!(ot_packs::schema::SAVE_CODECS, ot_saves::quick::CODECS);
+    }
+
+    #[test]
+    fn lists_quick_codes_from_bundled_packs() {
+        let base = tmp("quick");
+        let saves = base.join("LocalLow").join("TestCo").join("Testbed");
+        std::fs::create_dir_all(&saves).unwrap();
+        std::fs::write(
+            saves.join("save1.json"),
+            "{\"player\": {\"gold\": 1, \"ammo\": 2}}",
+        )
+        .unwrap();
+        let game_dir = base.join("Game");
+        std::fs::create_dir_all(&game_dir).unwrap();
+        let exe = game_dir.join("testbed_native.exe");
+        std::fs::write(&exe, b"").unwrap();
+        let roots = Roots {
+            local_low: Some(base.join("LocalLow")),
+            ..Roots::default()
+        };
+        let mut lib = Library::open(base.join("store")).unwrap();
+        let g = lib.add(&exe, &roots).unwrap();
+        let g = lib.add_folder(&g.id, &saves).unwrap();
+
+        let codes = quick_codes(&g, &roots);
+        assert_eq!(codes.len(), 2, "{codes:?}");
+        assert!(codes.iter().all(|c| c.problem.is_none()), "{codes:?}");
+        assert_eq!(codes[0].path, "player.gold");
+
+        std::fs::remove_file(saves.join("save1.json")).unwrap();
+        let codes = quick_codes(&g, &roots);
+        assert!(codes.iter().all(|c| c.problem.is_some()));
         std::fs::remove_dir_all(&base).unwrap();
     }
 }

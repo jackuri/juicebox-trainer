@@ -121,6 +121,12 @@ fn main() {
             saves::saves_diff,
             saves::saves_restore,
             saves::saves_open_folder,
+            saves::saves_files,
+            saves::saves_open_file,
+            saves::saves_hex,
+            saves::saves_edit,
+            saves::saves_quick_codes,
+            saves::saves_apply_quick_code,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");

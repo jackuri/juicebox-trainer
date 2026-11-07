@@ -3,15 +3,19 @@ import { backupReason, fileSize, isSystemProcess, timeAgo } from "../lib/format"
 import {
   api,
   type Backup,
+  type EditReport,
   onSavesChanged,
   type ProcessInfo,
+  type QuickCode,
   type RestoreReport,
   type SaveDiff,
+  type SaveFile,
   type SaveGame,
   type SavesOverview,
   toCommandError,
 } from "../lib/ipc";
 import { SaveDiffView } from "./SaveDiffView";
+import { SaveEditor } from "./SaveEditor";
 
 const button = "rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40";
 const input =
@@ -200,10 +204,32 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [removing, setRemoving] = useState(false);
   const [deleteBackups, setDeleteBackups] = useState(false);
+  const [files, setFiles] = useState<SaveFile[]>([]);
+  const [codes, setCodes] = useState<QuickCode[]>([]);
+  const [editing, setEditing] = useState<SaveFile | null>(null);
 
   useEffect(() => {
     api.savesBackups(game.id).then(setBackups, (e: unknown) => setError(toCommandError(e).message));
-  }, [game.id, game.backups, reloadKey]);
+    api.savesFiles(game.id).then(setFiles, () => setFiles([]));
+    api.savesQuickCodes(game.id).then(setCodes, () => setCodes([]));
+  }, [game.id, game.backups, game.folders, reloadKey]);
+
+  function edited(r: EditReport) {
+    if (r.cloudWarning) setMessage(r.cloudWarning);
+    onChanged();
+  }
+
+  const applyCode = (c: QuickCode) =>
+    run(async () => {
+      const r = await api.savesApplyQuickCode(game.id, c.packKey, c.id);
+      setMessage(
+        r.changed
+          ? `${c.name}: done. Your saves from just before are in the backup marked "Before an edit".`
+          : `${c.name}: the save already had that value.`,
+      );
+      if (r.cloudWarning) setMessage((m) => `${m ?? ""} ${r.cloudWarning}`);
+      onChanged();
+    });
 
   async function run(action: () => Promise<void>) {
     setError(null);
@@ -361,12 +387,14 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
                   <p className="truncate font-mono text-xs">{f.path}</p>
                   <p className="text-[11px] text-zinc-500">{f.reason}</p>
                 </div>
-                <button
-                  className={button}
-                  onClick={() => void run(() => api.savesOpenFolder(game.id, f.path))}
-                >
-                  Open
-                </button>
+                {!/^HKCU\\/i.test(f.path) && (
+                  <button
+                    className={button}
+                    onClick={() => void run(() => api.savesOpenFolder(game.id, f.path))}
+                  >
+                    Open
+                  </button>
+                )}
                 <button
                   className={button}
                   aria-label={`Remove folder ${f.path}`}
@@ -393,6 +421,66 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
             Add folder
           </button>
         </div>
+      </section>
+
+      {codes.length > 0 && (
+        <section className="flex flex-col gap-2" aria-label="Quick codes">
+          <h3 className="text-sm font-medium text-zinc-300">Quick codes</h3>
+          <p className="text-xs text-zinc-500">
+            One-click save edits from cheat packs. Close the game first; your saves are backed up
+            before each change.
+          </p>
+          <ul className="flex flex-wrap gap-2">
+            {codes.map((c) => (
+              <li key={`${c.packKey}|${c.id}`}>
+                <button
+                  className="rounded bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-40"
+                  disabled={busy || game.running || c.problem !== null}
+                  title={c.problem ?? (game.running ? "Close the game first" : `${c.path} = ${String(c.value)}`)}
+                  onClick={() => void applyCode(c)}
+                >
+                  {c.name}
+                </button>
+                {c.problem && <p className="mt-0.5 max-w-xs text-[11px] text-zinc-500">{c.problem}</p>}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="flex flex-col gap-2" aria-label="Edit saves">
+        <h3 className="text-sm font-medium text-zinc-300">Edit saves</h3>
+        {files.length === 0 ? (
+          <p className="text-sm text-zinc-500">No save files in these folders yet.</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {files.map((f) => (
+              <li key={`${f.folder}|${f.path}`} className="flex items-center gap-2 rounded bg-zinc-900 px-2 py-1">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs">
+                  {f.registry ? `${f.folder} (registry)` : f.path}
+                </span>
+                <span className="text-[11px] text-zinc-500">{fileSize(f.size)}</span>
+                <button
+                  className={button}
+                  aria-label={`Open ${f.registry ? f.folder : f.path}`}
+                  onClick={() => setEditing(f)}
+                >
+                  Open
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        {editing && (
+          <SaveEditor
+            key={`${editing.folder}|${editing.path}`}
+            gameId={game.id}
+            file={editing}
+            running={game.running}
+            onSaved={edited}
+            onClose={() => setEditing(null)}
+          />
+        )}
       </section>
 
       <section className="flex flex-col gap-2" aria-label="Backups">

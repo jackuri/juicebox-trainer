@@ -67,8 +67,29 @@ const REASON_TEXT: Record<BackupReason, string> = {
   exit: "Game closed",
   manual: "Made by you",
   beforeRestore: "Before a restore",
+  beforeEdit: "Before an edit",
 };
 
 export function backupReason(r: BackupReason): string {
   return REASON_TEXT[r];
+}
+
+/** Little-endian numbers at the start of `bytes`, for the hex inspector. */
+export function inspect(bytes: number[]): { label: string; value: string }[] {
+  const buf = new Uint8Array(8);
+  bytes.slice(0, 8).forEach((b, i) => (buf[i] = b));
+  const v = new DataView(buf.buffer);
+  const n = bytes.length;
+  const out: { label: string; value: string }[] = [];
+  if (n >= 1) out.push({ label: "8-bit", value: `${v.getUint8(0)} / ${v.getInt8(0)}` });
+  if (n >= 2) out.push({ label: "16-bit", value: `${v.getUint16(0, true)} / ${v.getInt16(0, true)}` });
+  if (n >= 4) {
+    out.push({ label: "32-bit", value: `${v.getUint32(0, true)} / ${v.getInt32(0, true)}` });
+    out.push({ label: "float", value: String(v.getFloat32(0, true)) });
+  }
+  if (n >= 8) {
+    out.push({ label: "64-bit", value: v.getBigInt64(0, true).toString() });
+    out.push({ label: "double", value: String(v.getFloat64(0, true)) });
+  }
+  return out;
 }

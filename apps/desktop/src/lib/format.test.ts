@@ -5,6 +5,7 @@ import {
   fileSize,
   filterProcesses,
   hex,
+  inspect,
   isSystemProcess,
   timeAgo,
 } from "./format";
@@ -66,5 +67,14 @@ describe("save formatting", () => {
     expect(timeAgo(now - 3 * 3_600_000, now)).toBe("3 h ago");
     expect(timeAgo(now - 3 * 86_400_000, now)).toBe("3 days ago");
     expect(backupReason("beforeRestore")).toBe("Before a restore");
+  });
+});
+
+describe("hex inspector", () => {
+  it("reads little-endian numbers", () => {
+    const n = inspect([0xe8, 0x03, 0, 0, 0, 0, 0, 0]);
+    expect(n.find((x) => x.label === "32-bit")?.value).toBe("1000 / 1000");
+    expect(n.find((x) => x.label === "8-bit")?.value).toBe("232 / -24");
+    expect(inspect([1, 0])).toHaveLength(2);
   });
 });

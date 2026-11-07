@@ -317,7 +317,7 @@ export interface SavesOverview {
   root: string | null;
 }
 
-export type BackupReason = "launch" | "exit" | "manual" | "beforeRestore";
+export type BackupReason = "launch" | "exit" | "manual" | "beforeRestore" | "beforeEdit";
 
 export interface Backup {
   id: string;
@@ -379,6 +379,60 @@ export interface FileChange {
 export interface SaveDiff {
   files: FileChange[];
   unchanged: number;
+}
+
+export interface SaveFile {
+  folder: string;
+  /** Path inside the folder; empty for a registry key. */
+  path: string;
+  size: number;
+  modifiedMs: number | null;
+  registry: boolean;
+}
+
+export type FieldKind = "int" | "float" | "bool" | "text" | "null" | "other";
+
+export interface SaveField {
+  path: string;
+  kind: FieldKind;
+  value: string;
+  editable: boolean;
+  note: string | null;
+}
+
+export interface FileView {
+  folder: string;
+  path: string;
+  layers: string[];
+  format: string;
+  codec: string;
+  fields: SaveField[];
+  truncated: boolean;
+  bodyLen: number;
+  note: string | null;
+  registry: boolean;
+}
+
+export type SaveEdit =
+  | { kind: "set"; path: string; value: string }
+  | { kind: "patch"; offset: number; hex: string };
+
+export interface EditReport {
+  backup: string;
+  changed: boolean;
+  cloudWarning: string | null;
+}
+
+export interface QuickCode {
+  packKey: string;
+  packName: string;
+  id: string;
+  name: string;
+  codec: string;
+  file: string;
+  path: string;
+  value: number | string | boolean;
+  problem: string | null;
 }
 
 /**
@@ -503,6 +557,16 @@ export const api = {
     invoke<RestoreReport>("saves_restore", { id, backup, removeExtra }),
   savesOpenFolder: (id: string, path: string) =>
     invoke<void>("saves_open_folder", { id, path }),
+  savesFiles: (id: string) => invoke<SaveFile[]>("saves_files", { id }),
+  savesOpenFile: (id: string, folder: string, path: string) =>
+    invoke<FileView>("saves_open_file", { id, folder, path }),
+  savesHex: (id: string, folder: string, path: string, offset: number, len: number) =>
+    invoke<number[]>("saves_hex", { id, folder, path, offset, len }),
+  savesEdit: (id: string, folder: string, path: string, edits: SaveEdit[]) =>
+    invoke<EditReport>("saves_edit", { id, folder, path, edits }),
+  savesQuickCodes: (id: string) => invoke<QuickCode[]>("saves_quick_codes", { id }),
+  savesApplyQuickCode: (id: string, packKey: string, codeId: string) =>
+    invoke<EditReport>("saves_apply_quick_code", { id, packKey, codeId }),
 };
 
 /** Builds the scan mode the backend expects from form fields. */
