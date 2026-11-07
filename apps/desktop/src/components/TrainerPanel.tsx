@@ -1,5 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { formatStep, groupByCategory } from "../lib/trainer";
+import { CheatSettings } from "./CheatSettings";
+import { PresetBar } from "./PresetBar";
+import { RemotePanel } from "./RemotePanel";
 import {
   api,
   type BuildMatch,
@@ -32,6 +35,11 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
   const [repairNote, setRepairNote] = useState<string | null>(null);
   const [repairing, setRepairing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [overlay, setOverlay] = useState(false);
+
+  useEffect(() => {
+    api.overlayVisible().then(setOverlay, () => undefined);
+  }, []);
 
   const fail = useCallback(
     (e: unknown) => {
@@ -143,7 +151,12 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
   }
 
   const { pack } = view;
-  const groups = groupByCategory(pack.cheats);
+  const favourites = view.settings.favourites;
+  const favs = pack.cheats.filter((c) => favourites.includes(c.id));
+  const groups: [string, Cheat[]][] = [
+    ...(favs.length ? [["★ Favourites", favs] as [string, Cheat[]]] : []),
+    ...groupByCategory(pack.cheats.filter((c) => !favourites.includes(c.id))),
+  ];
   const anyFailed = view.cheats.some((c) => c.status === "failed");
   const stateOf = (id: string) => view.cheats.find((c) => c.id === id);
 
@@ -158,6 +171,14 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
         <BuildBadge build={view.build} />
         <button
           className="ml-auto rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
+          aria-pressed={overlay}
+          title="A see-through list of cheats on top of the game (windowed or borderless games)"
+          onClick={() => void act(async () => setOverlay(await api.overlaySet(!overlay)))}
+        >
+          {overlay ? "Hide overlay" : "Show overlay"}
+        </button>
+        <button
+          className="rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
           onClick={() => void act(async () => {
             await api.trainerUnload();
             setView(null);
@@ -195,6 +216,8 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
         </p>
       )}
 
+      <PresetBar view={view} act={act} />
+
       {groups.map(([category, cheats]) => (
         <div key={category} className="flex flex-col gap-1">
           <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">{category}</h3>
@@ -207,6 +230,11 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
                   cheat={c}
                   state={st}
                   hotkeyError={view.hotkeyErrors[c.id]}
+                  pad={view.pads[c.id]}
+                  note={view.settings.notes[c.id]}
+                  favourite={favourites.includes(c.id)}
+                  onFavourite={(on) => void act(() => api.cheatFavourite(c.id, on))}
+                  settings={<CheatSettings cheat={c} view={view} act={act} />}
                   onToggle={(on) => void act(() => api.trainerToggle(c.id, on))}
                   onSet={(v) => void act(() => api.trainerSet(c.id, v))}
                   onRelease={() => void act(() => api.trainerRelease(c.id))}
@@ -217,6 +245,8 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
           </ul>
         </div>
       ))}
+
+      <RemotePanel />
 
       {view.warnings.length > 0 && (
         <details className="text-xs text-zinc-500">
@@ -268,17 +298,33 @@ interface RowProps {
   cheat: Cheat;
   state: CheatState;
   hotkeyError: string | undefined;
+  pad?: string;
+  note?: string;
+  favourite?: boolean;
+  onFavourite?: (on: boolean) => void;
+  settings?: ReactNode;
   onToggle: (on: boolean) => void;
   onSet: (value: string) => void;
   onRelease: () => void;
   onPress: () => void;
 }
 
-function CheatRow({ cheat, state, hotkeyError, onToggle, onSet, onRelease, onPress }: RowProps) {
+function CheatRow(props: RowProps) {
+  const { cheat, state, hotkeyError, pad, note, favourite, onFavourite, settings } = props;
   const failed = state.status === "failed";
   return (
     <li className="flex flex-col gap-1 px-3 py-2" data-testid={`cheat-${cheat.id}`}>
       <div className="flex items-center gap-3">
+        {onFavourite && (
+          <button
+            className={`text-sm ${favourite ? "text-amber-300" : "text-zinc-600 hover:text-zinc-400"}`}
+            aria-label={`Favourite ${cheat.name}`}
+            aria-pressed={Boolean(favourite)}
+            onClick={() => onFavourite(!favourite)}
+          >
+            {favourite ? "★" : "☆"}
+          </button>
+        )}
         <div className="min-w-0 flex-1">
           <p className={`text-sm ${failed ? "text-zinc-500" : ""}`}>
             {cheat.name}
@@ -289,7 +335,13 @@ function CheatRow({ cheat, state, hotkeyError, onToggle, onSet, onRelease, onPre
             )}
           </p>
           {cheat.description && <p className="text-xs text-zinc-500">{cheat.description}</p>}
+          {note && <p className="text-xs italic text-zinc-400">{note}</p>}
         </div>
+        {pad && (
+          <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-300" title={`Controller: ${pad}`}>
+            🎮 {pad}
+          </kbd>
+        )}
         {state.hotkey && (
           <kbd
             className={`rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] ${
@@ -303,10 +355,10 @@ function CheatRow({ cheat, state, hotkeyError, onToggle, onSet, onRelease, onPre
         <Control
           cheat={cheat}
           state={state}
-          onToggle={onToggle}
-          onSet={onSet}
-          onRelease={onRelease}
-          onPress={onPress}
+          onToggle={props.onToggle}
+          onSet={props.onSet}
+          onRelease={props.onRelease}
+          onPress={props.onPress}
         />
       </div>
       {state.message && (
@@ -315,19 +367,29 @@ function CheatRow({ cheat, state, hotkeyError, onToggle, onSet, onRelease, onPre
         </p>
       )}
       {hotkeyError && <p className="text-xs text-amber-400">{hotkeyError}</p>}
-      <details className="text-[11px] text-zinc-500">
-        <summary className="cursor-pointer select-none">What it changes</summary>
-        <ul className="mt-1 font-mono">
-          {state.touches.map((t) => (
-            <li key={t}>{t}</li>
-          ))}
-        </ul>
-      </details>
+      <div className="flex gap-4">
+        <details className="text-[11px] text-zinc-500">
+          <summary className="cursor-pointer select-none">What it changes</summary>
+          <ul className="mt-1 font-mono">
+            {state.touches.map((t) => (
+              <li key={t}>{t}</li>
+            ))}
+          </ul>
+        </details>
+        {settings && (
+          <details className="flex-1 text-[11px] text-zinc-500">
+            <summary className="cursor-pointer select-none">Keys &amp; note</summary>
+            {settings}
+          </details>
+        )}
+      </div>
     </li>
   );
 }
 
-function Control({ cheat, state, onToggle, onSet, onRelease, onPress }: Omit<RowProps, "hotkeyError">) {
+type ControlProps = Pick<RowProps, "cheat" | "state" | "onToggle" | "onSet" | "onRelease" | "onPress">;
+
+function Control({ cheat, state, onToggle, onSet, onRelease, onPress }: ControlProps) {
   const disabled = state.status === "failed";
   switch (cheat.ui) {
     case "toggle":

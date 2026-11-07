@@ -14,3 +14,9 @@ body {
   @apply bg-zinc-950 text-zinc-100 antialiased;
   font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
+
+/* The overlay window is see-through. */
+html.overlay,
+html.overlay body {
+  background: transparent;
+}

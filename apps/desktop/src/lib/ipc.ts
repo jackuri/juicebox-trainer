@@ -208,6 +208,84 @@ export interface TrainerView {
   warnings: Issue[];
   cheats: CheatState[];
   hotkeyErrors: Record<string, string>;
+  /** Cheat id → the player's controller combo. */
+  pads: Record<string, string>;
+  settings: GameSettings;
+  /** Preset cheats still waiting to turn on (e.g. until a level loads). */
+  pending: string[];
+}
+
+// ----- presets, own keys (ot-packs settings) -----
+
+export interface PresetCheat {
+  id: string;
+  value?: string;
+}
+
+export interface Preset {
+  name: string;
+  cheats: PresetCheat[];
+}
+
+export interface GameSettings {
+  presets: Preset[];
+  autoPreset?: string;
+  favourites: string[];
+  notes: Record<string, string>;
+  /** Cheat id → own key; "" means no key. */
+  keys: Record<string, string>;
+  pads: Record<string, string>;
+}
+
+// ----- games library (src-tauri/src/library.rs) -----
+
+export type StoreKind = "steam" | "epic" | "gog" | "xbox" | "own";
+
+export interface LibraryGame {
+  id: string;
+  name: string;
+  store: StoreKind;
+  folder: string;
+  exe: string | null;
+  launch: { kind: "uri" | "exe"; target: string } | { kind: "manual" };
+  pack: { key: string; name: string; ai: boolean; exe: string } | null;
+  presets: string[];
+  autoPreset: string | null;
+  /** Why the anti-cheat guard blocks it. */
+  blocked: string | null;
+}
+
+export interface PlayResult {
+  session: SessionInfo;
+  trainer: TrainerView | null;
+  preset: string | null;
+}
+
+/** Calls `cb` with each "Play with cheats" step. */
+export function onLibraryProgress(cb: (message: string) => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen<string>("library-progress", (e) => cb(e.payload)).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri.
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
+// ----- phone remote (src-tauri/src/remote.rs) -----
+
+export interface RemoteStatus {
+  pairUrl: string;
+  qrSvg: string;
+  address: string;
+  devices: number;
 }
 
 export interface RepairFix {
@@ -602,6 +680,30 @@ export const api = {
   trainerRelease: (id: string) => invoke<TrainerView>("trainer_release", { id }),
   trainerPress: (id: string) => invoke<TrainerView>("trainer_press", { id }),
   trainerRepair: () => invoke<RepairResult>("trainer_repair"),
+  presetApply: (name: string) => invoke<TrainerView>("preset_apply", { name }),
+  presetSave: (name: string) => invoke<TrainerView>("preset_save", { name }),
+  presetDelete: (name: string) => invoke<TrainerView>("preset_delete", { name }),
+  presetAuto: (name: string | null) => invoke<TrainerView>("preset_auto", { name }),
+  cheatNote: (id: string, note: string) => invoke<TrainerView>("cheat_note", { id, note }),
+  cheatFavourite: (id: string, on: boolean) => invoke<TrainerView>("cheat_favourite", { id, on }),
+  /** `null` goes back to the pack's key, "" means none. */
+  cheatKey: (id: string, key: string | null) => invoke<TrainerView>("cheat_key", { id, key }),
+  cheatPad: (id: string, chord: string | null) => invoke<TrainerView>("cheat_pad", { id, chord }),
+
+  libraryList: () => invoke<LibraryGame[]>("library_list"),
+  libraryAdd: (exe: string) => invoke<void>("library_add", { exe }),
+  libraryRemove: (id: string) => invoke<void>("library_remove", { id }),
+  libraryOpenFolder: (id: string) => invoke<void>("library_open_folder", { id }),
+  libraryCancel: () => invoke<void>("library_cancel"),
+  libraryPlay: (id: string) => invoke<PlayResult>("library_play", { id }),
+
+  overlaySet: (show: boolean) => invoke<boolean>("overlay_set", { show }),
+  overlayVisible: () => invoke<boolean>("overlay_visible"),
+
+  remoteStart: () => invoke<RemoteStatus>("remote_start"),
+  remoteStop: () => invoke<void>("remote_stop"),
+  remoteStatus: () => invoke<RemoteStatus | null>("remote_status"),
+  remoteForget: () => invoke<RemoteStatus | null>("remote_forget"),
 
   pointerScan: (target: string, options: PointerScanOptions) =>
     invoke<PointerResults>("pointer_scan", { target, options }),

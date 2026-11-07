@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
+import { LibraryView } from "./components/LibraryView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
 import { SessionTools } from "./components/SessionTools";
@@ -25,7 +26,7 @@ export default function App() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
-  const [view, setView] = useState<"cheats" | "saves" | "ai">("cheats");
+  const [view, setView] = useState<"games" | "cheats" | "saves" | "ai">("cheats");
 
   const refresh = useCallback(async () => {
     setLoadingList(true);
@@ -105,6 +106,7 @@ export default function App() {
         <nav className="ml-4 flex gap-1" aria-label="Views">
           {(
             [
+              ["games", "Games"],
               ["cheats", "Cheats"],
               ["saves", "Save backups"],
               ["ai", "Make a trainer (AI)"],
@@ -133,7 +135,18 @@ export default function App() {
         </span>
       </header>
 
-      {view === "ai" ? (
+      {view === "games" ? (
+        <LibraryView
+          onOpenAi={() => setView("ai")}
+          onPlayed={(r) => {
+            setError(null);
+            setVerdict(null);
+            setSelected(r.session.process);
+            setSession(r.session);
+            setView("cheats");
+          }}
+        />
+      ) : view === "ai" ? (
         <AiView processes={processes} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (
         <SavesView

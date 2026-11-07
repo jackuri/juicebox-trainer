@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Cheat, CheatState, PackSummary, SessionInfo, TrainerView } from "../lib/ipc";
+import type { Cheat, CheatState, GameSettings, PackSummary, SessionInfo, TrainerView } from "../lib/ipc";
 import { TrainerPanel } from "./TrainerPanel";
 
 const invoke = vi.fn();
@@ -74,6 +74,9 @@ const cheats: Cheat[] = [
 
 let states: Record<string, CheatState>;
 let loaded: boolean;
+let settings: GameSettings;
+let pending: string[];
+let overlayOn: boolean;
 
 function view(): TrainerView {
   return {
@@ -89,6 +92,9 @@ function view(): TrainerView {
     warnings: [{ severity: "warning", path: "game.builds", message: "no builds listed" }],
     cheats: cheats.map((c) => ({ ...states[c.id]! })),
     hotkeyErrors: { add_gold: "F4 is already used by another app" },
+    pads: settings.pads,
+    settings,
+    pending,
   };
 }
 
@@ -108,6 +114,9 @@ function st(id: string, over: Partial<CheatState> = {}): CheatState {
 
 beforeEach(() => {
   loaded = false;
+  settings = { presets: [], favourites: [], notes: {}, keys: {}, pads: {} };
+  pending = [];
+  overlayOn = false;
   states = {
     inf_health: st("inf_health", { hotkey: "F1", touches: ["testbed_native.exe+0x2224: 29 D0 → 90 90"] }),
     add_gold: st("add_gold", { hotkey: "F4", value: "250" }),
@@ -151,6 +160,43 @@ beforeEach(() => {
       case "trainer_unload":
         loaded = false;
         return Promise.resolve();
+      case "preset_save":
+        settings.presets = [
+          ...settings.presets.filter((p) => p.name !== args?.name),
+          { name: String(args?.name), cheats: [{ id: "inf_health" }] },
+        ];
+        return Promise.resolve(view());
+      case "preset_apply":
+        states.inf_health!.active = true;
+        pending = ["speed"];
+        return Promise.resolve(view());
+      case "preset_auto":
+        settings.autoPreset = (args?.name as string | null) ?? undefined;
+        return Promise.resolve(view());
+      case "preset_delete":
+        settings.presets = settings.presets.filter((p) => p.name !== args?.name);
+        return Promise.resolve(view());
+      case "cheat_favourite":
+        settings.favourites = args?.on ? [String(args.id)] : [];
+        return Promise.resolve(view());
+      case "cheat_note":
+        settings.notes = { [String(args?.id)]: String(args?.note) };
+        return Promise.resolve(view());
+      case "cheat_key":
+        if (args?.key === null) delete settings.keys[String(args?.id)];
+        else settings.keys[String(args?.id)] = String(args?.key);
+        states[String(args?.id)]!.hotkey = (args?.key as string | null) || null;
+        return Promise.resolve(view());
+      case "cheat_pad":
+        settings.pads = { [String(args?.id)]: String(args?.chord) };
+        return Promise.resolve(view());
+      case "overlay_visible":
+        return Promise.resolve(overlayOn);
+      case "overlay_set":
+        overlayOn = Boolean(args?.show);
+        return Promise.resolve(overlayOn);
+      case "remote_status":
+        return Promise.resolve(null);
       case "trainer_repair":
         states.broken = st("broken");
         return Promise.resolve({
@@ -182,6 +228,7 @@ describe("TrainerPanel", () => {
       "Player",
       "Inventory",
       "General",
+      "Phone remote",
     ]);
   });
 
@@ -258,5 +305,69 @@ describe("TrainerPanel", () => {
     );
     render(<TrainerPanel session={session} onSessionLost={lost} />);
     await vi.waitFor(() => expect(lost).toHaveBeenCalled());
+  });
+});
+
+describe("TrainerPanel extras", () => {
+  it("saves, applies and auto-starts presets, and says what's waiting", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    expect(await screen.findByText(/save them as a preset/)).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("New preset name"), { target: { value: "Story mode" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save what's on now" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("preset_save", { name: "Story mode" }));
+    expect(await screen.findByLabelText("Preset")).toHaveValue("Story mode");
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("preset_apply", { name: "Story mode" }));
+    expect(await screen.findByText(/Waiting for the game: Move Speed/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText("Use when I start the game from Games"));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("preset_auto", { name: "Story mode" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete preset Story mode" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("preset_delete", { name: "Story mode" }));
+  });
+
+  it("puts favourites first and keeps notes", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Favourite +1000 Gold" }));
+    await vi.waitFor(() =>
+      expect(screen.getAllByRole("heading", { level: 3 })[0]).toHaveTextContent("Favourites"),
+    );
+    expect(screen.getByRole("button", { name: "Favourite +1000 Gold" })).toHaveAttribute("aria-pressed", "true");
+    const note = screen.getByLabelText("Note for Infinite Health");
+    fireEvent.change(note, { target: { value: "off before the boss" } });
+    fireEvent.blur(note);
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("cheat_note", { id: "inf_health", note: "off before the boss" }),
+    );
+    expect(await screen.findByText("off before the boss", { selector: "p" })).toBeInTheDocument();
+  });
+
+  it("sets own keys and controller combos", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    const key = await screen.findByLabelText("Key for Infinite Health");
+    fireEvent.focus(key);
+    expect(key).toHaveValue("Press a key…");
+    fireEvent.keyDown(key, { key: "F5", code: "F5", ctrlKey: true });
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("cheat_key", { id: "inf_health", key: "Ctrl+F5" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Use the pack's key" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("cheat_key", { id: "inf_health", key: null }));
+    const pad = screen.getByLabelText("Controller combo for Infinite Health");
+    fireEvent.change(pad, { target: { value: "LB+RB+DPadUp" } });
+    fireEvent.keyDown(pad, { key: "Enter" });
+    await vi.waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("cheat_pad", { id: "inf_health", chord: "LB+RB+DPadUp" }),
+    );
+    expect(await screen.findByTitle("Controller: LB+RB+DPadUp")).toBeInTheDocument();
+  });
+
+  it("shows and hides the overlay", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Show overlay" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("overlay_set", { show: true }));
+    fireEvent.click(await screen.findByRole("button", { name: "Hide overlay" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("overlay_set", { show: false }));
   });
 });
