@@ -45,10 +45,12 @@ _Last updated: 2026-11-07 — v0.8.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
-- First real run (user approved): the chain app -> sidecar -> Claude engine -> ot-mcp worked, but the
-  engine reported "Not logged in": the Claude desktop app's sign-in isn't shared with the Agent SDK's
-  engine. Added the sign-in check and Sign in button. A real end-to-end AI session still needs the
-  user to sign in once, then a rerun of the live test.
+- Real AI runs (user approved): the first stopped at "Not logged in" (the Claude desktop app's
+  sign-in isn't shared with the Agent SDK's engine), so the sign-in check and button were added.
+  After the user signed in, a full session on the testbed (scripted player) found gold, used two
+  restarts to pick a stable pointer path, tested and saved a working "Lots of gold" pack, for about
+  $0.36. The pack works on a fresh testbed. The run showed value cheats weren't undone by
+  revert_all; fixed (cheat_set keeps the original value).
 - The AI helper needs Node.js and, for the subscription, a signed-in Claude Code on the PC. API keys
   are read from the `ANTHROPIC_API_KEY` environment variable; the app doesn't store keys.
 - Without `find_what_writes`, AI cheats are value cheats via pointer paths (and patches only where

@@ -144,8 +144,9 @@ fn agent_finds_gold_and_writes_a_pack() {
     assert_eq!(saved["meta"]["author"], "ai");
     assert_eq!(saved["game"]["builds"][0]["sha256"], info["sha256"]);
 
-    // Detaching undoes the patch.
+    // Detaching undoes the patch and puts the gold the cheat set back.
     call(&mut t, "detach", json!({}));
+    assert_eq!(game.send("state")["gold"].as_i64().unwrap(), gold + 37);
     let before = game.send("state")["health"].as_i64().unwrap();
     assert_eq!(game.send("hit 10")["health"].as_i64().unwrap(), before - 10);
 

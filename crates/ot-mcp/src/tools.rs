@@ -522,10 +522,36 @@ impl Tools {
     fn cheat_set(&mut self, args: &Value) -> Res {
         let id = arg_str(args, "id")?.to_string();
         let live = self.live()?;
-        let trainer = live
-            .trainer
-            .as_mut()
-            .ok_or("load a pack with pack_try first")?;
+        let Live {
+            trainer,
+            writes,
+            process,
+            ..
+        } = live;
+        let trainer = trainer.as_mut().ok_or("load a pack with pack_try first")?;
+        // A value cheat changes the game's value: keep the original so
+        // revert_all puts it back, like a test write.
+        let ty = trainer
+            .pack()
+            .cheats
+            .iter()
+            .find(|c| c.id == id)
+            .and_then(|c| match &c.implementation {
+                ot_packs::Impl::Value(v) => Some(v.ty),
+                ot_packs::Impl::Patch(_) => None,
+            });
+        let address = trainer
+            .states()
+            .map_err(err)?
+            .into_iter()
+            .find(|s| s.id == id)
+            .and_then(|s| s.address);
+        if let (Some(ty), Some(a)) = (ty, address)
+            && let std::collections::btree_map::Entry::Vacant(slot) = writes.entry(a)
+            && let Ok(bytes) = process.read_bytes(a, ty.size(process.arch()))
+        {
+            slot.insert(bytes);
+        }
         if let Some(on) = args.get("on").and_then(Value::as_bool) {
             trainer.set_active(&id, on).map_err(err)?;
         } else if args.get("value").is_some_and(|v| !v.is_null()) {
