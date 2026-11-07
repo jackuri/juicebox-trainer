@@ -136,7 +136,11 @@ export default function App() {
       {view === "ai" ? (
         <AiView processes={processes} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (
-        <SavesView processes={processes} onRefreshProcesses={() => void refresh()} />
+        <SavesView
+          processes={processes}
+          onRefreshProcesses={() => void refresh()}
+          onOpenAi={() => setView("ai")}
+        />
       ) : (
         <div className="grid min-h-0 grid-cols-[320px_1fr]">
           <ProcessList

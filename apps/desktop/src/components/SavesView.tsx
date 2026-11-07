@@ -28,10 +28,12 @@ function when(ms: number): string {
 interface Props {
   processes: ProcessInfo[];
   onRefreshProcesses: () => void;
+  /** Switches to the AI helper view (after starting "explain a save"). */
+  onOpenAi?: () => void;
 }
 
 /** Save backups: games, their save folders, backups, compare and restore. */
-export function SavesView({ processes, onRefreshProcesses }: Props) {
+export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
   const [overview, setOverview] = useState<SavesOverview | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -171,6 +173,7 @@ export function SavesView({ processes, onRefreshProcesses }: Props) {
             steamRunning={overview?.steamRunning ?? false}
             reloadKey={reloadKey}
             onChanged={reload}
+            onOpenAi={onOpenAi}
           />
         ) : (
           <div className="m-auto max-w-sm text-center text-sm text-zinc-400">
@@ -188,16 +191,19 @@ interface GameProps {
   steamRunning: boolean;
   reloadKey: number;
   onChanged: () => void;
+  onOpenAi?: () => void;
 }
 
-function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
+function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameProps) {
   const [backups, setBackups] = useState<Backup[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [note, setNote] = useState("");
   const [folder, setFolder] = useState("");
   const [busy, setBusy] = useState(false);
-  const [diff, setDiff] = useState<{ title: string; diff: SaveDiff } | null>(null);
+  const [diff, setDiff] = useState<{ title: string; diff: SaveDiff; from: string; toNow: boolean } | null>(
+    null,
+  );
   const [restoring, setRestoring] = useState<Backup | null>(null);
   const [removeExtra, setRemoveExtra] = useState(false);
   const [report, setReport] = useState<RestoreReport | null>(null);
@@ -260,7 +266,24 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
           ? `What changed from ${when(from.createdMs)} to ${when(to.createdMs)}`
           : `What changed since the backup from ${when(from.createdMs)}`,
         diff: d,
+        from: from.id,
+        toNow: to === null,
       });
+    });
+
+  const explain = (from: string) =>
+    run(async () => {
+      await api.aiStart({
+        pid: 0,
+        task: "explainSave",
+        exe: game.exe,
+        backup: from,
+        wishes: [],
+        notes: "",
+        backend: "subscription",
+        maxBudgetUsd: 1,
+      });
+      onOpenAi?.();
     });
 
   const restore = (b: Backup) =>
@@ -610,7 +633,14 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged }: GameProps) {
         )}
       </section>
 
-      {diff && <SaveDiffView title={diff.title} diff={diff.diff} onClose={() => setDiff(null)} />}
+      {diff && (
+        <SaveDiffView
+          title={diff.title}
+          diff={diff.diff}
+          onClose={() => setDiff(null)}
+          onExplain={diff.toNow && onOpenAi ? () => void explain(diff.from) : undefined}
+        />
+      )}
     </div>
   );
 }

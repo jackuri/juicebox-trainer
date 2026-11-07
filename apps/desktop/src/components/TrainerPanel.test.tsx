@@ -151,6 +151,14 @@ beforeEach(() => {
       case "trainer_unload":
         loaded = false;
         return Promise.resolve();
+      case "trainer_repair":
+        states.broken = st("broken");
+        return Promise.resolve({
+          fixed: [{ cheat: "broken", oldAob: "AA", newAob: "BB", at: "testbed_native.exe+0x10", matched: 10, of: 11 }],
+          broken: [],
+          saved: "C:/Users/me/packs/testbed-native/pack.json",
+          view: view(),
+        });
       default:
         return Promise.reject({ kind: "unknown", message: cmd, verdict: null });
     }
@@ -215,6 +223,16 @@ describe("TrainerPanel", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Unload pack" }));
     expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+  });
+
+  it("repairs cheats that stopped matching after an update", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    expect(await screen.findByText(/don't match this version of the game/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try to repair" }));
+    expect(await screen.findByText(/Repaired: Broken\. Saved as your copy/)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("trainer_repair", undefined);
+    expect(screen.queryByRole("button", { name: "Try to repair" })).not.toBeInTheDocument();
   });
 
   it("explains where packs go when none match", async () => {

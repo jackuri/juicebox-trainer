@@ -205,6 +205,18 @@ describe("SavesView", () => {
     expect(invoke).toHaveBeenCalledWith("saves_diff", { id: game.id, from: "1000", to: null });
   });
 
+  it("asks the AI to explain a change and opens the helper", async () => {
+    const onOpenAi = vi.fn();
+    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} onOpenAi={onOpenAi} />);
+    await screen.findByText("before boss");
+    fireEvent.click(screen.getAllByRole("button", { name: "Compare with now" })[1]!);
+    fireEvent.click(await screen.findByRole("button", { name: "Explain with AI" }));
+    await waitFor(() => expect(onOpenAi).toHaveBeenCalled());
+    expect(invoke).toHaveBeenCalledWith("ai_start", {
+      request: expect.objectContaining({ task: "explainSave", exe: game.exe, backup: "1000" }),
+    });
+  });
+
   it("asks before restoring and reports how to undo", async () => {
     render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
     await screen.findByText("before boss");

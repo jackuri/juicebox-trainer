@@ -210,6 +210,22 @@ export interface TrainerView {
   hotkeyErrors: Record<string, string>;
 }
 
+export interface RepairFix {
+  cheat: string;
+  oldAob: string;
+  newAob: string;
+  at: string;
+  matched: number;
+  of: number;
+}
+
+export interface RepairResult {
+  fixed: RepairFix[];
+  broken: [string, string][];
+  saved: string | null;
+  view: TrainerView;
+}
+
 export interface PointerScanOptions {
   maxDepth: number;
   maxOffset: number;
@@ -482,6 +498,10 @@ export interface AiStatus {
 
 export interface AiStartRequest {
   pid: number;
+  /** "trainer" (default) or "explainSave" (needs exe and backup). */
+  task?: "trainer" | "explainSave";
+  exe?: string;
+  backup?: string;
   wishes: string[];
   notes: string;
   backend: "subscription" | "apiKey";
@@ -575,6 +595,7 @@ export const api = {
   trainerSet: (id: string, value: string) => invoke<TrainerView>("trainer_set", { id, value }),
   trainerRelease: (id: string) => invoke<TrainerView>("trainer_release", { id }),
   trainerPress: (id: string) => invoke<TrainerView>("trainer_press", { id }),
+  trainerRepair: () => invoke<RepairResult>("trainer_repair"),
 
   pointerScan: (target: string, options: PointerScanOptions) =>
     invoke<PointerResults>("pointer_scan", { target, options }),

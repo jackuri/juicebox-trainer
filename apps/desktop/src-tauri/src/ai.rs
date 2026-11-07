@@ -204,7 +204,17 @@ pub async fn ai_sign_in() -> CmdResult<()> {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AiStartRequest {
+    /// The running game (trainer task).
+    #[serde(default)]
     pub pid: u32,
+    /// `trainer` (default) or `explainSave`.
+    #[serde(default)]
+    pub task: Option<String>,
+    /// For `explainSave`: the game's exe and the backup to compare with.
+    #[serde(default)]
+    pub exe: Option<String>,
+    #[serde(default)]
+    pub backup: Option<String>,
     pub wishes: Vec<String>,
     pub notes: String,
     /// `subscription` (Claude login) or `apiKey` (ANTHROPIC_API_KEY).
@@ -234,19 +244,34 @@ pub async fn ai_start(
     if let Some(p) = problem() {
         return Err(CommandError::new("aiUnavailable", p));
     }
-    let process = ot_core::list_processes()?
-        .into_iter()
-        .find(|p| p.pid == request.pid)
-        .ok_or_else(|| CommandError::new("notFound", "that game isn't running any more"))?;
-    // Refuse up front (and for free) if the guard would.
-    let verdict = ot_core::guard::check(request.pid);
-    if !verdict.allowed {
-        let mut e = CommandError::new("blocked", verdict.to_string());
-        e.verdict = Some(verdict);
-        return Err(e);
-    }
-    // The helper attaches on its own; the app lets go of the game first.
-    session.shutdown();
+    let explain = request.task.as_deref() == Some("explainSave");
+    let game = if explain {
+        // Only save files are read; no game is attached.
+        let exe = request
+            .exe
+            .clone()
+            .ok_or_else(|| CommandError::new("badRequest", "which game's saves?"))?;
+        let name = std::path::Path::new(&exe)
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        json!({ "pid": 0, "name": name, "exe": exe })
+    } else {
+        let process = ot_core::list_processes()?
+            .into_iter()
+            .find(|p| p.pid == request.pid)
+            .ok_or_else(|| CommandError::new("notFound", "that game isn't running any more"))?;
+        // Refuse up front (and for free) if the guard would.
+        let verdict = ot_core::guard::check(request.pid);
+        if !verdict.allowed {
+            let mut e = CommandError::new("blocked", verdict.to_string());
+            e.verdict = Some(verdict);
+            return Err(e);
+        }
+        // The helper attaches on its own; the app lets go of the game first.
+        session.shutdown();
+        json!({ "pid": process.pid, "name": process.name, "exe": process.exe_path })
+    };
 
     let script =
         sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
@@ -310,7 +335,9 @@ pub async fn ai_start(
 
     let start = json!({
         "type": "start",
-        "game": { "pid": process.pid, "name": process.name, "exe": process.exe_path },
+        "game": game,
+        "task": if explain { "explainSave" } else { "trainer" },
+        "backup": request.backup,
         "wishes": request.wishes,
         "notes": request.notes,
         "backend": if request.backend == "apiKey" { "apiKey" } else { "subscription" },
@@ -350,6 +377,17 @@ mod tests {
         let s = AiState::default();
         assert_eq!(s.send(&json!({})).unwrap_err().kind, "aiNotRunning");
         s.shutdown();
+    }
+
+    #[test]
+    fn explain_requests_need_no_pid() {
+        let r: AiStartRequest = serde_json::from_str(
+            r#"{"task":"explainSave","exe":"C:\\g\\g.exe","backup":"17","wishes":[],"notes":"","backend":"subscription","maxBudgetUsd":1}"#,
+        )
+        .unwrap();
+        assert_eq!(r.pid, 0);
+        assert_eq!(r.task.as_deref(), Some("explainSave"));
+        assert_eq!(r.backup.as_deref(), Some("17"));
     }
 
     #[test]

@@ -113,6 +113,7 @@ fn main() {
             commands::trainer_set,
             commands::trainer_release,
             commands::trainer_press,
+            commands::trainer_repair,
             commands::pointer_scan,
             commands::pointer_filter,
             commands::pointer_results,

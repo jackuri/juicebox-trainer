@@ -1023,7 +1023,18 @@ pub async fn trainer_load(key: String, state: State<'_, AppState>) -> CmdResult<
     let text = found.text.map_err(|e| CommandError::new("io", e))?;
     let (pack, warnings) =
         ot_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
-    with_live(&state, |l| {
+    with_live(&state, |l| load_into(&state, l, key, pack, warnings))
+}
+
+/// Loads `pack` as the session's trainer (registering its hotkeys).
+fn load_into(
+    state: &AppState,
+    l: &mut Live,
+    key: String,
+    pack: Pack,
+    warnings: Vec<Issue>,
+) -> CmdResult<TrainerView> {
+    {
         // Unload the old pack first so its patches are restored.
         l.trainer = None;
         let trainer = Trainer::load(Arc::clone(&l.process), pack)?;
@@ -1039,13 +1050,67 @@ pub async fn trainer_load(key: String, state: State<'_, AppState>) -> CmdResult<
             None => (None, BTreeMap::new()),
         };
         let loaded = l.trainer.insert(LoadedTrainer {
-            key: key.clone(),
+            key,
             warnings,
             hotkey_errors,
             hotkeys,
             trainer,
         });
         trainer_view(loaded)
+    }
+}
+
+/// What "Try to repair" did.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RepairResult {
+    pub fixed: Vec<ot_packs::heal::Fix>,
+    pub broken: Vec<(String, String)>,
+    /// Where the repaired pack was saved.
+    pub saved: Option<String>,
+    pub view: TrainerView,
+}
+
+/// Repairs the loaded pack for this game build (signatures that stopped
+/// matching after an update), saves the result as the player's pack and
+/// loads it. The game isn't changed; cheats stay off.
+#[tauri::command]
+pub async fn trainer_repair(state: State<'_, AppState>) -> CmdResult<RepairResult> {
+    with_live(&state, |l| {
+        let t = l.trainer.as_ref().ok_or_else(no_trainer)?;
+        let pack = t.trainer.pack().clone();
+        let report = ot_packs::heal::heal(&l.process, &pack)?;
+        if report.fixed.is_empty() {
+            let view = trainer_view(l.trainer.as_mut().ok_or_else(no_trainer)?)?;
+            return Ok(RepairResult {
+                fixed: report.fixed,
+                broken: report.broken,
+                saved: None,
+                view,
+            });
+        }
+        let dir = store::user_dir()
+            .ok_or_else(|| CommandError::new("io", "no packs folder on this PC"))?
+            .join(&report.pack.game.id);
+        let path = dir.join("pack.json");
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::new("io", format!("can't create {}: {e}", dir.display())))?;
+        if path.is_file() {
+            // Keep the old one next to it.
+            let _ = std::fs::copy(&path, dir.join("pack.json.bak"));
+        }
+        let text = serde_json::to_string_pretty(&report.pack)
+            .map_err(|e| CommandError::new("io", e.to_string()))?;
+        std::fs::write(&path, text + "\n")
+            .map_err(|e| CommandError::new("io", format!("can't save {}: {e}", path.display())))?;
+        let key = path.display().to_string();
+        let view = load_into(&state, l, key.clone(), report.pack, Vec::new())?;
+        Ok(RepairResult {
+            fixed: report.fixed,
+            broken: report.broken,
+            saved: Some(key),
+            view,
+        })
     })
 }
 

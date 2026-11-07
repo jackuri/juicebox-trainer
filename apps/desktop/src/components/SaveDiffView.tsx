@@ -75,16 +75,26 @@ interface Props {
   diff: SaveDiff;
   title: string;
   onClose: () => void;
+  /** Shown as "Explain with AI" when given. */
+  onExplain?: () => void;
 }
 
 /** What changed between two backups (or a backup and the saves now). */
-export function SaveDiffView({ diff, title, onClose }: Props) {
+export function SaveDiffView({ diff, title, onClose, onExplain }: Props) {
   return (
     <section className="flex flex-col gap-3 rounded-md border border-zinc-800 p-3" aria-label="Comparison">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-medium">{title}</h3>
+        {onExplain && diff.files.length > 0 && (
+          <button
+            className="ml-auto rounded bg-violet-900/70 px-2 py-0.5 text-xs hover:bg-violet-800"
+            onClick={onExplain}
+          >
+            Explain with AI
+          </button>
+        )}
         <button
-          className="ml-auto rounded bg-zinc-800 px-2 py-0.5 text-xs hover:bg-zinc-700"
+          className={`${onExplain && diff.files.length > 0 ? "" : "ml-auto "}rounded bg-zinc-800 px-2 py-0.5 text-xs hover:bg-zinc-700`}
           onClick={onClose}
         >
           Close

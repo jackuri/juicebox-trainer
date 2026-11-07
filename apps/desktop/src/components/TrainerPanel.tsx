@@ -29,6 +29,8 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
   const [folder, setFolder] = useState<string | null>(null);
   const [view, setView] = useState<TrainerView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [repairNote, setRepairNote] = useState<string | null>(null);
+  const [repairing, setRepairing] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const fail = useCallback(
@@ -119,8 +121,30 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
     );
   }
 
+  async function repair() {
+    setError(null);
+    setRepairNote(null);
+    setRepairing(true);
+    try {
+      const r = await api.trainerRepair();
+      setView(r.view);
+      const names = (ids: string[]) =>
+        ids.map((id) => r.view.pack.cheats.find((c) => c.id === id)?.name ?? id).join(", ");
+      const parts = [];
+      if (r.fixed.length) parts.push(`Repaired: ${names(r.fixed.map((f) => f.cheat))}. Saved as your copy of the pack.`);
+      if (r.broken.length) parts.push(`Couldn't repair: ${names(r.broken.map((b) => b[0]))}. The AI helper may be able to remake them.`);
+      if (!parts.length) parts.push("Nothing to repair.");
+      setRepairNote(parts.join(" "));
+    } catch (e) {
+      fail(e);
+    } finally {
+      setRepairing(false);
+    }
+  }
+
   const { pack } = view;
   const groups = groupByCategory(pack.cheats);
+  const anyFailed = view.cheats.some((c) => c.status === "failed");
   const stateOf = (id: string) => view.cheats.find((c) => c.id === id);
 
   return (
@@ -142,6 +166,26 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
           Unload pack
         </button>
       </div>
+      {(anyFailed || repairNote) && (
+        <div className="flex flex-wrap items-center gap-2 rounded-md bg-zinc-900 px-3 py-2 text-xs" role="status">
+          {repairNote ? (
+            <span className="text-zinc-300">{repairNote}</span>
+          ) : (
+            <span className="text-zinc-300">
+              Some cheats don&apos;t match this version of the game (maybe it was updated).
+            </span>
+          )}
+          {anyFailed && (
+            <button
+              className="rounded bg-emerald-800 px-2 py-1 hover:bg-emerald-700 disabled:opacity-40"
+              disabled={repairing}
+              onClick={() => void repair()}
+            >
+              {repairing ? "Repairing…" : "Try to repair"}
+            </button>
+          )}
+        </div>
+      )}
       {buildWarning(view.build) && (
         <p className="rounded-md bg-amber-950/40 px-3 py-2 text-xs text-amber-300">{buildWarning(view.build)}</p>
       )}
