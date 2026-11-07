@@ -14,3 +14,33 @@ export function groupByCategory(cheats: Cheat[]): [string, Cheat[]][] {
   }
   return [...groups.entries()];
 }
+
+/** A pointer path as the pointer scanner gives it. */
+export interface PathParts {
+  module: string;
+  moduleOffset: number;
+  offsets: number[];
+}
+
+/**
+ * A pack cheat (PLAN §4, `value` op) for a pointer path, as pretty JSON ready to
+ * paste into a pack's `cheats` list. `[[game.exe+0x10]+0x18]+0x40` becomes
+ * `base: "game.exe+0x10", offsets: ["0x18", "0x40"]`.
+ */
+export function pointerCheatJson(path: PathParts, ty: string): string {
+  const h = (n: number) => (n < 0 ? `-0x${(-n).toString(16).toUpperCase()}` : `0x${n.toString(16).toUpperCase()}`);
+  const cheat = {
+    id: "new_value",
+    name: "New value",
+    ui: "number",
+    impl: {
+      kind: "value",
+      type: ty,
+      address: {
+        base: `${path.module}+${h(path.moduleOffset)}`,
+        ...(path.offsets.length > 0 ? { offsets: path.offsets.map(h) } : {}),
+      },
+    },
+  };
+  return JSON.stringify(cheat, null, 2);
+}

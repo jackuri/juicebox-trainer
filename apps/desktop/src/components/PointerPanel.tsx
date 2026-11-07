@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { hex } from "../lib/format";
+import { pointerCheatJson } from "../lib/trainer";
 import {
   api,
   type CommandError,
@@ -11,9 +12,17 @@ import {
   type ValueType,
 } from "../lib/ipc";
 
+/** An address sent over from the Scanner ("Find pointers"). */
+export interface PointerRequest {
+  address: number;
+  ty: ValueType;
+}
+
 interface Props {
   onAddToList: (expression: string, ty: ValueType) => void;
   onSessionLost: (e: CommandError) => void;
+  /** Fills in the address (a new object each time the player asks). */
+  request?: PointerRequest | null;
 }
 
 const DEPTHS = [1, 2, 3, 4, 5, 6, 7];
@@ -29,11 +38,22 @@ function parseHex(s: string): number | null {
  * Pointer scanner: finds paths from the game's exe or DLLs to a value, so a
  * cheat can find it again after the game restarts.
  */
-export function PointerPanel({ onAddToList, onSessionLost }: Props) {
-  const [target, setTarget] = useState("");
+export function PointerPanel({ onAddToList, onSessionLost, request = null }: Props) {
+  const [target, setTarget] = useState(request ? hex(request.address) : "");
   const [depth, setDepth] = useState(4);
   const [maxOffset, setMaxOffset] = useState("1000");
-  const [ty, setTy] = useState<ValueType>("i32");
+  const [ty, setTy] = useState<ValueType>(request?.ty ?? "i32");
+  const [copied, setCopied] = useState<string | null>(null);
+  // A new request from the Scanner replaces the address (React's "adjust state
+  // while rendering" pattern, so no effect is needed).
+  const [seen, setSeen] = useState(request);
+  if (request !== seen) {
+    setSeen(request);
+    if (request) {
+      setTarget(hex(request.address));
+      setTy(request.ty);
+    }
+  }
   const [newTarget, setNewTarget] = useState("");
   const [results, setResults] = useState<PointerResults | null>(null);
   const [running, setRunning] = useState(false);
@@ -83,6 +103,16 @@ export function PointerPanel({ onAddToList, onSessionLost }: Props) {
       setNewTarget("");
     } catch (e) {
       fail(e);
+    }
+  }
+
+  async function copyCheat(p: PointerResults["paths"][number]) {
+    setError(null);
+    try {
+      await navigator.clipboard.writeText(pointerCheatJson(p, ty));
+      setCopied(p.expression);
+    } catch {
+      setError("Couldn't copy to the clipboard.");
     }
   }
 
@@ -237,7 +267,15 @@ export function PointerPanel({ onAddToList, onSessionLost }: Props) {
                     <tr key={p.expression} className="border-t border-zinc-900">
                       <td className="px-2 py-1 text-zinc-300">{p.expression}</td>
                       <td className="px-2 py-1 text-zinc-500">{p.address === null ? "—" : hex(p.address)}</td>
-                      <td className="px-2 py-1 text-right">
+                      <td className="whitespace-nowrap px-2 py-1 text-right">
+                        <button
+                          className="mr-1 rounded bg-zinc-800 px-2 py-0.5 font-sans hover:bg-zinc-700"
+                          aria-label={`Copy ${p.expression} as a pack cheat`}
+                          title="Copies a cheat for a pack's cheats list (JSON). Change its id and name."
+                          onClick={() => void copyCheat(p)}
+                        >
+                          {copied === p.expression ? "Copied" : "Copy as pack cheat"}
+                        </button>
                         <button
                           className="rounded bg-zinc-800 px-2 py-0.5 font-sans hover:bg-zinc-700"
                           aria-label={`Add ${p.expression} to address list`}

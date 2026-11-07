@@ -77,6 +77,33 @@ describe("PointerPanel", () => {
     expect(screen.queryByTestId("pointer-count")).not.toBeInTheDocument();
   });
 
+  it("takes an address from the Scanner and copies a path as a pack cheat", async () => {
+    const writeText = vi.fn(() => Promise.resolve());
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const { rerender } = render(
+      <PointerPanel onAddToList={vi.fn()} onSessionLost={vi.fn()} request={{ address: 0x1f0a1c, ty: "f32" }} />,
+    );
+    expect(screen.getByLabelText("Target address")).toHaveValue("0x1F0A1C");
+    // A new request replaces what's typed.
+    rerender(<PointerPanel onAddToList={vi.fn()} onSessionLost={vi.fn()} request={{ address: 0x2000, ty: "f32" }} />);
+    expect(screen.getByLabelText("Target address")).toHaveValue("0x2000");
+
+    fireEvent.click(screen.getByRole("button", { name: "Find pointers" }));
+    expect(await screen.findByTestId("pointer-count")).toHaveTextContent("2 paths");
+    expect(screen.getByLabelText("Value type to add")).toHaveValue("f32");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy [[[testbed_native.exe+0x3A000]+0x10]+0x10]+0xC as a pack cheat" }),
+    );
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalled());
+    const copied = JSON.parse((writeText.mock.calls[0] as unknown as [string])[0]);
+    expect(copied.impl).toEqual({
+      kind: "value",
+      type: "f32",
+      address: { base: "testbed_native.exe+0x3A000", offsets: ["0x10", "0x10", "0xC"] },
+    });
+    expect(await screen.findByText("Copied")).toBeInTheDocument();
+  });
+
   it("shows errors and refuses a bad offset", async () => {
     invoke.mockImplementation((cmd: string) =>
       cmd === "pointer_scan"

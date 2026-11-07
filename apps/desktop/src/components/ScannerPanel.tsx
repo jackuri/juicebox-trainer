@@ -34,6 +34,8 @@ const RESULT_LIMIT = 200;
 
 interface Props {
   onAddToList: (address: number, ty: ValueType) => void;
+  /** Look for pointer paths to this address (Pointers tab). */
+  onFindPointers?: (address: number, ty: ValueType) => void;
   onSessionLost: (e: CommandError) => void;
 }
 
@@ -41,7 +43,7 @@ function needsValue(kind: string) {
   return kind === "exact" || kind === "between";
 }
 
-export function ScannerPanel({ onAddToList, onSessionLost }: Props) {
+export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Props) {
   const [ty, setTy] = useState<ValueType>("i32");
   const [firstKind, setFirstKind] = useState<FirstScanKind>("exact");
   const [nextKind, setNextKind] = useState<NextScanKind>("exact");
@@ -269,7 +271,17 @@ export function ScannerPanel({ onAddToList, onSessionLost }: Props) {
                         {h.current ?? "??"}
                       </td>
                       <td className="px-2 py-1 text-zinc-500">{h.previous}</td>
-                      <td className="px-2 py-1 text-right">
+                      <td className="whitespace-nowrap px-2 py-1 text-right">
+                        {onFindPointers && (
+                          <button
+                            className="mr-1 rounded bg-zinc-800 px-2 py-0.5 font-sans hover:bg-zinc-700"
+                            aria-label={`Find pointers to ${hex(h.address)}`}
+                            title="Find a path to this value that still works after the game restarts"
+                            onClick={() => onFindPointers(h.address, summary.ty)}
+                          >
+                            Find pointers
+                          </button>
+                        )}
                         <button
                           className="rounded bg-zinc-800 px-2 py-0.5 font-sans hover:bg-zinc-700"
                           aria-label={`Add ${hex(h.address)} to address list`}

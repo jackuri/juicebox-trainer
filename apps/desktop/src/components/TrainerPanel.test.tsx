@@ -130,6 +130,7 @@ beforeEach(() => {
       case "packs_list":
         return Promise.resolve([
           summary({}),
+          summary({ key: "user:copy", source: "user", name: "My copy" }),
           summary({ key: "bundled:x86", name: "x86 pack", arch: "x86" }),
           summary({ key: "other", name: "Other game", exe: "other.exe" }),
         ]);
@@ -232,6 +233,23 @@ describe("TrainerPanel", () => {
     ]);
   });
 
+  it("loads the only pack for the game by itself, and not again after Unload", async () => {
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "packs_list" ? Promise.resolve([summary({}), summary({ key: "other", exe: "other.exe" })]) : base(cmd, args),
+    );
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={vi.fn()} />);
+    expect(await screen.findByRole("switch", { name: "Infinite Health" })).toBeInTheDocument();
+    expect(screen.getByText(/Loaded automatically/)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("trainer_load", { key: "bundled:testbed-native" });
+
+    fireEvent.click(screen.getByRole("button", { name: "Unload pack" }));
+    expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(invoke.mock.calls.filter(([c]) => c === "trainer_load")).toHaveLength(1);
+    expect(screen.queryByRole("switch", { name: "Infinite Health" })).not.toBeInTheDocument();
+  });
+
   it("toggles, presses, sets, slides, releases and shows failures", async () => {
     loaded = true;
     render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
@@ -294,6 +312,18 @@ describe("TrainerPanel", () => {
     expect(await screen.findByText(/C:\\packs/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open packs folder" }));
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("open_packs_folder", undefined));
+  });
+
+  it("sends the player to Packs when there is no pack", async () => {
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "packs_list") return Promise.resolve([]);
+      if (cmd === "trainer_state") return Promise.resolve(null);
+      return Promise.resolve();
+    });
+    const show = vi.fn();
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={show} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Get a pack…" }));
+    expect(show).toHaveBeenCalled();
   });
 
   it("reports a lost session from polling", async () => {

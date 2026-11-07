@@ -78,6 +78,15 @@ describe("ScannerPanel", () => {
     expect(invoke).toHaveBeenCalledWith("scan_reset", undefined);
   });
 
+  it("sends a result to the pointer scanner", async () => {
+    const find = vi.fn();
+    render(<ScannerPanel onAddToList={vi.fn()} onFindPointers={find} onSessionLost={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Scan value"), { target: { value: "250" } });
+    fireEvent.click(screen.getByRole("button", { name: "First scan" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Find pointers to 0x2000" }));
+    expect(find).toHaveBeenCalledWith(0x2000, "i32");
+  });
+
   it("sends a range scan and float tolerance", async () => {
     render(<ScannerPanel onAddToList={vi.fn()} onSessionLost={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Scan value type"), { target: { value: "f32" } });

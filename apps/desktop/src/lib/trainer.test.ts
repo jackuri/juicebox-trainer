@@ -1,8 +1,22 @@
 import { describe, expect, it } from "vitest";
 import { type PackSummary, packsFor, type ProcessInfo } from "./ipc";
-import { formatStep, groupByCategory } from "./trainer";
+import { formatStep, groupByCategory, pointerCheatJson } from "./trainer";
 
 describe("trainer helpers", () => {
+  it("turns a pointer path into a pack value cheat", () => {
+    const json = pointerCheatJson({ module: "game.exe", moduleOffset: 0x1a2b0, offsets: [0x10, 0x18] }, "f32");
+    expect(JSON.parse(json)).toEqual({
+      id: "new_value",
+      name: "New value",
+      ui: "number",
+      impl: { kind: "value", type: "f32", address: { base: "game.exe+0x1A2B0", offsets: ["0x10", "0x18"] } },
+    });
+    // A static address has no offsets field at all (the pack format leaves it out).
+    const flat = JSON.parse(pointerCheatJson({ module: "a.dll", moduleOffset: 0x40, offsets: [] }, "i32"));
+    expect(flat.impl.address).toEqual({ base: "a.dll+0x40" });
+    expect(JSON.parse(pointerCheatJson({ module: "a.exe", moduleOffset: 0, offsets: [-8] }, "i32")).impl.address.offsets).toEqual(["-0x8"]);
+  });
+
   it("formats slider values to the step's precision", () => {
     expect(formatStep(2.5000001, 0.1)).toBe("2.5");
     expect(formatStep(3, 1)).toBe("3");

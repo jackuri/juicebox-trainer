@@ -12,7 +12,7 @@ import {
 import { AddressList } from "./AddressList";
 import { MemoryPanel } from "./MemoryPanel";
 import { ModuleTable } from "./ModuleTable";
-import { PointerPanel } from "./PointerPanel";
+import { PointerPanel, type PointerRequest } from "./PointerPanel";
 import { ScannerPanel } from "./ScannerPanel";
 import { SignaturePanel } from "./SignaturePanel";
 import { TrainerPanel } from "./TrainerPanel";
@@ -24,15 +24,18 @@ interface Props {
   session: SessionInfo;
   onSessionLost: (e: CommandError) => void;
   onRefreshModules: () => void;
+  /** Opens the Packs tab. */
+  onShowPacks?: () => void;
 }
 
 /**
  * Tools shown while attached: trainer (packs), scanner, pointer scanner,
  * signature maker, read/write, modules, address list.
  */
-export function SessionTools({ session, onSessionLost, onRefreshModules }: Props) {
+export function SessionTools({ session, onSessionLost, onRefreshModules, onShowPacks }: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
+  const [pointerRequest, setPointerRequest] = useState<PointerRequest | null>(null);
 
   async function addToList(address: number | string, ty: ValueType) {
     try {
@@ -66,13 +69,24 @@ export function SessionTools({ session, onSessionLost, onRefreshModules }: Props
 
       {/* Panels stay mounted so a scan or typed value survives switching tabs. */}
       <div hidden={tab !== "Trainer"}>
-        <TrainerPanel session={session} onSessionLost={onSessionLost} />
+        <TrainerPanel session={session} onSessionLost={onSessionLost} onShowPacks={onShowPacks} />
       </div>
       <div hidden={tab !== "Scanner"}>
-        <ScannerPanel onAddToList={(a, t) => void addToList(a, t)} onSessionLost={onSessionLost} />
+        <ScannerPanel
+          onAddToList={(a, t) => void addToList(a, t)}
+          onFindPointers={(address, ty) => {
+            setPointerRequest({ address, ty });
+            setTab("Pointers");
+          }}
+          onSessionLost={onSessionLost}
+        />
       </div>
       <div hidden={tab !== "Pointers"}>
-        <PointerPanel onAddToList={(e, t) => void addToList(e, t)} onSessionLost={onSessionLost} />
+        <PointerPanel
+          onAddToList={(e, t) => void addToList(e, t)}
+          onSessionLost={onSessionLost}
+          request={pointerRequest}
+        />
       </div>
       <div hidden={tab !== "Signatures"}>
         <SignaturePanel onSessionLost={onSessionLost} />

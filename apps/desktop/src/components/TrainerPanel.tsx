@@ -25,10 +25,12 @@ const SLIDER_DEBOUNCE_MS = 150;
 interface Props {
   session: SessionInfo;
   onSessionLost: (e: CommandError) => void;
+  /** Opens the Packs tab (open a pack file, community packs). */
+  onShowPacks?: () => void;
 }
 
 /** Trainer tab: pick a pack for the attached game, then toggle its cheats. */
-export function TrainerPanel({ session, onSessionLost }: Props) {
+export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [view, setView] = useState<TrainerView | null>(null);
@@ -37,6 +39,12 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
   const [repairing, setRepairing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [overlay, setOverlay] = useState(false);
+  /** The trainer's state was read at least once (so `view === null` means "no pack loaded"). */
+  const [polled, setPolled] = useState(false);
+  /** The pack was loaded automatically (the only one for this game). */
+  const [autoLoaded, setAutoLoaded] = useState(false);
+  /** The game (PID) a pack was auto-loaded for once; after "Unload" it isn't loaded again. */
+  const autoFor = useRef<number | null>(null);
 
   useEffect(() => {
     api.overlayVisible().then(setOverlay, () => undefined);
@@ -59,10 +67,16 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
   useEffect(() => loadPacks(), [loadPacks]);
 
   const poll = useCallback(() => {
-    api.trainerState().then(setView, (e: unknown) => {
+    api.trainerState().then(
+      (v) => {
+        setView(v);
+        setPolled(true);
+      },
+      (e: unknown) => {
       const err = toCommandError(e);
       if (isSessionLost(err)) onSessionLost(err);
-    });
+      },
+    );
   }, [onSessionLost]);
 
   useEffect(() => {
@@ -86,11 +100,37 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
     }
   }
 
-  async function load(key: string) {
-    setLoading(true);
-    await act(() => api.trainerLoad(key));
-    setLoading(false);
-  }
+  const load = useCallback(
+    async (key: string, auto = false) => {
+      setLoading(true);
+      setError(null);
+      try {
+        setView(await api.trainerLoad(key));
+        setAutoLoaded(auto);
+      } catch (e) {
+        fail(e);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [fail],
+  );
+
+  // One pack for this game and none loaded: load it straight away (loading only
+  // reads the pack and finds its cheats; nothing is turned on).
+  const pid = session.process.pid;
+  const only = packs && polled && !view ? packsFor(packs, session.process) : [];
+  const autoKey = only.length === 1 ? (only[0]?.key ?? null) : null;
+  // A pack that was loaded for this game (by hand, by a preset, or before this tab
+  // opened) means the player has chosen: after "Unload", don't load it again.
+  useEffect(() => {
+    if (view) autoFor.current = pid;
+  }, [view, pid]);
+  useEffect(() => {
+    if (!autoKey || autoFor.current === pid) return;
+    autoFor.current = pid;
+    void Promise.resolve().then(() => load(autoKey, true));
+  }, [autoKey, pid, load]);
 
   if (!view) {
     const matching = packs ? packsFor(packs, session.process) : [];
@@ -105,12 +145,20 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
         ))}
         {packs !== null && matching.length === 0 && (
           <p className="text-sm text-zinc-400">
-            No pack for this game yet. Put a pack in{" "}
-            <code className="text-xs">{folder ?? "%APPDATA%\\OpenTrainer\\packs"}\&lt;game-id&gt;\pack.json</code>{" "}
-            and refresh, or find values yourself with the Scanner.
+            No pack for this game yet. Get one in Packs (open a pack file, or install one from the community
+            list), make one with the AI helper, or find values yourself with the Scanner. Your packs are in{" "}
+            <code className="text-xs">{folder ?? "%APPDATA%\\OpenTrainer\\packs"}</code>.
           </p>
         )}
         <div className="flex gap-2">
+          {onShowPacks && (
+            <button
+              className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs hover:bg-emerald-700"
+              onClick={onShowPacks}
+            >
+              Get a pack…
+            </button>
+          )}
           <button
             className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700"
             onClick={() => void act(() => api.openPacksFolder())}
@@ -183,11 +231,17 @@ export function TrainerPanel({ session, onSessionLost }: Props) {
           onClick={() => void act(async () => {
             await api.trainerUnload();
             setView(null);
+            setAutoLoaded(false);
           })}
         >
           Unload pack
         </button>
       </div>
+      {autoLoaded && (
+        <p className="text-xs text-zinc-500" role="status">
+          Loaded automatically: it&apos;s the only pack for this game. Nothing is on until you turn it on.
+        </p>
+      )}
       {(anyFailed || repairNote) && (
         <div className="flex flex-wrap items-center gap-2 rounded-md bg-zinc-900 px-3 py-2 text-xs" role="status">
           {repairNote ? (
