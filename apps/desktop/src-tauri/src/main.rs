@@ -1,6 +1,7 @@
 // No console window in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod commands;
 mod hotkeys;
 mod saves;
@@ -27,6 +28,16 @@ fn install_crash_handler(dir: std::path::PathBuf) {
 }
 
 fn main() {
+    // `--mcp`: run as the AI helper's guarded tool server on stdio (started
+    // by the sidecar). stdout carries the protocol, so this comes first.
+    if std::env::args().any(|a| a == "--mcp") {
+        tracing_subscriber::fmt()
+            .with_writer(std::io::stderr)
+            .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
+            .init();
+        ot_mcp::serve_stdio(ot_mcp::Config::standard());
+        return;
+    }
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
@@ -39,6 +50,7 @@ fn main() {
     let app = tauri::Builder::default()
         .manage(commands::AppState::default())
         .manage(saves::SavesState::open(ot_saves::default_root()))
+        .manage(ai::AiState::default())
         .setup(move |app| {
             saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
@@ -127,6 +139,10 @@ fn main() {
             saves::saves_edit,
             saves::saves_quick_codes,
             saves::saves_apply_quick_code,
+            ai::ai_status,
+            ai::ai_start,
+            ai::ai_answer,
+            ai::ai_cancel,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");
@@ -134,6 +150,7 @@ fn main() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             // Restore patches and stop freezes before the process ends.
+            app.state::<ai::AiState>().shutdown();
             app.state::<commands::AppState>().shutdown();
         }
     });

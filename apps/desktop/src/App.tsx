@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
@@ -24,7 +25,7 @@ export default function App() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
-  const [view, setView] = useState<"cheats" | "saves">("cheats");
+  const [view, setView] = useState<"cheats" | "saves" | "ai">("cheats");
 
   const refresh = useCallback(async () => {
     setLoadingList(true);
@@ -106,6 +107,7 @@ export default function App() {
             [
               ["cheats", "Cheats"],
               ["saves", "Save backups"],
+              ["ai", "Make a trainer (AI)"],
             ] as const
           ).map(([v, label]) => (
             <button
@@ -131,7 +133,9 @@ export default function App() {
         </span>
       </header>
 
-      {view === "saves" ? (
+      {view === "ai" ? (
+        <AiView processes={processes} onRefreshProcesses={() => void refresh()} />
+      ) : view === "saves" ? (
         <SavesView processes={processes} onRefreshProcesses={() => void refresh()} />
       ) : (
         <div className="grid min-h-0 grid-cols-[320px_1fr]">

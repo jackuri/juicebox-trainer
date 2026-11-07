@@ -456,6 +456,54 @@ export function onSavesChanged(cb: () => void): () => void {
   };
 }
 
+// ----- AI helper (sidecars/ai-agent, src-tauri/src/ai.rs) -----
+
+export type AskKind = "done" | "yesno" | "text";
+
+export type AiEvent =
+  | { type: "ready"; version: string }
+  | { type: "say"; text: string }
+  | { type: "ask"; id: string; text: string; kind: AskKind }
+  | { type: "answered"; id: string; text: string }
+  | { type: "activity"; tool: string; summary: string }
+  | { type: "cost"; usd: number }
+  | { type: "finished"; ok: boolean; summary: string }
+  | { type: "error"; message: string }
+  | { type: "exit" };
+
+export interface AiStatus {
+  available: boolean;
+  problem: string | null;
+  running: boolean;
+  transcript: AiEvent[];
+}
+
+export interface AiStartRequest {
+  pid: number;
+  wishes: string[];
+  notes: string;
+  backend: "subscription" | "apiKey";
+  maxBudgetUsd: number;
+}
+
+/** Calls `cb` for each message from the AI helper. Returns an unsubscribe function. */
+export function onAiEvent(cb: (e: AiEvent) => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen<AiEvent>("ai-event", (e) => cb(e.payload)).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri.
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
 /** Errors that mean the session is gone (the backend already dropped it). */
 export function isSessionLost(e: CommandError): boolean {
   return e.kind === "blocked" || e.kind === "processExited" || e.kind === "notAttached";
@@ -567,6 +615,11 @@ export const api = {
   savesQuickCodes: (id: string) => invoke<QuickCode[]>("saves_quick_codes", { id }),
   savesApplyQuickCode: (id: string, packKey: string, codeId: string) =>
     invoke<EditReport>("saves_apply_quick_code", { id, packKey, codeId }),
+
+  aiStatus: () => invoke<AiStatus>("ai_status"),
+  aiStart: (request: AiStartRequest) => invoke<void>("ai_start", { request }),
+  aiAnswer: (id: string, text: string) => invoke<void>("ai_answer", { id, text }),
+  aiCancel: () => invoke<void>("ai_cancel"),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

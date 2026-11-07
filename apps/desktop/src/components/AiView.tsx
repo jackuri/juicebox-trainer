@@ -1,0 +1,321 @@
+import { useEffect, useState } from "react";
+import { pendingAsk } from "../lib/ai";
+import { isSystemProcess } from "../lib/format";
+import {
+  type AiEvent,
+  type AiStatus,
+  api,
+  onAiEvent,
+  type ProcessInfo,
+  toCommandError,
+} from "../lib/ipc";
+
+const WISHES = [
+  "Infinite health",
+  "Infinite ammo",
+  "Lots of money / gold",
+  "Infinite stamina",
+  "Lots of XP",
+  "Faster movement",
+  "Freeze the timer",
+];
+
+const button = "rounded bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-40";
+const big =
+  "rounded-md bg-emerald-700 px-5 py-2 text-base font-medium hover:bg-emerald-600 disabled:opacity-40";
+
+interface Props {
+  processes: ProcessInfo[];
+  onRefreshProcesses: () => void;
+}
+
+/** "Make a trainer": the AI helper finds cheats with the player's help. */
+export function AiView({ processes, onRefreshProcesses }: Props) {
+  const [status, setStatus] = useState<AiStatus | null>(null);
+  const [events, setEvents] = useState<AiEvent[]>([]);
+  const [pid, setPid] = useState("");
+  const [wishes, setWishes] = useState<string[]>(["Infinite health", "Lots of money / gold"]);
+  const [other, setOther] = useState("");
+  const [backend, setBackend] = useState<"subscription" | "apiKey">("subscription");
+  const [budget, setBudget] = useState("5");
+  const [reply, setReply] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [starting, setStarting] = useState(false);
+
+  useEffect(() => {
+    api.aiStatus().then(
+      (s) => {
+        setStatus(s);
+        setEvents(s.transcript);
+      },
+      (e: unknown) => setError(toCommandError(e).message),
+    );
+    return onAiEvent((e) => {
+      setEvents((list) => [...list, e]);
+      if (e.type === "exit") {
+        api.aiStatus().then(setStatus, () => undefined);
+      }
+    });
+  }, []);
+
+  const exited = events.some((e) => e.type === "exit");
+  const running = (status?.running ?? false) && !exited;
+  const ask = pendingAsk(events);
+  const cost = [...events].reverse().find((e) => e.type === "cost");
+  const finished = [...events].reverse().find((e) => e.type === "finished");
+  const candidates = processes.filter((p) => !isSystemProcess(p));
+
+  async function start() {
+    setError(null);
+    setStarting(true);
+    try {
+      const list = [...wishes, ...other.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)];
+      setEvents([]);
+      await api.aiStart({
+        pid: Number(pid),
+        wishes: list,
+        notes: "",
+        backend,
+        maxBudgetUsd: Number(budget) || 5,
+      });
+      setStatus((s) => (s ? { ...s, running: true } : s));
+    } catch (e) {
+      setError(toCommandError(e).message);
+    } finally {
+      setStarting(false);
+    }
+  }
+
+  async function answer(text: string) {
+    if (!ask) return;
+    try {
+      await api.aiAnswer(ask.id, text);
+      setEvents((list) => [...list, { type: "answered", id: ask.id, text }]);
+      setReply("");
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  if (status && !status.available) {
+    return (
+      <div className="m-auto max-w-md p-6 text-center text-sm text-zinc-300">
+        <p className="font-medium">The AI helper can't start yet.</p>
+        <p className="mt-2 text-zinc-400">{status.problem}</p>
+      </div>
+    );
+  }
+
+  const showForm = !running && events.length === 0;
+
+  return (
+    <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
+      <div className="flex items-center gap-3">
+        <h2 className="text-lg font-medium">Make a trainer with AI</h2>
+        {cost?.type === "cost" && (
+          <span className="text-xs text-zinc-500">Cost so far: about ${cost.usd.toFixed(2)}</span>
+        )}
+        {running && (
+          <button className={`${button} ml-auto`} onClick={() => void api.aiCancel()}>
+            Cancel
+          </button>
+        )}
+        {!running && events.length > 0 && (
+          <button className={`${button} ml-auto`} onClick={() => setEvents([])}>
+            Start over
+          </button>
+        )}
+      </div>
+      {error && (
+        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+          {error}
+        </p>
+      )}
+
+      {showForm && (
+        <div className="flex max-w-2xl flex-col gap-4">
+          <p className="text-sm text-zinc-400">
+            Start your game, pick it here and tick what you'd like. The helper asks you to do small
+            things in the game (like "spend some gold") while it searches, then saves a cheat pack.
+            Single-player games only: games with anti-cheat are refused.
+          </p>
+          <label className="flex flex-col gap-1 text-sm">
+            Game
+            <select
+              aria-label="Game"
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+              value={pid}
+              onFocus={onRefreshProcesses}
+              onChange={(e) => setPid(e.target.value)}
+            >
+              <option value="">Pick your running game…</option>
+              {candidates.map((p) => (
+                <option key={p.pid} value={p.pid}>
+                  {p.name} ({p.pid})
+                </option>
+              ))}
+            </select>
+          </label>
+          <fieldset className="flex flex-col gap-1 text-sm">
+            <legend className="mb-1">Cheats you want</legend>
+            {WISHES.map((w) => (
+              <label key={w} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={wishes.includes(w)}
+                  onChange={(e) =>
+                    setWishes((list) => (e.target.checked ? [...list, w] : list.filter((x) => x !== w)))
+                  }
+                />
+                {w}
+              </label>
+            ))}
+            <input
+              aria-label="Other cheats"
+              className="mt-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+              placeholder="Something else? e.g. never run out of potions"
+              value={other}
+              onChange={(e) => setOther(e.target.value)}
+            />
+          </fieldset>
+          <fieldset className="flex flex-col gap-1 text-sm">
+            <legend className="mb-1">AI account</legend>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                checked={backend === "subscription"}
+                onChange={() => setBackend("subscription")}
+              />
+              My Claude subscription (signed in to Claude Code on this PC)
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={backend === "apiKey"} onChange={() => setBackend("apiKey")} />
+              An Anthropic API key (set as ANTHROPIC_API_KEY in Windows; you pay per use)
+            </label>
+          </fieldset>
+          <label className="flex items-center gap-2 text-sm">
+            Stop if it costs more than $
+            <input
+              aria-label="Spending limit"
+              className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+              value={budget}
+              onChange={(e) => setBudget(e.target.value)}
+            />
+            <span className="text-xs text-zinc-500">(an estimate; a typical run is well under this)</span>
+          </label>
+          <button
+            className={`${big} self-start`}
+            disabled={!pid || starting || (wishes.length === 0 && !other.trim())}
+            onClick={() => void start()}
+          >
+            Start
+          </button>
+        </div>
+      )}
+
+      {!showForm && (
+        <ol className="flex max-w-3xl flex-col gap-2" aria-label="Conversation">
+          {events.map((e, i) => {
+            switch (e.type) {
+              case "say":
+                return (
+                  <li key={i} className="whitespace-pre-wrap rounded-md bg-zinc-900 px-3 py-2 text-sm">
+                    {e.text}
+                  </li>
+                );
+              case "activity":
+                return events[i - 1]?.type === "activity" &&
+                  (events[i - 1] as { summary: string }).summary === e.summary ? null : (
+                  <li key={i} className="text-xs text-zinc-500">
+                    {e.summary}…
+                  </li>
+                );
+              case "ask":
+                return (
+                  <li key={i} className="rounded-md border border-emerald-800 px-3 py-2 text-sm">
+                    {e.text}
+                  </li>
+                );
+              case "answered":
+                return (
+                  <li key={i} className="self-end rounded-md bg-emerald-950/60 px-3 py-1 text-sm">
+                    {e.text}
+                  </li>
+                );
+              case "error":
+                return (
+                  <li key={i} className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300">
+                    {e.message}
+                  </li>
+                );
+              case "finished":
+                return (
+                  <li
+                    key={i}
+                    className={`rounded-md px-3 py-2 text-sm ${
+                      e.ok ? "bg-emerald-950/50 text-emerald-200" : "bg-amber-950/40 text-amber-200"
+                    }`}
+                    role="status"
+                  >
+                    {e.summary}
+                    {e.ok && (
+                      <p className="mt-1 text-xs">
+                        Open Cheats, attach to the game, and load the new pack on the Trainer tab.
+                      </p>
+                    )}
+                  </li>
+                );
+              default:
+                return null;
+            }
+          })}
+        </ol>
+      )}
+
+      {ask && (
+        <div className="sticky bottom-0 flex max-w-3xl flex-col gap-3 rounded-md border border-emerald-700 bg-zinc-950 p-3" role="dialog" aria-label="Your turn">
+          <p className="text-base">{ask.text}</p>
+          {ask.kind === "done" && (
+            <button className={`${big} self-start`} onClick={() => void answer("Done")}>
+              Done
+            </button>
+          )}
+          {ask.kind === "yesno" && (
+            <div className="flex gap-2">
+              <button className={big} onClick={() => void answer("Yes")}>
+                Yes
+              </button>
+              <button className={button} onClick={() => void answer("No")}>
+                No
+              </button>
+            </div>
+          )}
+          {ask.kind === "text" && (
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (reply.trim()) void answer(reply.trim());
+              }}
+            >
+              <input
+                aria-label="Your answer"
+                className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+                value={reply}
+                onChange={(e) => setReply(e.target.value)}
+                autoFocus
+              />
+              <button className={big} type="submit" disabled={!reply.trim()}>
+                Send
+              </button>
+            </form>
+          )}
+          <button className="self-start text-xs text-zinc-500 underline" onClick={() => void answer("I can't do that or I don't see it.")}>
+            I can't do this
+          </button>
+        </div>
+      )}
+      {running && !ask && !finished && <p className="text-xs text-zinc-500">Working…</p>}
+    </div>
+  );
+}
