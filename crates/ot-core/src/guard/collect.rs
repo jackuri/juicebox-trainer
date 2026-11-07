@@ -81,7 +81,7 @@ pub(crate) fn collect(pid: u32) -> Snapshot {
 
 /// Entry names in the exe's folder (required) and up to
 /// [`MARKER_PARENT_LEVELS`] parent folders (best effort).
-fn install_entries(exe: &Path) -> std::io::Result<Vec<String>> {
+pub(crate) fn install_entries(exe: &Path) -> std::io::Result<Vec<String>> {
     let dir = exe
         .parent()
         .ok_or_else(|| std::io::Error::other("exe has no parent folder"))?;

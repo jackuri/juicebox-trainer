@@ -16,6 +16,7 @@
 mod collect;
 
 use std::fmt;
+use std::path::Path;
 use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
@@ -97,6 +98,35 @@ pub fn check(pid: u32) -> Verdict {
     Verdict {
         pid,
         target: snapshot.target_name.clone(),
+        allowed: findings.is_empty(),
+        findings,
+        signatures_version: signatures().version,
+    }
+}
+
+/// Checks a game that isn't running, from its exe path: anti-cheat markers in
+/// the game folder (and a few parents) and the online-only list. Used before
+/// changing a game's files (restoring a save backup). Fails closed when the
+/// folder can't be read. `pid` in the verdict is 0.
+pub fn check_install(exe: &Path) -> Verdict {
+    let mut s = Snapshot {
+        target_name: exe
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        ..Snapshot::default()
+    };
+    match collect::install_entries(exe) {
+        Ok(entries) => s.install_entries = entries,
+        Err(e) => s.errors.push(format!("could not read game folder: {e}")),
+    }
+    if s.target_name.is_empty() {
+        s.errors.push("no exe name".into());
+    }
+    let findings = evaluate(&s, signatures());
+    Verdict {
+        pid: 0,
+        target: s.target_name,
         allowed: findings.is_empty(),
         findings,
         signatures_version: signatures().version,
@@ -303,6 +333,30 @@ mod tests {
             kinds(&evaluate(&s, signatures())),
             vec![FindingKind::Unverifiable]
         );
+    }
+
+    #[test]
+    fn install_check_blocks_markers_and_online_games() {
+        // Under target/, not %TEMP%: a real anti-cheat folder in %LOCALAPPDATA%
+        // would be within reach of the parent-folder check.
+        let base = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/tmp")
+            .join(format!("ot-guard-install-{}", std::process::id()));
+        let game = base.join("Game");
+        std::fs::create_dir_all(&game).unwrap();
+        std::fs::write(game.join("game.exe"), b"").unwrap();
+        std::fs::write(game.join("CS2.exe"), b"").unwrap();
+        assert!(check_install(&game.join("game.exe")).allowed);
+        assert_eq!(
+            kinds(&check_install(&game.join("CS2.exe")).findings),
+            vec![FindingKind::OnlineOnly]
+        );
+        std::fs::create_dir_all(game.join("BattlEye")).unwrap();
+        let v = check_install(&game.join("game.exe"));
+        assert_eq!(kinds(&v.findings), vec![FindingKind::InstallMarker]);
+        let missing = check_install(&base.join("nowhere").join("x.exe"));
+        assert_eq!(kinds(&missing.findings), vec![FindingKind::Unverifiable]);
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]
