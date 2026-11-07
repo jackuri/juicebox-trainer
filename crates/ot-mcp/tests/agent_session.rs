@@ -170,3 +170,65 @@ fn guard_refusal_is_final_and_explained() {
             .is_err()
     );
 }
+
+#[test]
+fn agent_makes_a_code_cheat_with_find_what_writes() {
+    let _s = serial();
+    let tmp = TempDir::new("mcp-code-cheat");
+    let mut game = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let mut t = tools(&tmp);
+    call(&mut t, "attach", json!({ "pid": game.pid() }));
+    let recon = call(&mut t, "game_recon", json!({}));
+    assert_eq!(recon["engine"], "native");
+
+    // "Take some damage" while watching health.
+    let health_at = format!("0x{:X}", game.addr("health"));
+    call(
+        &mut t,
+        "watch_writes_start",
+        json!({ "address": health_at }),
+    );
+    game.send("hit 3");
+    game.send("hit 4");
+    let found = call(&mut t, "watch_writes_stop", json!({}));
+    let w = &found["writers"][0];
+    assert_eq!(w["count"], 2, "{found}");
+    let idea = &w["patchIdea"];
+    let sig = call(&mut t, "make_aob", json!({ "address": idea["makeAobAt"] }));
+
+    let pack = json!({
+        "schema": 1,
+        "game": { "id": "testbed-code-ai", "name": "Testbed", "exe": "testbed_native.exe", "arch": "x64" },
+        "meta": { "author": "ai", "packVersion": "0.1.0" },
+        "cheats": [{ "id": "inf_health", "name": "Infinite health", "ui": "toggle",
+            "impl": { "kind": "patch", "aob": sig["pattern"], "offset": 0,
+                      "original": idea["original"], "replace": idea["replace"] } }]
+    });
+    call(&mut t, "pack_try", json!({ "pack": pack }));
+    call(
+        &mut t,
+        "cheat_set",
+        json!({ "id": "inf_health", "on": true }),
+    );
+    let hp = game.send("state")["health"].as_i64().unwrap();
+    assert_eq!(
+        game.send("hit 10")["health"].as_i64().unwrap(),
+        hp,
+        "health still went down"
+    );
+
+    // A pack "from an older build": repair finds the site again.
+    let mut old = pack.clone();
+    old["cheats"][0]["impl"]["aob"] = json!("0F 1F 80 54 4F 99 01 8B 01 ?? ?? 89 01");
+    old["cheats"][0]["impl"]["offset"] = json!(9);
+    old["cheats"][0]["impl"]["original"] = json!("29 D0");
+    old["cheats"][0]["impl"]["replace"] = json!("90 90");
+    call(&mut t, "revert_all", json!({}));
+    let healed = call(&mut t, "pack_heal", json!({ "pack": old }));
+    assert_eq!(healed["fixed"][0]["cheat"], "inf_health", "{healed}");
+    assert_eq!(healed["pack"]["meta"]["packVersion"], "0.1.1");
+
+    call(&mut t, "detach", json!({}));
+    let before = game.send("state")["health"].as_i64().unwrap();
+    assert_eq!(game.send("hit 1")["health"].as_i64().unwrap(), before - 1);
+}

@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use ot_core::pointer::{PointerPath, PointerScanOptions};
+use ot_core::writes::WriteWatch;
 use ot_core::{
     AttachedProcess, FirstScan, NextScan, Pattern, Scan, ScanControl, ScanOptions, ValueType,
 };
@@ -72,12 +73,20 @@ struct Live {
     writes: BTreeMap<u64, Vec<u8>>,
     trainer: Option<Trainer>,
     pointers: Vec<PointerPath>,
+    /// A running "find what writes" watch.
+    watch: Option<WriteWatch>,
 }
 
 impl Live {
     /// Puts back everything this session changed.
     fn revert(&mut self) -> Vec<String> {
         let mut problems = Vec::new();
+        // The debugger leaves first, clearing its breakpoints.
+        if let Some(w) = self.watch.take()
+            && let Err(e) = w.stop()
+        {
+            problems.push(e.to_string());
+        }
         if let Some(mut t) = self.trainer.take()
             && let Err(e) = t.restore_all()
         {
@@ -229,6 +238,10 @@ impl Tools {
                 Ok(json!({ "reverted": true, "problems": problems }))
             }
             "pack_write" => self.pack_write(args),
+            "game_recon" => self.game_recon(),
+            "watch_writes_start" => self.watch_start(args),
+            "watch_writes_stop" => self.watch_stop(),
+            "pack_heal" => self.pack_heal(args),
             "save_snapshot" => self.save_snapshot(args),
             "save_diff" => self.save_diff(args),
             "save_read" => self.save_read(args),
@@ -284,6 +297,7 @@ impl Tools {
             writes: BTreeMap::new(),
             trainer: None,
             pointers: Vec::new(),
+            watch: None,
         });
         let mut info = self.game_info()?;
         info["saveBackup"] = json!(backup);
@@ -610,13 +624,7 @@ impl Tools {
         Ok(json!({ "written": path.display().to_string(), "cheats": pack.cheats.len() }))
     }
 
-    /// The attached game in the save library (added if new).
-    fn save_game(&mut self) -> Result<(ot_saves::Game, ot_saves::Store), String> {
-        let root = self
-            .cfg
-            .saves_root
-            .clone()
-            .ok_or("save backups aren't available")?;
+    fn game_recon(&mut self) -> Res {
         let exe = self
             .live()?
             .process
@@ -624,6 +632,90 @@ impl Tools {
             .exe_path
             .clone()
             .ok_or("can't get the game's file path")?;
+        let mut out =
+            serde_json::to_value(ot_core::engine::detect(Path::new(&exe))).map_err(err)?;
+        if let Some(um) = um_scan(&exe) {
+            out["um"] = um;
+        }
+        Ok(out)
+    }
+
+    fn watch_start(&mut self, args: &Value) -> Res {
+        let len = args
+            .get("size")
+            .and_then(Value::as_u64)
+            .map_or(4, |n| n as usize);
+        let live = self.live()?;
+        if let Some(old) = live.watch.take() {
+            let _ = old.stop();
+        }
+        let a = live
+            .process
+            .resolve(arg_str(args, "address")?)
+            .map_err(err)?;
+        let watch = WriteWatch::start(Arc::clone(&live.process), a, len).map_err(err)?;
+        live.watch = Some(watch);
+        Ok(json!({
+            "watching": hex(a),
+            "next": "ask the player to make the value change now, then call watch_writes_stop",
+            "stopsAfterSeconds": ot_core::writes::MAX_WATCH.as_secs(),
+        }))
+    }
+
+    fn watch_stop(&mut self) -> Res {
+        let live = self.live()?;
+        let watch = live
+            .watch
+            .take()
+            .ok_or("no watch running; call watch_writes_start first")?;
+        let writers = watch.stop().map_err(err)?;
+        let list: Vec<Value> = writers
+            .iter()
+            .take(10)
+            .map(|w| {
+                let nops = vec!["90"; w.bytes.split(' ').count()].join(" ");
+                json!({
+                    "address": hex(w.address),
+                    "location": w.location,
+                    "instruction": w.text,
+                    "bytes": w.bytes,
+                    "count": w.count,
+                    "patchIdea": { "makeAobAt": hex(w.address), "offset": 0, "original": w.bytes, "replace": nops },
+                })
+            })
+            .collect();
+        let note = if list.is_empty() {
+            "nothing wrote to it while watching; ask the player to change the value and try again"
+        } else {
+            "replacing a writer's bytes with 90 (NOP) stops that change; test it with pack_try"
+        };
+        Ok(json!({ "writers": list, "note": note }))
+    }
+
+    fn pack_heal(&mut self, args: &Value) -> Res {
+        let pack = parse_pack(arg(args, "pack")?)?;
+        let live = self.live()?;
+        let report = ot_packs::heal::heal(&live.process, &pack).map_err(err)?;
+        serde_json::to_value(report).map_err(err)
+    }
+
+    /// The game (attached, or named by an `exe` argument) in the save library.
+    fn save_game(&mut self, args: &Value) -> Result<(ot_saves::Game, ot_saves::Store), String> {
+        let root = self
+            .cfg
+            .saves_root
+            .clone()
+            .ok_or("save backups aren't available")?;
+        let exe = match args.get("exe").and_then(Value::as_str) {
+            Some(exe) => exe.to_string(),
+            None => self
+                .live()?
+                .process
+                .info()
+                .exe_path
+                .clone()
+                .ok_or("can't get the game's file path")?,
+        };
         let mut lib = ot_saves::Library::open(root).map_err(err)?;
         let game = lib
             .add(Path::new(&exe), &ot_saves::Roots::current())
@@ -633,7 +725,7 @@ impl Tools {
     }
 
     fn save_snapshot(&mut self, args: &Value) -> Res {
-        let (game, store) = self.save_game()?;
+        let (game, store) = self.save_game(args)?;
         let note = args
             .get("note")
             .and_then(Value::as_str)
@@ -650,7 +742,7 @@ impl Tools {
     }
 
     fn save_diff(&mut self, args: &Value) -> Res {
-        let (game, store) = self.save_game()?;
+        let (game, store) = self.save_game(args)?;
         let from = match args.get("from").and_then(Value::as_str) {
             Some(id) => id.to_string(),
             None => store
@@ -671,7 +763,7 @@ impl Tools {
     }
 
     fn save_read(&mut self, args: &Value) -> Res {
-        let (game, _) = self.save_game()?;
+        let (game, _) = self.save_game(args)?;
         match (
             args.get("folder").and_then(Value::as_str),
             args.get("path").and_then(Value::as_str),
@@ -695,6 +787,23 @@ fn parse_pack(raw: &Value) -> Result<Pack, String> {
         other => other.to_string(),
     };
     ot_packs::parse(&text).map(|(p, _)| p).map_err(err)
+}
+
+/// `um scan --json <game folder>` from the universal-modder toolkit, if it is
+/// installed as a Windows command (optional; OpenTrainer works without it).
+fn um_scan(exe: &str) -> Option<Value> {
+    let dir = Path::new(exe).parent()?;
+    let out = ["um.exe", "um.cmd", "um.bat"].iter().find_map(|cmd| {
+        std::process::Command::new(cmd)
+            .args(["scan", "--json"])
+            .arg(dir)
+            .stdin(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+    })?;
+    serde_json::from_slice(&out.stdout).ok()
 }
 
 fn pack_validate(args: &Value) -> Res {
@@ -864,20 +973,49 @@ pub fn definitions() -> Vec<Value> {
             schema(json!({ "pack": pack }), &["pack"]),
         ),
         tool(
+            "game_recon",
+            "Which engine the attached game uses (Unity, Unreal, Godot, ...) with tips for finding cheats in it.",
+            schema(json!({}), &[]),
+        ),
+        tool(
+            "watch_writes_start",
+            "Find what writes to an address: starts watching (as a debugger; nothing is changed). Then ask the player to make the value change, then call watch_writes_stop. size: 1, 2, 4 (default) or 8.",
+            schema(
+                json!({ "address": addr, "size": { "type": "integer" } }),
+                &["address"],
+            ),
+        ),
+        tool(
+            "watch_writes_stop",
+            "Stop watching and list the instructions that wrote to the address, most frequent first, with an idea for a patch cheat.",
+            schema(json!({}), &[]),
+        ),
+        tool(
+            "pack_heal",
+            "Repair a pack whose signatures stopped matching after a game update. Returns what was fixed, what wasn't, and the repaired pack (try it before saving).",
+            schema(json!({ "pack": pack }), &["pack"]),
+        ),
+        tool(
             "save_snapshot",
             "Back up the game's save files now (e.g. before the player buys something).",
-            schema(json!({ "note": { "type": "string" } }), &[]),
+            schema(
+                json!({ "note": { "type": "string" }, "exe": { "type": "string" } }),
+                &[],
+            ),
         ),
         tool(
             "save_diff",
             "Show what changed in the save files since a backup (the newest one by default).",
-            schema(json!({ "from": { "type": "string" } }), &[]),
+            schema(
+                json!({ "from": { "type": "string" }, "exe": { "type": "string" } }),
+                &[],
+            ),
         ),
         tool(
             "save_read",
             "List the game's save files, or (with folder and path) show the values in one.",
             schema(
-                json!({ "folder": { "type": "string" }, "path": { "type": "string" } }),
+                json!({ "folder": { "type": "string" }, "path": { "type": "string" }, "exe": { "type": "string" } }),
                 &[],
             ),
         ),
