@@ -1,9 +1,9 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.10.0_
+_Last updated: 2026-11-07 — v1.0.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.9.3 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0 (pushed and tagged).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -45,16 +45,27 @@ _Last updated: 2026-11-07 — v0.10.0_
   keys, controller combos (XInput), overlay window (click-through, no injection), phone remote (off
   by default, one-time QR pairing). All checks pass. Live-tested: presets on the testbed; the
   remote's pairing over real sockets; the library lists this PC's games (30 Steam, 1 GOG).
+- v1.0.0 Release: Windows installer (NSIS, per-user, 4.6 MB, `.otpack` file association, single
+  instance), new icon, Packs tab (`.otpack` export / import with a "what's inside" check, remove
+  keeps a copy, community list), About tab (updates, guide, "never does"), Tauri updater signed with
+  our own key (off until the repo is public), AI engine downloaded on first use, release workflow
+  (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
+  installer and its update signature built locally; latest.json made; the AI engine download
+  (same files and npm command as the app) in a temp folder, and the helper loads with it.
 - Hand-tested by the user on v0.10.0: reported working.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. v0.10.0 is pushed and tagged.
+- v1.0.0 is committed locally, waiting for the user's test and "push and tag". The community packs
+  repository (`jackuri/opentrainer-packs`) is prepared but not created; it needs the user's OK
+  (it would be public).
 
 ## Next
-- 1.0.0 Release (PLAN §6): installer, code signing, auto-update, docs, `.otpack` import/export.
-- Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
+- The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
+  (SignPath needs a public repo; Microsoft Trusted Signing about $10/month), making the repository
+  public (turns on in-app updates), adding the updater key as the `TAURI_SIGNING_PRIVATE_KEY`
+  secret.
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
 - Small follow-ups: hotkey rebinding, "Load pack from file…", auto-load a pack on attach, a
@@ -62,6 +73,19 @@ _Last updated: 2026-11-07 — v0.10.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- v1.0.0 hasn't been installed and clicked through by hand yet: the installer, double-clicking an
+  `.otpack`, dropping one on the window, the Packs and About tabs, and the AI engine download button.
+- In-app updates can't be tried for real until the repository is public and the updater key is a
+  repository secret. The update signature and `latest.json` were made locally only. The private
+  updater key is at `%USERPROFILE%\.opentrainer-release-keys\updater.key` (outside the repo, no
+  password); losing it means installed copies can't update.
+- The installer isn't code-signed, so Windows shows "Windows protected your PC" (More info → Run
+  anyway).
+- The community list shows "isn't online yet" until `jackuri/opentrainer-packs` exists.
+- The AI engine download pins the SDK and zod to the tested versions, but not their own
+  dependencies (about 105 packages from npm, no lockfile).
+- GitHub release assets of a private repository need a sign-in to download, so the releases page
+  only works for the owner while the repository is private.
 - v0.10.0: the user reported it works; not confirmed one by one: the phone remote on a real phone,
   controller combos with a real controller and "Play with cheats" with a store game.
 - The overlay doesn't show over exclusive-fullscreen games (by design, PLAN §8); switch the game to
@@ -137,4 +161,3 @@ _Last updated: 2026-11-07 — v0.10.0_
 - The guard blocks every attach while a kernel anti-cheat (Vanguard, FACEIT, ACE…) is running. Intended.
 - Some guard signature names need confirming on real installs (a wrong name can only miss, never
   falsely block). Driver file-name detection is best effort without admin rights.
-- App icon is a placeholder.

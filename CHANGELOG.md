@@ -4,6 +4,45 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-11-07
+
+First release with an installer.
+
+### Added
+- **Windows installer** (NSIS). It installs for the current user without admin rights, has a new
+  app icon and opens `.otpack` files from Explorer. A second start hands the file to the running
+  OpenTrainer. A **Release** workflow builds the installer for each version tag and publishes it
+  on GitHub with `SHA256SUMS.txt` (`docs/RELEASING.md`).
+- **Sharing packs as `.otpack` files**: **Export** a pack. Open one by double-clicking it, dropping
+  it on the window or with **Open a pack file…**. You see the game, the cheats (and which change
+  game code) and any warnings before installing. Replacing a pack you already have needs a click
+  and keeps the old one as `pack.json.bak`. An `.otpack` is a zip with only `otpack.json` and
+  `pack.json`. It is read in memory with size limits, never unpacked or run, and validated like any
+  pack. **Remove** moves a pack to `packs-removed` instead of deleting it. `otpack` gains `export`,
+  `inspect` and `index` commands.
+- **Community pack list** in the new **Packs** tab, read from the public repository
+  `jackuri/opentrainer-packs`. Downloads are size-limited, checked against the list's SHA-256 and
+  validated before they are shown. Installed packs record where they came from ("community",
+  "imported") and show "Update available" when the list has a newer copy.
+- **About** tab: version, update check, links to the user guide and releases, and what OpenTrainer
+  never does.
+- **Automatic updates** (Tauri updater). Updates must be signed with OpenTrainer's own key, and the
+  signed version must match. Before installing, games get their original code back. Updates are
+  **off** unless the build was made by the release workflow on a public repository, so they are
+  off for now. The app says so and links the releases page.
+- **AI engine on first use**: the installed app ships the AI helper's own scripts, but not
+  Anthropic's engine (about 330 MB, not ours to redistribute). The AI tab offers **Download the AI
+  engine**. It runs `npm install` of the exact tested versions with no install scripts, and points
+  to nodejs.org when Node.js is missing. About can delete the engine again.
+- Signing-ready release builds: with a code-signing certificate in the repository secrets, the
+  installer is signed. Without one it isn't, and Windows warns when installing.
+- Docs: `docs/USER_GUIDE.md` (for players), `docs/DEVELOPING.md` (the testbed walkthroughs that
+  were in the README) and `docs/RELEASING.md`. The README is now short.
+- Dependencies (all MIT / Apache-2.0, maintained by the Tauri team or widely used): the Tauri
+  plugins `updater`, `dialog` (save / open file windows) and `single-instance`, `reqwest` +
+  `rustls` (the updater's own internet library, also used for the pack list) and `zip` (deflate
+  only).
+
 ## [0.10.0] - 2026-11-07
 
 ### Added
