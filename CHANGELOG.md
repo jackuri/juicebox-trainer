@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-11-07
+
+Polish: fewer pasted paths, fewer clicks.
+
+### Added
+- **Browse…** buttons for adding a game (Games, Save backups) and a save folder, using the normal
+  Windows pickers. Pasting a path still works.
+- **Open a plain `pack.json`** as well as an `.otpack`: with **Open a pack file…**, or by dropping
+  it on the window. It gets the same "what's inside" check, size limit and validation.
+- **Cheats → Trainer** loads the pack by itself when it is the only one for the game (nothing is
+  turned on). After **Unload pack** it isn't loaded again. With no pack, **Get a pack…** opens the
+  Packs tab.
+- **Find pointers** on each Scanner result opens the Pointers tab with the address and type
+  filled in.
+- **Copy as pack cheat** on each pointer path puts a ready-to-paste `value` cheat (JSON) on the
+  clipboard.
+
+### Changed
+- STATUS.md no longer lists hotkey rebinding as a follow-up (own keys and conflict checks shipped
+  in 0.10.0).
+
 ## [1.0.0] - 2026-11-07
 
 First release with an installer.

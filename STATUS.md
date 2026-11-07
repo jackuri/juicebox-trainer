@@ -1,9 +1,10 @@
 # Status
 
-_Last updated: 2026-11-07 — v1.0.0_
+_Last updated: 2026-11-07 — v1.1.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
+  (its CI and Release runs started on GitHub).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -52,12 +53,17 @@ _Last updated: 2026-11-07 — v1.0.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.1.0 Polish: "Browse…" pickers (game exe in Games and Save backups, save folders), plain
+  `pack.json` import (picker and drop), the only pack for a game loads by itself on attach (not
+  again after Unload), "Get a pack…" from an empty Trainer tab, "Find pointers" on scanner results,
+  "Copy as pack cheat" on pointer paths (checked: a pack with the copied cheat passes
+  `otpack validate`). All checks pass.
 - Hand-tested by the user on v0.10.0: reported working.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- v1.0.0 is committed locally, waiting for the user's test and "push and tag".
+- v1.1.0 is committed locally, waiting for the user's test and "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
@@ -69,13 +75,14 @@ _Last updated: 2026-11-07 — v1.0.0_
   secret.
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
-- Small follow-ups: hotkey rebinding, "Load pack from file…", auto-load a pack on attach, a
-  "Find pointers" button on scanner results, "copy as pack JSON" for pointer paths, a folder picker
-  dialog for save folders (needs the Tauri dialog plugin).
+- The roadmap (PLAN §6) is done through 1.1.0. Left for the user to choose: SQLite saves, code
+  caves, more save formats (XML / YAML editing, Bethesda, RPG Maker, GameMaker, Godot), moving saves
+  between your own Steam accounts (PLAN §2.3), a memory viewer (PLAN §2.2).
 
 ## Known issues
-- v1.0.0 hasn't been installed and clicked through by hand yet: the installer, double-clicking an
-  `.otpack`, dropping one on the window, the Packs and About tabs, and the AI engine download button.
+- v1.0.0 / v1.1.0 haven't been installed and clicked through by hand yet: the installer,
+  double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI
+  engine download button, the Browse pickers and auto-load.
 - In-app updates can't be tried for real until the repository is public and the updater key is a
   repository secret. The update signature and `latest.json` were made locally only. The private
   updater key is at `%USERPROFILE%\.opentrainer-release-keys\updater.key` (outside the repo, no
@@ -140,7 +147,6 @@ _Last updated: 2026-11-07 — v1.0.0_
   stores numbers differently shows them as raw whole numbers.
 - Wrapper detection only handles a checksum over the whole rest of the file; seeded or partial
   checksums, and encryption, aren't detected (encrypted saves open as hex and are not decrypted).
-- Folders are added by pasting a path (no folder picker yet).
 - Every attached program is added to Save backups (it can be removed there). Its saves are backed
   up at attach only if a save folder was found.
 - Steam Cloud: OpenTrainer can't stop Steam from syncing; it warns and tells you to keep the local
