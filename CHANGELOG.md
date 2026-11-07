@@ -17,7 +17,9 @@ All notable changes to this project are documented here. The format follows
   around anything. The first search can take several minutes on a big game; the result is kept for
   the rest of the session, so later searches are quick.
 - Tested on a real single-player UE 5.7 game (played solo, read-only): 12,592 classes and structs,
-  the player character's `Health` and `MaxHealth` found with the right offsets.
+  the player character's `Health` and `MaxHealth` read live (100 / 100). Objects found by searching
+  memory must also look alive (function table in the exe, a readable name, an outer object), which
+  removes stale copies.
 
 ### Changed
 - Unreal tips in `game_recon` point the AI to `unreal_find`.

@@ -39,7 +39,7 @@ _Last updated: 2026-11-07 — v0.9.3_
 - v0.9.3 AI V: Unreal object reader (`unreal_find`): classes, properties (type + offset) and live
   object values for UE 4.23+ / UE5 games, self-calibrating layout, memory-search fallback when the
   object list can't be read directly (no decoding). Tested read-only on Species: Unknown (UE 5.7,
-  solo): 12,592 classes, player Health / MaxHealth found.
+  solo): 12,594 classes, the player's Health / MaxHealth read live (100 / 100).
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 

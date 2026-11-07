@@ -244,6 +244,9 @@ pub struct Reader<M: Mem> {
     struct_classes: Vec<u64>,
     /// No object array was found; objects are found by searching memory.
     scan_mode: bool,
+    /// The exe's address range. Every real object starts with a pointer
+    /// into it (its virtual function table).
+    image: (u64, u64),
 }
 
 impl<M: Mem> std::fmt::Debug for Reader<M> {
@@ -330,6 +333,14 @@ impl<M: Mem> Reader<M> {
             }
         }
         let blocks = blocks.ok_or_else(|| bad("found names but not where the game keeps them"))?;
+        let image_range = (
+            image.iter().map(|c| c.0).min().unwrap_or(0),
+            image
+                .iter()
+                .map(|c| c.0 + c.1.len() as u64)
+                .max()
+                .unwrap_or(0),
+        );
 
         // 3. The object array: Objects**, PreAllocated*, Max, Num, MaxChunks, NumChunks.
         let mut found = None;
@@ -369,7 +380,7 @@ impl<M: Mem> Reader<M> {
         let Some((_, objects, count, item_size)) = found else {
             // Some builds don't keep the object array where it can be read
             // directly; find classes by searching memory instead.
-            return Self::from_scan(mem, blocks, block0);
+            return Self::from_scan(mem, blocks, block0, image_range);
         };
 
         // 4. Read every object's header.
@@ -423,6 +434,7 @@ impl<M: Mem> Reader<M> {
             class_class: 0,
             struct_classes: Vec::new(),
             scan_mode: false,
+            image: image_range,
         };
         r.calibrate()?;
         Ok(r)
@@ -430,7 +442,7 @@ impl<M: Mem> Reader<M> {
 
     /// Finds classes and structs by searching memory (slower, about a minute
     /// per search on a big game).
-    fn from_scan(mem: M, blocks: u64, block0: u64) -> Result<Self> {
+    fn from_scan(mem: M, blocks: u64, block0: u64, image: (u64, u64)) -> Result<Self> {
         let idx = name_indices(
             &mem,
             block0,
@@ -506,12 +518,27 @@ impl<M: Mem> Reader<M> {
             class_class: 0,
             struct_classes: Vec::new(),
             scan_mode: true,
+            image,
         };
         r.calibrate()?;
         r.struct_classes.extend(kinds);
         r.struct_classes.sort_unstable();
         r.struct_classes.dedup();
         Ok(r)
+    }
+
+    /// Whether `address` looks like a live object: function table in the
+    /// exe, a name that decodes, and an outer object.
+    fn is_object_at(&self, address: u64) -> bool {
+        let (lo, hi) = self.image;
+        let in_image = |p: Option<u64>| p.is_some_and(|p| p >= lo && p < hi);
+        in_image(self.mem.ptr(address))
+            && self
+                .mem
+                .u32(address + 0x18)
+                .and_then(|n| name_at(&self.mem, self.blocks, n))
+                .is_some_and(|n| !n.is_empty())
+            && self.mem.ptr(address + 0x20).is_some()
     }
 
     /// True when objects are found by searching memory.
@@ -844,7 +871,14 @@ impl<M: Mem> Reader<M> {
                 })
                 .map(|h| h.address)
                 .collect();
-            found = scan_objects(&self.mem, |_, c| targets.contains(&c), limit * 4);
+            // A class pointer alone matches stale memory and copies too, so
+            // also require what every live object has: a function table in
+            // the exe, a readable name and an outer object.
+            found = scan_objects(
+                &self.mem,
+                |address, c| targets.contains(&c) && self.is_object_at(address),
+                limit * 4,
+            );
             &found
         } else {
             &self.heads
