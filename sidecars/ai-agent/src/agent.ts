@@ -72,13 +72,17 @@ export function buildOptions(
   );
   const ui = createSdkMcpServer({ name: "ui", version: "1.0.0", tools: [askPlayer] });
 
-  const env: Record<string, string | undefined> = {
-    ...process.env,
-    CLAUDE_AGENT_SDK_CLIENT_APP: `opentrainer/${appVersion}`,
-  };
+  const env: Record<string, string | undefined> = { ...process.env };
+  // Settings inherited from another Claude program (if OpenTrainer was
+  // started from one) would make the engine use that program's login.
+  for (const key of Object.keys(env)) {
+    if (/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK_)/i.test(key)) delete env[key];
+  }
+  env.CLAUDE_AGENT_SDK_CLIENT_APP = `opentrainer/${appVersion}`;
   if (start.backend !== "apiKey") {
-    // Use the player's Claude login, not a key that happens to be set.
+    // Use the player's Claude login, not a key or gateway that happens to be set.
     delete env.ANTHROPIC_API_KEY;
+    delete env.ANTHROPIC_BASE_URL;
   }
 
   return {

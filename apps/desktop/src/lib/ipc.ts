@@ -476,6 +476,8 @@ export interface AiStatus {
   problem: string | null;
   running: boolean;
   transcript: AiEvent[];
+  /** Signed in to a Claude account; null if it couldn't be checked. */
+  signedIn: boolean | null;
 }
 
 export interface AiStartRequest {
@@ -620,6 +622,7 @@ export const api = {
   aiStart: (request: AiStartRequest) => invoke<void>("ai_start", { request }),
   aiAnswer: (id: string, text: string) => invoke<void>("ai_answer", { id, text }),
   aiCancel: () => invoke<void>("ai_cancel"),
+  aiSignIn: () => invoke<void>("ai_sign_in"),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

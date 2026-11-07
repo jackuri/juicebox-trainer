@@ -143,6 +143,7 @@ fn main() {
             ai::ai_start,
             ai::ai_answer,
             ai::ai_cancel,
+            ai::ai_sign_in,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");

@@ -84,6 +84,55 @@ fn sidecar_script() -> Option<PathBuf> {
     repo.is_file().then_some(repo)
 }
 
+/// The Claude engine the Agent SDK runs (`claude.exe` from its Windows
+/// package), found in a `node_modules` folder above the sidecar script.
+fn engine_path() -> Option<PathBuf> {
+    let script = sidecar_script()?;
+    script.ancestors().skip(1).find_map(|dir| {
+        let exe = dir
+            .join("node_modules")
+            .join("@anthropic-ai")
+            .join("claude-agent-sdk-win32-x64")
+            .join("claude.exe");
+        exe.is_file().then_some(exe)
+    })
+}
+
+/// Claude settings inherited from another Claude program (e.g. when
+/// OpenTrainer was started from one) that would confuse the engine.
+fn is_inherited_claude_var(key: &str) -> bool {
+    let k = key.to_ascii_uppercase();
+    k == "CLAUDECODE"
+        || k.starts_with("CLAUDE_CODE_")
+        || k.starts_with("CLAUDE_AGENT_SDK_")
+        || k == "ANTHROPIC_BASE_URL"
+}
+
+fn engine_command(engine: &std::path::Path) -> Command {
+    let mut c = Command::new(engine);
+    for (k, _) in std::env::vars_os() {
+        if k.to_str().is_some_and(is_inherited_claude_var) {
+            c.env_remove(k);
+        }
+    }
+    c
+}
+
+/// Is the engine signed in to a Claude account? `None` if it can't tell.
+fn signed_in() -> Option<bool> {
+    use std::os::windows::process::CommandExt;
+    let engine = engine_path()?;
+    let out = engine_command(&engine)
+        .args(["auth", "status", "--json"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdin(Stdio::null())
+        .stderr(Stdio::null())
+        .output()
+        .ok()?;
+    let v: Value = serde_json::from_slice(&out.stdout).ok()?;
+    v.get("loggedIn").and_then(Value::as_bool)
+}
+
 fn node_works() -> bool {
     use std::os::windows::process::CommandExt;
     Command::new("node")
@@ -103,6 +152,8 @@ pub struct AiStatus {
     pub problem: Option<String>,
     pub running: bool,
     pub transcript: Vec<Value>,
+    /// Signed in to a Claude account (for the subscription option).
+    pub signed_in: Option<bool>,
 }
 
 fn problem() -> Option<String> {
@@ -120,12 +171,34 @@ fn problem() -> Option<String> {
 #[tauri::command]
 pub async fn ai_status(state: State<'_, AiState>) -> CmdResult<AiStatus> {
     let problem = problem();
+    let signed_in = tauri::async_runtime::spawn_blocking(signed_in)
+        .await
+        .ok()
+        .flatten();
+    let running = lock(&state.running).is_some();
+    let transcript = lock(&state.transcript).clone();
     Ok(AiStatus {
         available: problem.is_none(),
         problem,
-        running: lock(&state.running).is_some(),
-        transcript: lock(&state.transcript).clone(),
+        running,
+        transcript,
+        signed_in,
     })
+}
+
+/// Opens a window where the player signs in to Claude (in their browser).
+#[tauri::command]
+pub async fn ai_sign_in() -> CmdResult<()> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NEW_CONSOLE: u32 = 0x0000_0010;
+    let engine = engine_path()
+        .ok_or_else(|| CommandError::new("aiUnavailable", "the AI helper isn't installed"))?;
+    engine_command(&engine)
+        .args(["auth", "login"])
+        .creation_flags(CREATE_NEW_CONSOLE)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("could not open the sign-in window: {e}")))?;
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -179,7 +252,13 @@ pub async fn ai_start(
         sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
     let exe = std::env::current_exe()
         .map_err(|e| CommandError::new("io", format!("can't find OpenTrainer's exe: {e}")))?;
-    let mut child = Command::new("node")
+    let mut command = Command::new("node");
+    for (k, _) in std::env::vars_os() {
+        if k.to_str().is_some_and(is_inherited_claude_var) {
+            command.env_remove(k);
+        }
+    }
+    let mut child = command
         .arg(&script)
         .env("OT_MCP_COMMAND", &exe)
         .env("OT_MCP_ARGS", r#"["--mcp"]"#)
@@ -281,6 +360,15 @@ mod tests {
         .unwrap();
         assert_eq!(r.pid, 5);
         assert_eq!(r.wishes, vec!["Gold".to_string()]);
+    }
+
+    #[test]
+    fn strips_settings_inherited_from_other_claude_programs() {
+        assert!(is_inherited_claude_var("CLAUDECODE"));
+        assert!(is_inherited_claude_var("CLAUDE_CODE_ENTRYPOINT"));
+        assert!(is_inherited_claude_var("ANTHROPIC_BASE_URL"));
+        assert!(!is_inherited_claude_var("ANTHROPIC_API_KEY"));
+        assert!(!is_inherited_claude_var("PATH"));
     }
 
     #[test]

@@ -86,6 +86,24 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
     }
   }
 
+  async function signIn() {
+    setError(null);
+    try {
+      await api.aiSignIn();
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  async function recheck() {
+    try {
+      const s = await api.aiStatus();
+      setStatus((old) => (old ? { ...old, signedIn: s.signedIn } : s));
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
   async function answer(text: string) {
     if (!ask) return;
     try {
@@ -193,6 +211,23 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
               An Anthropic API key (set as ANTHROPIC_API_KEY in Windows; you pay per use)
             </label>
           </fieldset>
+          {backend === "subscription" && status?.signedIn === false && (
+            <div className="flex flex-col gap-2 rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="note">
+              <p>
+                The helper isn&apos;t signed in to Claude on this PC yet. Click <b>Sign in</b>: a
+                window opens and your browser asks you to log in to your Claude account. When it
+                says you&apos;re signed in, come back and click <b>Check again</b>.
+              </p>
+              <div className="flex gap-2">
+                <button className={button} onClick={() => void signIn()}>
+                  Sign in
+                </button>
+                <button className={button} onClick={() => void recheck()}>
+                  Check again
+                </button>
+              </div>
+            </div>
+          )}
           <label className="flex items-center gap-2 text-sm">
             Stop if it costs more than $
             <input
@@ -205,7 +240,12 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
           </label>
           <button
             className={`${big} self-start`}
-            disabled={!pid || starting || (wishes.length === 0 && !other.trim())}
+            disabled={
+              !pid ||
+              starting ||
+              (wishes.length === 0 && !other.trim()) ||
+              (backend === "subscription" && status?.signedIn === false)
+            }
             onClick={() => void start()}
           >
             Start

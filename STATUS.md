@@ -45,9 +45,10 @@ _Last updated: 2026-11-07 — v0.8.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
-- The AI helper has not been run against the real Claude service yet (tests use a stand-in for
-  Claude; the tool server is tested live against the testbed). A first real run uses the user's
-  Claude subscription allowance, so it waits for the user's go-ahead.
+- First real run (user approved): the chain app -> sidecar -> Claude engine -> ot-mcp worked, but the
+  engine reported "Not logged in": the Claude desktop app's sign-in isn't shared with the Agent SDK's
+  engine. Added the sign-in check and Sign in button. A real end-to-end AI session still needs the
+  user to sign in once, then a rerun of the live test.
 - The AI helper needs Node.js and, for the subscription, a signed-in Claude Code on the PC. API keys
   are read from the `ANTHROPIC_API_KEY` environment variable; the app doesn't store keys.
 - Without `find_what_writes`, AI cheats are value cheats via pointer paths (and patches only where

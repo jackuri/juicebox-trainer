@@ -26,7 +26,7 @@ const game: ProcessInfo = {
 };
 
 function status(over: Record<string, unknown> = {}) {
-  return { available: true, problem: null, running: false, transcript: [], ...over };
+  return { available: true, problem: null, running: false, transcript: [], signedIn: true, ...over };
 }
 
 beforeEach(() => {
@@ -109,5 +109,24 @@ describe("pendingAsk", () => {
     expect(pendingAsk([ask, { type: "answered", id: "q1", text: "Done" }])).toBeNull();
     expect(pendingAsk([ask, { type: "finished", ok: false, summary: "" }])).toBeNull();
     expect(pendingAsk([])).toBeNull();
+  });
+});
+
+describe("AiView sign-in", () => {
+  it("asks to sign in first and can check again", async () => {
+    let signedIn = false;
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "ai_status" ? Promise.resolve(status({ signedIn })) : Promise.resolve(undefined),
+    );
+    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
+    expect(screen.getByRole("note")).toHaveTextContent("isn't signed in");
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("ai_sign_in", undefined));
+    signedIn = true;
+    fireEvent.click(screen.getByRole("button", { name: "Check again" }));
+    await waitFor(() => expect(screen.queryByRole("note")).not.toBeInTheDocument());
+    expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();
   });
 });

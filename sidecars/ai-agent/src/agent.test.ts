@@ -76,6 +76,14 @@ describe("options", () => {
     expect(o.maxBudgetUsd).toBe(5);
     // The subscription backend never uses a stray API key.
     expect(o.env?.ANTHROPIC_API_KEY).toBeUndefined();
+    expect(o.env?.CLAUDE_AGENT_SDK_CLIENT_APP).toBe("opentrainer/0.8.0");
+    process.env.CLAUDE_CODE_ENTRYPOINT = "other-app";
+    process.env.CLAUDECODE = "1";
+    const clean = buildOptions(start, mcp, io(), new AbortController(), "0.8.0");
+    expect(clean.env?.CLAUDE_CODE_ENTRYPOINT).toBeUndefined();
+    expect(clean.env?.CLAUDECODE).toBeUndefined();
+    delete process.env.CLAUDE_CODE_ENTRYPOINT;
+    delete process.env.CLAUDECODE;
     const withKey = buildOptions({ ...start, backend: "apiKey" }, mcp, io(), new AbortController(), "0.8.0");
     expect(withKey.env?.ANTHROPIC_API_KEY).toBe("test-key-not-real");
   });

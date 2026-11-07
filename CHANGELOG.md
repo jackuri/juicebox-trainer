@@ -22,6 +22,9 @@ All notable changes to this project are documented here. The format follows
   everything else is denied, and no user settings or plugins are loaded. Default model Claude Opus
   5.5; uses your Claude subscription by default, or `ANTHROPIC_API_KEY` if you choose. A spending
   limit (default $5) stops long runs.
+- **Sign in to Claude** from the helper: the app checks whether the helper's Claude engine is signed
+  in (`auth status`) and, if not, offers a Sign in button that opens the engine's browser login.
+  Claude settings inherited from another Claude program are not passed to the helper.
 - Decisions recorded (PLAN §8): keep the name OpenTrainer, Claude subscription as the default AI,
   a GitHub-repo pack index for sharing (later), no in-game overlay for exclusive fullscreen.
 - New dependencies: `@anthropic-ai/claude-agent-sdk` (Anthropic's terms; its Windows engine is about
