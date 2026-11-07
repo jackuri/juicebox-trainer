@@ -13,8 +13,8 @@ use serde_json::Number;
 use crate::hotkey::Hotkey;
 use crate::numbers::{Num, in_bounds, is_float, to_value};
 use crate::schema::{
-    Address, Cheat, Impl, Operand, Pack, PackArch, PatchImpl, SCHEMA_VERSION, Ui, ValueImpl,
-    parse_offset,
+    Address, Cheat, Impl, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS, SAVE_PLACEHOLDERS,
+    SCHEMA_VERSION, Ui, ValueImpl, parse_offset,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -257,17 +257,64 @@ pub fn validate(pack: &Pack) -> Vec<Issue> {
         if s.name.trim().is_empty() {
             cx.error(format!("{p}.name"), "must not be empty");
         }
-        if s.codec.trim().is_empty() || s.file.trim().is_empty() || s.set.path.trim().is_empty() {
-            cx.error(&p, "codec, file and set.path must not be empty");
+        if !SAVE_CODECS.contains(&s.codec.as_str()) {
+            cx.error(
+                format!("{p}.codec"),
+                format!("use one of: {}", SAVE_CODECS.join(", ")),
+            );
+        }
+        check_save_file(&mut cx, &format!("{p}.file"), &s.file, &s.codec);
+        if s.set.path.trim().is_empty() {
+            cx.error(format!("{p}.set.path"), "must not be empty");
+        }
+        if !(s.set.value.is_number() || s.set.value.is_string() || s.set.value.is_boolean()) {
+            cx.error(
+                format!("{p}.set.value"),
+                "must be a number, text or true/false",
+            );
         }
     }
-    if !pack.save_codes.is_empty() {
-        cx.warn(
-            "saveCodes",
-            "save codes are read but not applied until v0.7",
+    cx.issues
+}
+
+/// `{localappdatalow}/Company/Game/save1.json`: a known folder placeholder,
+/// then a relative path with no `..`.
+fn check_save_file(cx: &mut Ctx, p: &str, file: &str, codec: &str) {
+    let Some(end) = file.find('}') else {
+        cx.error(
+            p,
+            format!(
+                "start with a folder placeholder: {}",
+                SAVE_PLACEHOLDERS.join(", ")
+            ),
+        );
+        return;
+    };
+    let (head, rest) = file.split_at(end + 1);
+    if !SAVE_PLACEHOLDERS.contains(&head) {
+        cx.error(
+            p,
+            format!(
+                "unknown folder {head}; use one of: {}",
+                SAVE_PLACEHOLDERS.join(", ")
+            ),
+        );
+        return;
+    }
+    let parts: Vec<&str> = rest.split(['/', '\\']).filter(|s| !s.is_empty()).collect();
+    if parts.is_empty()
+        || parts
+            .iter()
+            .any(|s| *s == ".." || *s == "." || s.contains(':'))
+    {
+        cx.error(p, "give a path inside the folder, without '..'");
+    }
+    if (head == "{playerprefs}") != (codec == "playerprefs") && codec != "auto" {
+        cx.error(
+            p,
+            "use {playerprefs}/Company/Product with codec playerprefs (and only then)",
         );
     }
-    cx.issues
 }
 
 fn check_hotkey(cx: &mut Ctx, p: &str, c: &Cheat, seen: &mut HashMap<String, String>) {
@@ -861,20 +908,59 @@ mod tests {
     }
 
     #[test]
-    fn save_codes_are_validated_and_warned() {
-        let text = with(|v| {
-            v["saveCodes"] = serde_json::json!([{ "id": "max_money", "name": "Max money", "codec": "json",
-              "file": "{localappdatalow}/TestCo/Testbed/save1.json",
-              "set": { "path": "player.money", "value": 9999999 } }]);
-        });
-        let (pack, warnings) = parse(&text).unwrap();
+    fn save_codes_are_validated() {
+        let code = |codec: &str, file: &str, value: serde_json::Value| {
+            with(|v| {
+                v["saveCodes"] = serde_json::json!([{ "id": "max_money", "name": "Max money",
+                  "codec": codec, "file": file, "set": { "path": "player.money", "value": value } }]);
+            })
+        };
+        let (pack, warnings) = parse(&code(
+            "json",
+            "{localappdatalow}/TestCo/Testbed/save1.json",
+            serde_json::json!(9_999_999),
+        ))
+        .unwrap();
         assert_eq!(pack.save_codes.len(), 1);
-        assert!(warnings.iter().any(|w| w.message.contains("v0.7")));
+        assert!(!warnings.iter().any(|w| w.path.starts_with("saveCodes")));
+        assert!(
+            parse(&code(
+                "playerprefs",
+                "{playerprefs}/TestCo/Testbed",
+                serde_json::json!("x")
+            ))
+            .is_ok()
+        );
         has_error(
             &with(
-                |v| v["saveCodes"] = serde_json::json!([{ "id": "x", "name": "", "codec": "json", "file": "f", "set": { "path": "a", "value": 1 } }]),
+                |v| v["saveCodes"] = serde_json::json!([{ "id": "x", "name": "", "codec": "json", "file": "{documents}/a.json", "set": { "path": "a", "value": 1 } }]),
             ),
             "saveCodes[0].name",
+        );
+        let n = serde_json::json!(1);
+        has_error(
+            &code("xml", "{documents}/a.xml", n.clone()),
+            "saveCodes[0].codec",
+        );
+        has_error(
+            &code("json", "C:/Windows/a.json", n.clone()),
+            "saveCodes[0].file",
+        );
+        has_error(
+            &code("json", "{documents}/../a.json", n.clone()),
+            "saveCodes[0].file",
+        );
+        has_error(
+            &code("json", "{nope}/a.json", n.clone()),
+            "saveCodes[0].file",
+        );
+        has_error(
+            &code("json", "{playerprefs}/A/B", n.clone()),
+            "saveCodes[0].file",
+        );
+        has_error(
+            &code("json", "{documents}/a.json", serde_json::json!([1])),
+            "saveCodes[0].set.value",
         );
     }
 

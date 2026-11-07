@@ -148,5 +148,21 @@
         }
       }
     }
+  ],
+  "saveCodes": [
+    {
+      "id": "save_max_gold",
+      "name": "999,999 gold (in the save file)",
+      "codec": "json",
+      "file": "{localappdatalow}/TestCo/Testbed/save1.json",
+      "set": { "path": "player.gold", "value": 999999 }
+    },
+    {
+      "id": "save_full_ammo",
+      "name": "99 ammo (in the save file)",
+      "codec": "json",
+      "file": "{localappdatalow}/TestCo/Testbed/save1.json",
+      "set": { "path": "player.ammo", "value": 99 }
+    }
   ]
 }

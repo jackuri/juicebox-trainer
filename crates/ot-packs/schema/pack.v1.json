@@ -12,7 +12,7 @@
     "meta": { "$ref": "#/$defs/meta" },
     "cheats": { "type": "array", "items": { "$ref": "#/$defs/cheat" } },
     "saveCodes": {
-      "description": "Save-file quick codes. Validated now, applied from v0.7.",
+      "description": "Save-file quick codes, applied from the Save backups view (game closed, saves backed up first).",
       "type": "array",
       "items": { "$ref": "#/$defs/saveCode" }
     }
@@ -166,13 +166,27 @@
       "properties": {
         "id": { "$ref": "#/$defs/slug" },
         "name": { "type": "string", "minLength": 1 },
-        "codec": { "type": "string", "minLength": 1 },
-        "file": { "type": "string", "minLength": 1 },
+        "codec": {
+          "description": "Format of the save. auto accepts any format OpenTrainer can read.",
+          "enum": ["auto", "json", "ini", "gvas", "playerprefs"]
+        },
+        "file": {
+          "description": "Save file (or, for playerprefs, the registry key under HKCU\\Software), starting with a folder placeholder, e.g. {localappdatalow}/Company/Game/save1.json or {playerprefs}/Company/Game.",
+          "type": "string",
+          "pattern": "^\\{(documents|mygames|savedgames|appdata|localappdata|localappdatalow|playerprefs)\\}[/\\\\].+"
+        },
         "set": {
           "type": "object",
           "additionalProperties": false,
           "required": ["path", "value"],
-          "properties": { "path": { "type": "string", "minLength": 1 }, "value": {} }
+          "properties": {
+            "path": {
+              "description": "Value to set, as the save editor names it: player.gold, items[2].count, Stats.Level.",
+              "type": "string",
+              "minLength": 1
+            },
+            "value": { "type": ["number", "string", "boolean"] }
+          }
         }
       }
     }

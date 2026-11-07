@@ -16,7 +16,7 @@ pub struct Pack {
     pub game: Game,
     pub meta: Meta,
     pub cheats: Vec<Cheat>,
-    /// Save-file quick codes. Read and validated now; applied from v0.7.
+    /// Save-file quick codes.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub save_codes: Vec<SaveCode>,
 }
@@ -243,7 +243,22 @@ pub struct PatchImpl {
     pub replace: String,
 }
 
-/// A named save-file edit (applied from v0.7).
+/// Folder placeholders a save code's `file` starts with. Keep in sync with
+/// `ot_saves::quick::PLACEHOLDERS` (a desktop test checks).
+pub const SAVE_PLACEHOLDERS: &[&str] = &[
+    "{documents}",
+    "{mygames}",
+    "{savedgames}",
+    "{appdata}",
+    "{localappdata}",
+    "{localappdatalow}",
+    "{playerprefs}",
+];
+
+/// Save code formats. Keep in sync with `ot_saves::quick::CODECS`.
+pub const SAVE_CODECS: &[&str] = &["auto", "json", "ini", "gvas", "playerprefs"];
+
+/// A named save-file edit, applied from the Save backups view.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct SaveCode {
