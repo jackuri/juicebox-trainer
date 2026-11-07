@@ -49,6 +49,7 @@ impl Engine {
             Engine::UnityIl2cpp => &[
                 "Game code is compiled into GameAssembly.dll; signatures (AOBs) there are stable for one build.",
                 "Pointer paths often start in GameAssembly.dll or UnityPlayer.dll.",
+                "Call game_classes (e.g. query \"health\") to see the game's own field names (types aren't known for IL2CPP; health is usually float).",
                 "Values are often float (health, speed) or int (money).",
             ],
             Engine::Unreal => &[
@@ -188,6 +189,7 @@ pub fn detect(exe: &Path) -> EngineInfo {
         if let Some(root) = dir.ancestors().take(5).find(|a| has(a, "Engine")) {
             found(&mut evidence, &format!("{}\\Engine", root.display()));
         }
+        version = unreal_version(exe);
         Engine::Unreal
     } else if has(&dir, &format!("{stem}.pck")) {
         found(&mut evidence, &format!("{stem}.pck"));
@@ -225,13 +227,100 @@ pub fn detect(exe: &Path) -> EngineInfo {
     } else {
         Engine::Native
     };
+    let mut hints = engine.hints().to_vec();
+    if engine == Engine::Unreal {
+        match version.as_deref() {
+            Some(v) if v.starts_with('5') => hints.push(
+                "Unreal Engine 5: positions and other vectors are 64-bit doubles (f64); health and money are usually still f32 / i32.",
+            ),
+            Some(_) => hints.push("Unreal Engine 4: positions and vectors are 32-bit floats (f32)."),
+            None => {}
+        }
+    }
     EngineInfo {
         engine,
         name: engine.name(),
         version,
         evidence,
-        hints: engine.hints().to_vec(),
+        hints,
     }
+}
+
+/// Exe files bigger than this aren't searched for a version.
+const MAX_VERSION_SCAN: u64 = 512 << 20;
+
+/// The engine version an Unreal build carries, e.g. `4.27` from
+/// `++UE4+Release-4.27` (stored as ASCII or UTF-16 in the exe).
+pub fn unreal_version(exe: &Path) -> Option<String> {
+    use std::io::Read;
+    if std::fs::metadata(exe).ok()?.len() > MAX_VERSION_SCAN {
+        return None;
+    }
+    let mut file = std::fs::File::open(exe).ok()?;
+    let mut buf = vec![0u8; 8 << 20];
+    let mut carry: Vec<u8> = Vec::new();
+    loop {
+        let n = file.read(&mut buf).ok()?;
+        if n == 0 {
+            return None;
+        }
+        let mut chunk = std::mem::take(&mut carry);
+        chunk.extend_from_slice(&buf[..n]);
+        if let Some(v) = find_release(&chunk) {
+            return Some(v);
+        }
+        // Keep the tail so a string split across reads is still found.
+        carry = chunk[chunk.len().saturating_sub(96)..].to_vec();
+    }
+}
+
+/// `++UE4+Release-4.27` / `++UE5+Release-5.4` in ASCII or UTF-16LE.
+fn find_release(b: &[u8]) -> Option<String> {
+    let version_after = |text: &str| -> Option<String> {
+        let rest = text.strip_prefix("Release-")?;
+        let v: String = rest
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
+        let v = v.trim_end_matches('.').to_string();
+        (v.contains('.')).then_some(v)
+    };
+    for major in *b"45" {
+        let ascii = [b"++UE".as_slice(), &[major], b"+"].concat();
+        let mut from = 0;
+        while let Some(i) = b[from..]
+            .windows(ascii.len())
+            .position(|w| w == ascii.as_slice())
+        {
+            let at = from + i + ascii.len();
+            let text = String::from_utf8_lossy(&b[at..(at + 24).min(b.len())]).into_owned();
+            if let Some(v) = version_after(&text) {
+                return Some(v);
+            }
+            from = at;
+        }
+        let wide: Vec<u8> = ascii.iter().flat_map(|&c| [c, 0]).collect();
+        let mut from = 0;
+        while let Some(i) = b[from..]
+            .windows(wide.len())
+            .position(|w| w == wide.as_slice())
+        {
+            let at = from + i + wide.len();
+            let end = (at + 48).min(b.len());
+            let units: Vec<u16> = b[at..end]
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
+                .collect();
+            let text = String::from_utf16_lossy(&units);
+            if let Some(v) = version_after(&text) {
+                return Some(v);
+            }
+            from = at;
+        }
+    }
+    None
 }
 
 #[cfg(test)]
@@ -303,6 +392,31 @@ mod tests {
             assert!(!info.hints.is_empty());
             let _ = std::fs::remove_dir_all(base);
         }
+    }
+
+    #[test]
+    fn finds_unreal_versions_in_ascii_and_utf16() {
+        let mut b = vec![0u8; 100];
+        b.extend_from_slice(b"++UE4+Release-4.27\0junk");
+        assert_eq!(find_release(&b).as_deref(), Some("4.27"));
+        let wide: Vec<u8> = "xx++UE5+Release-5.4\0"
+            .encode_utf16()
+            .flat_map(u16::to_le_bytes)
+            .collect();
+        assert_eq!(find_release(&wide).as_deref(), Some("5.4"));
+        assert_eq!(find_release(b"++UE4+Release-"), None);
+        assert_eq!(find_release(b"nothing here"), None);
+
+        let (base, _) = game(
+            &["Engine/Binaries/x", "Space/Binaries/Win64/x"],
+            "Space/Binaries/Win64/Space-Win64-Shipping.exe",
+        );
+        let exe = base.join("Space/Binaries/Win64/Space-Win64-Shipping.exe");
+        std::fs::write(&exe, wide).unwrap();
+        let info = detect(&exe);
+        assert_eq!(info.version.as_deref(), Some("5.4"));
+        assert!(info.hints.iter().any(|h| h.contains("64-bit doubles")));
+        let _ = std::fs::remove_dir_all(base);
     }
 
     #[test]

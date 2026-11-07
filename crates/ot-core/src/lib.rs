@@ -14,6 +14,7 @@ pub mod error;
 pub mod freeze;
 pub mod guard;
 pub mod hash;
+pub mod il2cpp;
 pub mod journal;
 pub mod memory;
 pub mod modules;

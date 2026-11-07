@@ -534,29 +534,50 @@ fn numeric(ty: &str) -> bool {
     )
 }
 
+/// `<Health>k__BackingField` (a C# property's storage) → `Health`; other
+/// compiler-made names → `None`.
+pub fn plain_name(name: &str) -> Option<&str> {
+    match name.strip_prefix('<') {
+        None => Some(name),
+        Some(rest) => rest
+            .strip_suffix(">k__BackingField")
+            .filter(|n| !n.contains('<')),
+    }
+}
+
 /// Instance fields whose class or field name contains `query` (or, with no
 /// query, an interesting word), numbers first.
 pub fn search(classes: &[ClassInfo], query: Option<&str>, limit: usize) -> Vec<FieldHit> {
     let q = query.map(str::to_lowercase);
-    let mut hits: Vec<(bool, FieldHit)> = Vec::new();
+    // (field name matched, is a number, hit)
+    let mut hits: Vec<(bool, bool, FieldHit)> = Vec::new();
     for c in classes {
+        // Compiler-made helper classes (closures, iterators, async state).
+        if c.name.contains('<') {
+            continue;
+        }
         let cname = c.full_name();
         let lc = cname.to_lowercase();
         for f in &c.fields {
-            if f.is_const || f.name.starts_with('<') {
+            let Some(fname) = plain_name(&f.name) else {
+                continue;
+            };
+            if f.is_const {
                 continue;
             }
-            let lf = f.name.to_lowercase();
-            let matched = match &q {
-                Some(q) => lf.contains(q) || lc.contains(q),
+            let lf = fname.to_lowercase();
+            let in_field = match &q {
+                Some(q) => lf.contains(q),
                 None => INTERESTING.iter().any(|w| lf.contains(w)),
             };
+            let matched = in_field || q.as_ref().is_some_and(|q| lc.contains(q));
             if matched {
                 hits.push((
+                    in_field,
                     numeric(&f.ty),
                     FieldHit {
                         class: cname.clone(),
-                        field: f.name.clone(),
+                        field: fname.to_string(),
                         ty: f.ty.clone(),
                         is_static: f.is_static,
                     },
@@ -564,13 +585,54 @@ pub fn search(classes: &[ClassInfo], query: Option<&str>, limit: usize) -> Vec<F
             }
         }
     }
-    hits.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.class.cmp(&b.1.class)));
-    hits.into_iter().take(limit).map(|(_, h)| h).collect()
+    hits.sort_by(|a, b| {
+        b.0.cmp(&a.0)
+            .then(b.1.cmp(&a.1))
+            .then(a.2.class.cmp(&b.2.class))
+    });
+    hits.into_iter().take(limit).map(|(_, _, h)| h).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn plain_names() {
+        assert_eq!(plain_name("gold"), Some("gold"));
+        assert_eq!(plain_name("<Health>k__BackingField"), Some("Health"));
+        assert_eq!(plain_name("<>4__this"), None);
+        let classes = vec![
+            ClassInfo {
+                namespace: String::new(),
+                name: "<>c__DisplayClass1_0".into(),
+                base: None,
+                fields: vec![FieldInfo {
+                    name: "health".into(),
+                    ty: "int".into(),
+                    is_static: false,
+                    is_const: false,
+                }],
+            },
+            ClassInfo {
+                namespace: "Game".into(),
+                name: "Player".into(),
+                base: None,
+                fields: vec![FieldInfo {
+                    name: "<Health>k__BackingField".into(),
+                    ty: "float".into(),
+                    is_static: false,
+                    is_const: false,
+                }],
+            },
+        ];
+        let hits = search(&classes, Some("health"), 10);
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            (hits[0].class.as_str(), hits[0].field.as_str()),
+            ("Game.Player", "Health")
+        );
+    }
 
     #[test]
     fn compressed_ints() {
@@ -617,5 +679,27 @@ mod tests {
         // Some int fields exist and come first in a broad search.
         let hits = search(&classes, Some("count"), 50);
         assert!(hits.first().is_some_and(|h| numeric(&h.ty)), "{hits:?}");
+    }
+}
+
+/// Manual check against a real game's assembly on this PC (never in CI):
+/// `OT_DOTNET_PROBE=<path to Assembly-CSharp.dll> cargo test -p ot-core dotnet_probe -- --ignored --nocapture`
+#[cfg(test)]
+mod dotnet_probe {
+    #[test]
+    #[ignore = "needs a real game's assembly"]
+    fn dotnet_probe() {
+        let Some(path) = std::env::var_os("OT_DOTNET_PROBE") else {
+            return;
+        };
+        let classes = super::read_assembly(std::path::Path::new(&path)).unwrap();
+        let fields: usize = classes.iter().map(|c| c.fields.len()).sum();
+        println!("{} classes, {fields} fields", classes.len());
+        let queries = std::env::var("OT_DOTNET_QUERY").unwrap_or_else(|_| "health,stamina".into());
+        for q in queries.split(',') {
+            for h in super::search(&classes, Some(q), 6) {
+                println!("  {}.{}: {}", h.class, h.field, h.ty);
+            }
+        }
     }
 }
