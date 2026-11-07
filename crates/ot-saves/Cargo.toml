@@ -1,6 +1,6 @@
 [package]
 name = "ot-saves"
-description = "Save locator, snapshots and safe structural codecs (roadmap v0.6.0+)."
+description = "Save locator, backups (snapshots), diff and restore."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,21 @@ authors.workspace = true
 publish.workspace = true
 
 [dependencies]
+ot-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+similar = { version = "3.2.1", default-features = false, features = ["std", "text"] }
+thiserror.workspace = true
+tracing.workspace = true
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_UI_Shell",
+] }
+
+[dev-dependencies]
+testbed-harness.workspace = true
 
 [lints]
 workspace = true
