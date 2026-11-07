@@ -41,3 +41,8 @@ dbg_macro = "warn"
 [profile.release]
 lto = "thin"
 codegen-units = 1
+
+# Memory scans and the Unreal reader walk gigabytes; keep the core fast in
+# development builds and tests too.
+[profile.dev.package.ot-core]
+opt-level = 3
