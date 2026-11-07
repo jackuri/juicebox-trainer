@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows
   absolute addresses are wildcarded; struct offsets and constants are kept.
 - **Pointer paths in the address list** and every address field: `[[module.exe+0x10]+0x18]+0x40`.
   Pointer entries follow the value when it moves.
-- **`Try OpenTrainer.cmd`**: double-click to open the fake test game and the app together.
+- **`Try OpenTrainer.cmd`**: double-click to open the fake test game and the app together. It stops a
+  leftover OpenTrainer web server that would block the app, says so if the app is already open, and
+  keeps its window open when something fails.
 - Testbed: gold pickups (`earn`) now run fixed-byte code too (marker 4).
 
 ### Changed

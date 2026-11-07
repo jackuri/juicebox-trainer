@@ -31,6 +31,16 @@ if not exist node_modules (
   )
 )
 
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\try-prepare.ps1
+if errorlevel 2 (
+  pause
+  exit /b 0
+)
+if errorlevel 1 (
+  pause
+  exit /b 1
+)
+
 echo Opening the fake game (testbed) in its own window...
 rem Its own build folder, so an older testbed that is still open doesn't block it.
 start "OpenTrainer testbed (fake game)" cmd /k cargo run -q -p testbed-native --target-dir target\try
@@ -38,3 +48,9 @@ start "OpenTrainer testbed (fake game)" cmd /k cargo run -q -p testbed-native --
 echo Starting OpenTrainer. The app window opens when it's ready.
 echo Close this window to stop OpenTrainer.
 call npm run dev
+if errorlevel 1 (
+  echo.
+  echo OpenTrainer stopped with an error. The message above says why.
+  pause
+  exit /b 1
+)
