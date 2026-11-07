@@ -24,3 +24,9 @@ Thumbs.db
 *.dmp
 /games/
 /dumps/
+
+# Release build output and signing material (keys never go in the repo)
+/release-out/
+/release.conf.json
+*.key
+*.pfx

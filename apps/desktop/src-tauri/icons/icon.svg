@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- OpenTrainer app icon: three sliders (adjusting a game's values). MIT. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="url(#bg)"/>
+  <g stroke="#ecfdf5" stroke-width="64" stroke-linecap="round" opacity="0.55">
+    <line x1="304" y1="232" x2="304" y2="792"/>
+    <line x1="512" y1="232" x2="512" y2="792"/>
+    <line x1="720" y1="232" x2="720" y2="792"/>
+  </g>
+  <g fill="#ffffff" stroke="#065f46" stroke-width="20">
+    <circle cx="304" cy="600" r="92"/>
+    <circle cx="512" cy="360" r="92"/>
+    <circle cx="720" cy="520" r="92"/>
+  </g>
+</svg>

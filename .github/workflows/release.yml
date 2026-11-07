@@ -1,0 +1,92 @@
+name: Release
+
+# Builds the Windows installer for a version tag and publishes a GitHub release.
+# Optional secrets (the release works without them):
+#   WINDOWS_CERTIFICATE           base64 of a code-signing .pfx
+#   WINDOWS_CERTIFICATE_PASSWORD  its password
+#   TAURI_SIGNING_PRIVATE_KEY     the updater key (signs update files)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+# In-app updates are switched on only when the repository is public and the
+# updater key is set. See docs/RELEASING.md.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  release:
+    name: Windows installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup show
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check the tag matches the version
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but package.json says $version" }
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build AI helper
+        run: npm run build:agent
+
+      - name: Import the code-signing certificate (if there is one)
+        id: cert
+        shell: pwsh
+        env:
+          CERT: ${{ secrets.WINDOWS_CERTIFICATE }}
+          CERT_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          if (-not $env:CERT) { Write-Host "No certificate: the installer is not signed."; exit 0 }
+          $pfx = Join-Path $env:RUNNER_TEMP cert.pfx
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:CERT))
+          $password = ConvertTo-SecureString $env:CERT_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password $password
+          Remove-Item $pfx
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+
+      - name: Release settings
+        env:
+          OT_PUBLIC: ${{ github.event.repository.private == false }}
+          OT_HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          OT_CERT_THUMBPRINT: ${{ steps.cert.outputs.thumbprint }}
+        run: node scripts/release-config.mjs
+
+      - name: Build the installer
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npm run tauri --workspace @opentrainer/desktop -- build --config ../../release.conf.json
+
+      - name: Collect release files
+        run: node scripts/release-files.mjs ${{ github.repository }}
+
+      - name: Publish the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $files = Get-ChildItem release-out -Exclude notes.md | ForEach-Object { $_.FullName }
+          gh release create "${{ github.ref_name }}" $files --title "OpenTrainer ${{ github.ref_name }}" --notes-file release-out/notes.md
