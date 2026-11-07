@@ -1,0 +1,156 @@
+import { useEffect, useState } from "react";
+import { type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
+
+const button = "rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
+const primary =
+  "rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
+
+/** Version, updates, the user guide and what OpenTrainer never does. */
+export function AboutView() {
+  const [status, setStatus] = useState<UpdateStatus | null>(null);
+  const [ai, setAi] = useState<AiStatus | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<UpdateInfo | null | undefined>(undefined);
+  const [installing, setInstalling] = useState(false);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [confirmAi, setConfirmAi] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.updateStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
+    api.aiStatus().then(setAi, () => undefined);
+  }, []);
+  useEffect(
+    () =>
+      onUpdateProgress((got, total) =>
+        setProgress(total ? `Downloading… ${Math.round((got / total) * 100)}%` : `Downloading… ${Math.round(got / 1e6)} MB`),
+      ),
+    [],
+  );
+
+  async function check() {
+    setError(null);
+    setChecking(true);
+    try {
+      setResult(await api.updateCheck());
+    } catch (e) {
+      setError(toCommandError(e).message);
+    } finally {
+      setChecking(false);
+    }
+  }
+
+  async function install() {
+    setError(null);
+    setInstalling(true);
+    try {
+      await api.updateInstall();
+    } catch (e) {
+      setError(toCommandError(e).message);
+      setInstalling(false);
+      setProgress(null);
+    }
+  }
+
+  async function removeAi() {
+    setConfirmAi(false);
+    setError(null);
+    try {
+      await api.aiUninstall();
+      setAi(await api.aiStatus());
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  return (
+    <main className="flex min-h-0 max-w-3xl flex-col gap-5 overflow-y-auto p-4 text-sm" aria-label="About">
+      <section>
+        <h2 className="text-lg font-medium">OpenTrainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
+        <p className="text-zinc-400">
+          Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for single-player PC games.
+        </p>
+        <div className="mt-2 flex gap-2">
+          <button className={button} onClick={() => void api.openLink("guide").catch(() => undefined)}>
+            User guide
+          </button>
+          <button className={button} onClick={() => void api.openLink("releases").catch(() => undefined)}>
+            Releases page
+          </button>
+        </div>
+      </section>
+
+      {error && (
+        <p className="rounded-md bg-red-950/40 px-3 py-2 text-red-300" role="alert">
+          {error}
+        </p>
+      )}
+
+      <section className="flex flex-col gap-2" aria-label="Updates">
+        <h3 className="font-medium">Updates</h3>
+        {status && !status.enabled && <p className="text-zinc-400">{status.offReason}</p>}
+        {status?.enabled && (
+          <>
+            <div className="flex items-center gap-2">
+              <button className={button} disabled={checking || installing} onClick={() => void check()}>
+                {checking ? "Checking…" : "Check for updates"}
+              </button>
+              {result === null && <span className="text-emerald-300">You have the newest version.</span>}
+            </div>
+            {result && (
+              <div className="flex flex-col gap-2 rounded-md bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
+                <p>
+                  OpenTrainer {result.version} is available{result.date ? ` (${result.date})` : ""}.
+                </p>
+                {result.notes && <p className="whitespace-pre-wrap text-xs text-sky-200/80">{result.notes}</p>}
+                <p className="text-xs text-sky-200/80">
+                  Installing closes OpenTrainer (games get their original code back first) and opens the new version.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button className={primary} disabled={installing} onClick={() => void install()}>
+                    Install and restart
+                  </button>
+                  {progress && <span className="text-xs">{progress}</span>}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </section>
+
+      {ai && (ai.download === "ready" || ai.download === "outdated") && (
+        <section className="flex flex-col gap-2" aria-label="AI engine">
+          <h3 className="font-medium">AI engine</h3>
+          <p className="text-zinc-400">The AI helper's engine is downloaded on this PC (about 330 MB).</p>
+          {confirmAi ? (
+            <div className="flex items-center gap-2 text-xs">
+              Delete it? You can download it again later.
+              <button className="rounded-md bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void removeAi()}>
+                Delete
+              </button>
+              <button className={button} onClick={() => setConfirmAi(false)}>
+                Keep
+              </button>
+            </div>
+          ) : (
+            <div>
+              <button className={button} onClick={() => setConfirmAi(true)}>
+                Delete the AI engine
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="flex flex-col gap-1" aria-label="What OpenTrainer never does">
+        <h3 className="font-medium">What OpenTrainer never does</h3>
+        <ul className="list-disc pl-5 text-zinc-400">
+          <li>Work in online or multiplayer games, or in any game with anti-cheat. It checks every game and refuses those.</li>
+          <li>Hide from, switch off or trick anti-cheat, DRM or ownership checks.</li>
+          <li>Run code written by the AI. AI cheats are checked data, and every change can be undone.</li>
+          <li>Change a save without backing it up first.</li>
+        </ul>
+      </section>
+    </main>
+  );
+}

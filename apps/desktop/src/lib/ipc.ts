@@ -141,9 +141,18 @@ export interface Issue {
   message: string;
 }
 
+export type PackSource = "bundled" | "user" | "imported" | "community";
+
+export const PACK_SOURCE_LABEL: Record<PackSource, string> = {
+  bundled: "built-in example",
+  user: "your packs",
+  imported: "imported",
+  community: "community",
+};
+
 export interface PackSummary {
   key: string;
-  source: "bundled" | "user";
+  source: PackSource;
   path: string | null;
   id: string | null;
   name: string | null;
@@ -262,6 +271,131 @@ export interface PlayResult {
 }
 
 /** Calls `cb` with each "Play with cheats" step. */
+/** Subscribes to a backend event; returns the unsubscribe function. */
+function on<T>(event: string, cb: (payload: T) => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen<T>(event, (e) => cb(e.payload)).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri (tests).
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
+// ----- sharing packs (mirror sharing.rs) -----
+
+export interface CheatLine {
+  name: string;
+  ui: Ui;
+  description: string | null;
+  /** Changes game code (rather than values). */
+  patch: boolean;
+}
+
+export interface PackPreview {
+  id: string;
+  game: string;
+  exe: string;
+  author: string;
+  ai: boolean;
+  version: string;
+  notes: string | null;
+  cheats: CheatLine[];
+  warnings: Issue[];
+  existing: { key: string; name: string; version: string; ai: boolean; same: boolean } | null;
+}
+
+export interface ImportResult {
+  key: string;
+  installed: "new" | "same" | "replaced";
+}
+
+export interface CommunityPack {
+  id: string;
+  name: string;
+  exe: string;
+  arch: PackArch | null;
+  engine: string | null;
+  author: string;
+  packVersion: string;
+  cheats: number;
+  notes: string | null;
+  sha256: string;
+  size: number;
+  installed: "none" | "installed" | "update" | "other";
+}
+
+export interface CommunityList {
+  url: string;
+  contributeUrl: string;
+  updated: string | null;
+  packs: CommunityPack[];
+  skipped: string[];
+}
+
+/** Files dropped on the window (their paths). */
+export function onFileDrop(cb: (paths: string[]) => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    void import("@tauri-apps/api/webview")
+      .then(({ getCurrentWebview }) =>
+        getCurrentWebview().onDragDropEvent((e) => {
+          if (e.payload.type === "drop") cb(e.payload.paths);
+        }),
+      )
+      .then(
+        (u) => (stopped ? u() : (unlisten = u)),
+        () => undefined,
+      );
+  } catch {
+    // Not running inside Tauri (tests).
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
+/** An .otpack opened from Explorer while OpenTrainer runs. */
+export function onOtpackOpen(cb: (path: string) => void): () => void {
+  return on<string>("otpack-open", cb);
+}
+
+// ----- updates (mirror updates.rs) -----
+
+export interface UpdateStatus {
+  version: string;
+  enabled: boolean;
+  offReason: string | null;
+  releasesUrl: string;
+}
+
+export interface UpdateInfo {
+  version: string;
+  notes: string | null;
+  date: string | null;
+}
+
+export function onUpdateAvailable(cb: (info: UpdateInfo) => void): () => void {
+  return on<UpdateInfo>("update-available", cb);
+}
+
+export function onUpdateProgress(cb: (got: number, total: number | null) => void): () => void {
+  return on<[number, number | null]>("update-progress", ([got, total]) => cb(got, total));
+}
+
+export function onAiInstallProgress(cb: (message: string) => void): () => void {
+  return on<string>("ai-install-progress", cb);
+}
+
 export function onLibraryProgress(cb: (message: string) => void): () => void {
   let unlisten: (() => void) | null = null;
   let stopped = false;
@@ -572,6 +706,9 @@ export interface AiStatus {
   transcript: AiEvent[];
   /** Signed in to a Claude account; null if it couldn't be checked. */
   signedIn: boolean | null;
+  /** The AI engine: downloaded on first use in the installed app. */
+  download: "notNeeded" | "missing" | "outdated" | "ready";
+  installing: boolean;
 }
 
 export interface AiStartRequest {
@@ -672,6 +809,24 @@ export const api = {
   packsList: () => invoke<PackSummary[]>("packs_list"),
   packsFolder: () => invoke<string>("packs_folder"),
   openPacksFolder: () => invoke<void>("open_packs_folder"),
+  packsPendingOpen: () => invoke<string | null>("packs_pending_open"),
+  /** Asks where to save; null if the player cancelled. */
+  packsExport: (key: string) => invoke<string | null>("packs_export", { key }),
+  packsShowFile: (path: string) => invoke<void>("packs_show_file", { path }),
+  packsPickOtpack: () => invoke<string | null>("packs_pick_otpack"),
+  packsPreview: (path: string) => invoke<PackPreview>("packs_preview", { path }),
+  packsImport: (path: string, replace: boolean) =>
+    invoke<ImportResult>("packs_import", { path, replace }),
+  packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
+  communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
+  communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),
+  communityInstall: (id: string, replace: boolean) =>
+    invoke<ImportResult>("community_install", { id, replace }),
+  updateStatus: () => invoke<UpdateStatus>("update_status"),
+  updateCheck: () => invoke<UpdateInfo | null>("update_check"),
+  updateInstall: () => invoke<void>("update_install"),
+  /** Opens one of OpenTrainer's own pages in the browser. */
+  openLink: (which: "releases" | "guide" | "contribute" | "node") => invoke<void>("open_link", { which }),
   trainerLoad: (key: string) => invoke<TrainerView>("trainer_load", { key }),
   trainerState: () => invoke<TrainerView | null>("trainer_state"),
   trainerUnload: () => invoke<void>("trainer_unload"),
@@ -752,6 +907,8 @@ export const api = {
   aiAnswer: (id: string, text: string) => invoke<void>("ai_answer", { id, text }),
   aiCancel: () => invoke<void>("ai_cancel"),
   aiSignIn: () => invoke<void>("ai_sign_in"),
+  aiInstall: () => invoke<void>("ai_install"),
+  aiUninstall: () => invoke<void>("ai_uninstall"),
 };
 
 /** Builds the scan mode the backend expects from form fields. */

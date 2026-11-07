@@ -75,6 +75,29 @@ pub fn update_status() -> UpdateStatus {
     }
 }
 
+/// Opens one of OpenTrainer's own web pages in the browser. Only these
+/// fixed addresses can be opened.
+#[tauri::command]
+pub async fn open_link(which: String) -> CmdResult<()> {
+    let url = match which.as_str() {
+        "releases" => RELEASES_URL,
+        "guide" => "https://github.com/jackuri/opentrainer/blob/main/docs/USER_GUIDE.md",
+        "contribute" => ot_packs::community::CONTRIBUTE_URL,
+        "node" => "https://nodejs.org/",
+        _ => {
+            return Err(CommandError::new(
+                "badRequest",
+                format!("unknown link {which}"),
+            ));
+        }
+    };
+    std::process::Command::new("explorer.exe")
+        .arg(url)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UpdateInfo {

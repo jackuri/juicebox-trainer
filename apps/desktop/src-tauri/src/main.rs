@@ -164,6 +164,7 @@ fn main() {
             updates::update_status,
             updates::update_check,
             updates::update_install,
+            updates::open_link,
             commands::trainer_load,
             commands::trainer_state,
             commands::trainer_unload,

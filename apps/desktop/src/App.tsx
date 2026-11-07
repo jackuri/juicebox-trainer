@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
+import { AboutView } from "./components/AboutView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
 import { LibraryView } from "./components/LibraryView";
+import { PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
 import { SessionTools } from "./components/SessionTools";
@@ -9,12 +11,18 @@ import {
   api,
   type AppInfo,
   type CommandError,
+  onFileDrop,
+  onOtpackOpen,
+  onUpdateAvailable,
   type ProcessInfo,
   type Recovery,
   type SessionInfo,
   toCommandError,
+  type UpdateInfo,
   type Verdict,
 } from "./lib/ipc";
+
+type View = "games" | "cheats" | "packs" | "saves" | "ai" | "about";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -26,7 +34,37 @@ export default function App() {
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
-  const [view, setView] = useState<"games" | "cheats" | "saves" | "ai">("cheats");
+  const [view, setView] = useState<View>("cheats");
+  /** An .otpack to show in Packs (opened from Explorer or dropped). */
+  const [openPath, setOpenPath] = useState<string | null>(null);
+  const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  const [dropError, setDropError] = useState<string | null>(null);
+
+  const openOtpack = useCallback((path: string) => {
+    setOpenPath(path);
+    setView("packs");
+  }, []);
+  const opened = useCallback(() => setOpenPath(null), []);
+
+  useEffect(() => {
+    api.packsPendingOpen().then((p) => p && openOtpack(p), () => undefined);
+    const stopOpen = onOtpackOpen(openOtpack);
+    const stopUpdate = onUpdateAvailable(setUpdate);
+    const stopDrop = onFileDrop((paths) => {
+      const pack = paths.find((p) => p.toLowerCase().endsWith(".otpack"));
+      if (pack) {
+        setDropError(null);
+        openOtpack(pack);
+      } else if (paths.length > 0) {
+        setDropError("Only .otpack pack files can be dropped here.");
+      }
+    });
+    return () => {
+      stopOpen();
+      stopUpdate();
+      stopDrop();
+    };
+  }, [openOtpack]);
 
   const refresh = useCallback(async () => {
     setLoadingList(true);
@@ -95,7 +133,7 @@ export default function App() {
   }
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr]">
+    <div className="grid h-full grid-rows-[auto_auto_1fr]">
       <header className="flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
         <h1 className="text-lg font-semibold tracking-tight">OpenTrainer</h1>
         {info && (
@@ -108,8 +146,10 @@ export default function App() {
             [
               ["games", "Games"],
               ["cheats", "Cheats"],
+              ["packs", "Packs"],
               ["saves", "Save backups"],
               ["ai", "Make a trainer (AI)"],
+              ["about", "About"],
             ] as const
           ).map(([v, label]) => (
             <button
@@ -135,6 +175,27 @@ export default function App() {
         </span>
       </header>
 
+      <div>
+        {update && view !== "about" && (
+          <div className="flex items-center gap-3 bg-sky-950/60 px-4 py-1.5 text-xs text-sky-100" role="status">
+            <span className="flex-1">OpenTrainer {update.version} is available.</span>
+            <button className="rounded bg-sky-900/70 px-2 py-0.5 hover:bg-sky-800" onClick={() => setView("about")}>
+              See the update
+            </button>
+            <button className="text-sky-300 hover:text-sky-100" aria-label="Hide" onClick={() => setUpdate(null)}>
+              ✕
+            </button>
+          </div>
+        )}
+        {dropError && (
+          <div className="flex items-center gap-3 bg-amber-950/60 px-4 py-1.5 text-xs text-amber-100" role="alert">
+            <span className="flex-1">{dropError}</span>
+            <button className="text-amber-300 hover:text-amber-100" aria-label="Hide" onClick={() => setDropError(null)}>
+              ✕
+            </button>
+          </div>
+        )}
+      </div>
       {view === "games" ? (
         <LibraryView
           onOpenAi={() => setView("ai")}
@@ -146,6 +207,10 @@ export default function App() {
             setView("cheats");
           }}
         />
+      ) : view === "packs" ? (
+        <PacksView openPath={openPath} onOpened={opened} onShowCheats={() => setView("cheats")} />
+      ) : view === "about" ? (
+        <AboutView />
       ) : view === "ai" ? (
         <AiView processes={processes} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (

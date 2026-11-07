@@ -6,6 +6,7 @@ import {
   type AiStatus,
   api,
   onAiEvent,
+  onAiInstallProgress,
   type ProcessInfo,
   toCommandError,
 } from "../lib/ipc";
@@ -167,12 +168,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
   }
 
   if (status && !status.available) {
-    return (
-      <div className="m-auto max-w-md p-6 text-center text-sm text-zinc-300">
-        <p className="font-medium">The AI helper can't start yet.</p>
-        <p className="mt-2 text-zinc-400">{status.problem}</p>
-      </div>
-    );
+    return <AiSetup status={status} onReady={setStatus} />;
   }
 
   const showForm = !running && events.length === 0;
@@ -462,6 +458,67 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
         </div>
       )}
       {running && !ask && !finished && <p className="text-xs text-zinc-500">Working…</p>}
+    </div>
+  );
+}
+
+/** The AI helper can't start yet: say why, and offer the engine download. */
+function AiSetup({ status, onReady }: { status: AiStatus; onReady: (s: AiStatus) => void }) {
+  const [installing, setInstalling] = useState(status.installing);
+  const [progress, setProgress] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const canDownload = status.download === "missing" || status.download === "outdated";
+  const needsNode = /Node\.js/.test(status.problem ?? "");
+
+  useEffect(() => onAiInstallProgress(setProgress), []);
+
+  async function download() {
+    setError(null);
+    setInstalling(true);
+    try {
+      await api.aiInstall();
+      onReady(await api.aiStatus());
+    } catch (e) {
+      setError(toCommandError(e).message);
+    } finally {
+      setInstalling(false);
+    }
+  }
+
+  return (
+    <div className="m-auto flex max-w-md flex-col items-center gap-3 p-6 text-center text-sm text-zinc-300">
+      <p className="font-medium">The AI helper can't start yet.</p>
+      <p className="text-zinc-400">{status.problem}</p>
+      {needsNode && (
+        <button className={button} onClick={() => void api.openLink("node").catch(() => undefined)}>
+          Open nodejs.org
+        </button>
+      )}
+      {canDownload && !needsNode && (
+        <>
+          <p className="text-xs text-zinc-500">
+            The engine is Anthropic's Claude Agent SDK, downloaded from npm. It's only needed for “Make a trainer (AI)”;
+            everything else works without it.
+          </p>
+          <button
+            className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+            disabled={installing}
+            onClick={() => void download()}
+          >
+            {installing ? "Downloading…" : "Download the AI engine"}
+          </button>
+        </>
+      )}
+      {installing && progress && (
+        <p className="text-xs text-sky-300" role="status">
+          {progress}
+        </p>
+      )}
+      {error && (
+        <p className="rounded-md bg-red-950/40 px-3 py-2 text-red-300" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

@@ -26,7 +26,16 @@ const game: ProcessInfo = {
 };
 
 function status(over: Record<string, unknown> = {}) {
-  return { available: true, problem: null, running: false, transcript: [], signedIn: true, ...over };
+  return {
+    available: true,
+    problem: null,
+    running: false,
+    transcript: [],
+    signedIn: true,
+    download: "notNeeded",
+    installing: false,
+    ...over,
+  };
 }
 
 beforeEach(() => {
@@ -45,6 +54,36 @@ describe("AiView", () => {
     );
     render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
     expect(await screen.findByText("The AI helper needs Node.js.")).toBeInTheDocument();
+  });
+
+  it("offers to download the engine in the installed app", async () => {
+    let downloaded = false;
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "ai_install") {
+        downloaded = true;
+        return Promise.resolve();
+      }
+      return Promise.resolve(
+        downloaded
+          ? status({ download: "ready" })
+          : status({ available: false, problem: "The AI helper's engine isn't downloaded yet.", download: "missing" }),
+      );
+    });
+    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "Open nodejs.org" })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", { name: "Download the AI engine" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("ai_install", undefined));
+    expect(await screen.findByRole("button", { name: "Start" })).toBeInTheDocument();
+  });
+
+  it("points to Node.js when it's missing", async () => {
+    invoke.mockImplementation(() =>
+      Promise.resolve(status({ available: false, problem: "The AI helper needs Node.js (free).", download: "missing" })),
+    );
+    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open nodejs.org" }));
+    expect(invoke).toHaveBeenCalledWith("open_link", { which: "node" });
+    expect(screen.queryByRole("button", { name: "Download the AI engine" })).not.toBeInTheDocument();
   });
 
   it("starts with the chosen game and wishes, then walks through steps", async () => {

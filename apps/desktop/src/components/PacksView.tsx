@@ -1,0 +1,372 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  api,
+  type CommunityList,
+  type CommunityPack,
+  PACK_SOURCE_LABEL,
+  type PackPreview,
+  type PackSummary,
+  toCommandError,
+} from "../lib/ipc";
+
+const button = "rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
+const primary =
+  "rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
+
+/** Where the pack in the install dialog comes from. */
+type Incoming = { kind: "file"; path: string } | { kind: "community"; id: string };
+
+interface Props {
+  /** An .otpack opened from Explorer or dropped on the window. */
+  openPath: string | null;
+  onOpened: () => void;
+  /** Go to the Cheats view (after installing a pack). */
+  onShowCheats: () => void;
+}
+
+/** Your packs, .otpack import / export, and the community list. */
+export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
+  const [packs, setPacks] = useState<PackSummary[] | null>(null);
+  const [community, setCommunity] = useState<CommunityList | null>(null);
+  const [communityError, setCommunityError] = useState<string | null>(null);
+  const [loadingCommunity, setLoadingCommunity] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [incoming, setIncoming] = useState<{ from: Incoming; preview: PackPreview } | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<{ text: string; path?: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPacks = useCallback(() => {
+    api.packsList().then(setPacks, (e: unknown) => setError(toCommandError(e).message));
+  }, []);
+
+  /** Downloads the list; `loadingCommunity` is set by the caller. */
+  const loadCommunity = useCallback((refresh: boolean) => {
+    api
+      .communityList(refresh)
+      .then(
+        (list) => {
+          setCommunity(list);
+          setCommunityError(null);
+        },
+        (e: unknown) => setCommunityError(toCommandError(e).message),
+      )
+      .finally(() => setLoadingCommunity(false));
+  }, []);
+
+  useEffect(() => {
+    loadPacks();
+    loadCommunity(false);
+  }, [loadPacks, loadCommunity]);
+
+  const preview = useCallback(async (from: Incoming) => {
+    setError(null);
+    setMessage(null);
+    setBusy(true);
+    try {
+      const p = from.kind === "file" ? await api.packsPreview(from.path) : await api.communityPreview(from.id);
+      setIncoming({ from, preview: p });
+    } catch (e) {
+      setError(toCommandError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!openPath) return;
+    // After this render: show what's in the file the player opened.
+    void Promise.resolve().then(() => {
+      onOpened();
+      return preview({ kind: "file", path: openPath });
+    });
+  }, [openPath, onOpened, preview]);
+
+  async function pickFile() {
+    setError(null);
+    try {
+      const path = await api.packsPickOtpack();
+      if (path) await preview({ kind: "file", path });
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  async function install() {
+    if (!incoming) return;
+    const { from, preview: p } = incoming;
+    const replace = Boolean(p.existing && !p.existing.same);
+    setBusy(true);
+    setError(null);
+    try {
+      if (from.kind === "file") await api.packsImport(from.path, replace);
+      else await api.communityInstall(from.id, replace);
+      setIncoming(null);
+      setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.` });
+      loadPacks();
+      if (from.kind === "community") loadCommunity(false);
+    } catch (e) {
+      setError(toCommandError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function exportPack(p: PackSummary) {
+    setError(null);
+    setMessage(null);
+    try {
+      const path = await api.packsExport(p.key);
+      if (path) setMessage({ text: `Saved ${p.name ?? "the pack"} as ${path}. Send this file to share it.`, path });
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  async function remove(p: PackSummary) {
+    setConfirmRemove(null);
+    setError(null);
+    try {
+      const kept = await api.packsRemove(p.key);
+      setMessage({ text: `Removed ${p.name ?? "the pack"}. A copy is kept in ${kept}.`, path: kept });
+      loadPacks();
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  const shown = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    return (community?.packs ?? []).filter(
+      (p) => !q || p.name.toLowerCase().includes(q) || p.exe.toLowerCase().includes(q),
+    );
+  }, [community, filter]);
+
+  return (
+    <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4" aria-label="Packs">
+      {message && (
+        <div className="flex items-center gap-3 rounded-md bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+          <span className="flex-1">{message.text}</span>
+          {message.path && (
+            <button className={button} onClick={() => void api.packsShowFile(message.path ?? "")}>
+              Show in folder
+            </button>
+          )}
+          {!message.path && (
+            <button className={button} onClick={onShowCheats}>
+              Go to Cheats
+            </button>
+          )}
+        </div>
+      )}
+      {error && (
+        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+          {error}
+        </p>
+      )}
+
+      {incoming && (
+        <InstallDialog
+          preview={incoming.preview}
+          fromCommunity={incoming.from.kind === "community"}
+          busy={busy}
+          onInstall={() => void install()}
+          onCancel={() => setIncoming(null)}
+        />
+      )}
+
+      <section className="flex flex-col gap-2" aria-label="Your packs">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-medium">Your packs</h2>
+          <button className={`${button} ml-auto`} disabled={busy} onClick={() => void pickFile()}>
+            Open a pack file…
+          </button>
+          <button className={button} onClick={() => void api.openPacksFolder().catch(() => undefined)}>
+            Pack folder
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Share a pack by sending its <code>.otpack</code> file. To open one, double-click it, drop it on this window or use
+          “Open a pack file…”.
+        </p>
+        {packs === null && <p className="text-sm text-zinc-500">Loading…</p>}
+        <ul className="flex flex-col gap-2">
+          {(packs ?? []).map((p) => (
+            <li key={p.key} className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800" data-testid={`pack-${p.key}`}>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm">
+                  {p.name ?? p.key}{" "}
+                  <span className="text-xs text-zinc-500">
+                    {p.packVersion && `v${p.packVersion} · `}
+                    {p.cheats} cheat{p.cheats === 1 ? "" : "s"} · {PACK_SOURCE_LABEL[p.source]}
+                    {p.exe && ` · ${p.exe}`}
+                  </span>
+                  {p.ai && <span className="ml-2 rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] text-violet-200">AI-made</span>}
+                </p>
+                {p.error && <p className="text-xs text-red-400">{p.error}</p>}
+              </div>
+              <button className={button} disabled={Boolean(p.error)} aria-label={`Export ${p.name ?? p.key}`} onClick={() => void exportPack(p)}>
+                Export
+              </button>
+              {p.source !== "bundled" &&
+                (confirmRemove === p.key ? (
+                  <span className="flex items-center gap-2 text-xs">
+                    Remove it? (a copy is kept)
+                    <button className="rounded-md bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void remove(p)}>
+                      Remove
+                    </button>
+                    <button className={button} onClick={() => setConfirmRemove(null)}>
+                      Keep
+                    </button>
+                  </span>
+                ) : (
+                  <button className={button} aria-label={`Remove ${p.name ?? p.key}`} onClick={() => setConfirmRemove(p.key)}>
+                    Remove
+                  </button>
+                ))}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="flex flex-col gap-2 border-t border-zinc-900 pt-4" aria-label="Community packs">
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 className="font-medium">Community packs</h2>
+          {community?.updated && <span className="text-xs text-zinc-500">list from {community.updated}</span>}
+          <input
+            aria-label="Find a community pack"
+            className="ml-auto w-56 rounded-md bg-zinc-900 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+            placeholder="Find a game…"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+          />
+          <button
+            className={button}
+            disabled={loadingCommunity}
+            onClick={() => {
+              setLoadingCommunity(true);
+              loadCommunity(true);
+            }}
+          >
+            Refresh
+          </button>
+          <button className={button} onClick={() => void api.openLink("contribute").catch(() => undefined)}>
+            Share your pack
+          </button>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Packs made by other players. Each one is checked like any pack before it's installed, and OpenTrainer still refuses
+          games with anti-cheat.
+        </p>
+        {loadingCommunity && !community && <p className="text-sm text-zinc-500">Loading the list…</p>}
+        {communityError && (
+          <p className="rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
+            Couldn't load the community list: {communityError}
+          </p>
+        )}
+        {community && community.packs.length === 0 && <p className="text-sm text-zinc-400">No packs on the list yet.</p>}
+        <ul className="flex flex-col gap-2">
+          {shown.map((p) => (
+            <CommunityRow key={p.id} pack={p} busy={busy} onPreview={() => void preview({ kind: "community", id: p.id })} />
+          ))}
+        </ul>
+      </section>
+    </main>
+  );
+}
+
+const STATE_TEXT: Record<CommunityPack["installed"], string | null> = {
+  none: null,
+  installed: "Installed",
+  update: "Update available",
+  other: "You have another pack for this game",
+};
+
+function CommunityRow({ pack, busy, onPreview }: { pack: CommunityPack; busy: boolean; onPreview: () => void }) {
+  const state = STATE_TEXT[pack.installed];
+  return (
+    <li className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800" data-testid={`community-${pack.id}`}>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm">
+          {pack.name}{" "}
+          <span className="text-xs text-zinc-500">
+            v{pack.packVersion} · {pack.cheats} cheat{pack.cheats === 1 ? "" : "s"} · {pack.exe} · by {pack.author}
+          </span>
+          {pack.author.trim().toLowerCase() === "ai" && (
+            <span className="ml-2 rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] text-violet-200">AI-made</span>
+          )}
+        </p>
+        {pack.notes && <p className="text-xs text-zinc-500">{pack.notes}</p>}
+        {state && <p className={`text-xs ${pack.installed === "installed" ? "text-emerald-400" : "text-sky-300"}`}>{state}</p>}
+      </div>
+      <button className={pack.installed === "installed" ? button : primary} disabled={busy} aria-label={`See ${pack.name}`} onClick={onPreview}>
+        {pack.installed === "update" ? "See the update" : "See what's inside"}
+      </button>
+    </li>
+  );
+}
+
+interface DialogProps {
+  preview: PackPreview;
+  fromCommunity: boolean;
+  busy: boolean;
+  onInstall: () => void;
+  onCancel: () => void;
+}
+
+/** What a pack does, before it's installed. */
+export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel }: DialogProps) {
+  const replaces = p.existing && !p.existing.same ? p.existing : null;
+  return (
+    <div className="flex flex-col gap-3 rounded-md border border-emerald-700 bg-zinc-950 p-4" role="dialog" aria-label="Install pack">
+      <div>
+        <p className="font-medium">
+          Install the pack for {p.game}?
+          {p.ai && <span className="ml-2 rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] text-violet-200">AI-made</span>}
+        </p>
+        <p className="text-xs text-zinc-400">
+          For <code>{p.exe}</code> · version {p.version} · by {p.author}
+          {fromCommunity ? " · from the community list" : ""}
+        </p>
+        {p.notes && <p className="mt-1 text-xs text-zinc-400">{p.notes}</p>}
+      </div>
+      <ul className="flex flex-col gap-1 text-sm">
+        {p.cheats.map((c) => (
+          <li key={c.name}>
+            {c.name}
+            {c.patch && <span className="ml-2 text-[10px] text-amber-300">changes game code (put back when turned off)</span>}
+            {c.description && <span className="block text-xs text-zinc-500">{c.description}</span>}
+          </li>
+        ))}
+      </ul>
+      {p.warnings.length > 0 && (
+        <details className="text-xs text-amber-300">
+          <summary>{p.warnings.length} warning{p.warnings.length === 1 ? "" : "s"}</summary>
+          <ul className="mt-1 list-disc pl-5">
+            {p.warnings.map((w) => (
+              <li key={w.path + w.message}>{w.message}</li>
+            ))}
+          </ul>
+        </details>
+      )}
+      {replaces && (
+        <p className="rounded bg-amber-950/40 px-2 py-1 text-xs text-amber-200">
+          This replaces your pack for this game: {replaces.name} v{replaces.version}
+          {replaces.ai ? " (made by the AI helper)" : ""}. The old one is kept as a backup next to it.
+        </p>
+      )}
+      {p.existing?.same && <p className="text-xs text-emerald-300">You already have this exact pack.</p>}
+      <div className="flex gap-2">
+        {!p.existing?.same && (
+          <button className={primary} disabled={busy} onClick={onInstall}>
+            {replaces ? "Replace and install" : "Install"}
+          </button>
+        )}
+        <button className={button} onClick={onCancel}>
+          {p.existing?.same ? "Close" : "Cancel"}
+        </button>
+      </div>
+    </div>
+  );
+}

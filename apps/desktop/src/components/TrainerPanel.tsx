@@ -11,6 +11,7 @@ import {
   type CommandError,
   isSessionLost,
   onTrainerChanged,
+  PACK_SOURCE_LABEL,
   type PackSummary,
   packsFor,
   type SessionInfo,
@@ -272,7 +273,7 @@ function PackRow({ pack, loading, onLoad }: { pack: PackSummary; loading: boolea
           {pack.name ?? pack.key}{" "}
           <span className="text-xs text-zinc-500">
             {pack.packVersion && `v${pack.packVersion} · `}
-            {pack.cheats} cheat{pack.cheats === 1 ? "" : "s"} · {pack.source === "bundled" ? "built-in example" : "your packs"}
+            {pack.cheats} cheat{pack.cheats === 1 ? "" : "s"} · {PACK_SOURCE_LABEL[pack.source]}
           </span>
           {pack.ai && (
             <span className="ml-2">
