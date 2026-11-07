@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.2] - 2026-11-07
+
+### Added
+- **Unity IL2CPP names** (`ot_core::il2cpp`, in `game_classes`): reads class and field names from
+  `global-metadata.dat`. The layout differs between Unity versions, so the reader works out where
+  each class keeps its field count and first field by checking which positions add up to the file's
+  totals and cover every field exactly once, instead of trusting one fixed layout. Checked on a real
+  format-39 (Unity 6) file: 37,181 classes and 164,280 fields. Types live in GameAssembly.dll and
+  show as `?`. Protected or encrypted metadata is refused with a clear message, never decrypted.
+- **Unreal engine version** from the game's exe (`++UE4+Release-4.27` style text), with a tip for
+  UE5 (positions are 64-bit doubles). Checked on real UE 4.19 and 5.7 games.
+- `game_classes` says when a game's code includes anti-cheat parts (so it's probably online).
+
+### Changed
+- Name search hides compiler-made helper classes, shows C# property storage
+  (`<Health>k__BackingField`) as `Health`, and lists field-name matches before class-name matches.
+- Checked the Unity Mono reader on a real Unity game (643 classes, types read correctly).
+- The roadmap moves the Unreal object reader to 0.9.3 (it needs a running game to test).
+
 ## [0.9.1] - 2026-11-07
 
 ### Added
