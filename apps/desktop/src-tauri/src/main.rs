@@ -9,6 +9,8 @@ mod library;
 mod overlay;
 mod remote;
 mod saves;
+mod sharing;
+mod updates;
 
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tracing::{info, warn};
@@ -52,11 +54,26 @@ fn main() {
     }
 
     let app = tauri::Builder::default()
+        // A second start (e.g. double-clicking an .otpack) hands its file to
+        // the running OpenTrainer instead of opening another window.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.set_focus();
+            }
+            if let Some(path) = sharing::otpack_arg(argv) {
+                sharing::open_from_shell(app, path);
+            }
+        }))
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::AppState::default())
         .manage(saves::SavesState::open(ot_saves::default_root()))
         .manage(ai::AiState::default())
         .manage(library::LibraryState::default())
         .manage(remote::RemoteState::default())
+        .manage(sharing::SharingState::default())
+        .manage(updates::UpdateState::default())
         .on_window_event(|window, event| {
             // Closing the main window closes OpenTrainer (and the overlay).
             if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
@@ -64,6 +81,10 @@ fn main() {
             }
         })
         .setup(move |app| {
+            if let Some(path) = sharing::otpack_arg(std::env::args()) {
+                sharing::open_from_shell(app.handle(), path);
+            }
+            updates::check_in_background(app.handle().clone());
             saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
                 // Undo code changes a crashed or killed earlier run left behind.
@@ -130,6 +151,19 @@ fn main() {
             commands::packs_list,
             commands::packs_folder,
             commands::open_packs_folder,
+            sharing::packs_pending_open,
+            sharing::packs_export,
+            sharing::packs_show_file,
+            sharing::packs_pick_otpack,
+            sharing::packs_preview,
+            sharing::packs_import,
+            sharing::packs_remove,
+            sharing::community_list,
+            sharing::community_preview,
+            sharing::community_install,
+            updates::update_status,
+            updates::update_check,
+            updates::update_install,
             commands::trainer_load,
             commands::trainer_state,
             commands::trainer_unload,
@@ -189,6 +223,8 @@ fn main() {
             ai::ai_answer,
             ai::ai_cancel,
             ai::ai_sign_in,
+            ai::ai_install,
+            ai::ai_uninstall,
         ])
         .build(tauri::generate_context!())
         .expect("error while building OpenTrainer");

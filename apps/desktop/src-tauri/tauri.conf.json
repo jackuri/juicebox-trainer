@@ -26,12 +26,52 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "OpenTrainer contributors",
+    "copyright": "Copyright (c) OpenTrainer contributors. MIT License.",
+    "category": "Utility",
+    "shortDescription": "Trainer and save manager for single-player PC games",
+    "longDescription": "Free, open-source trainer, save manager and AI cheat-pack maker for single-player PC games. Refuses games with anti-cheat.",
+    "homepage": "https://github.com/jackuri/opentrainer",
+    "license": "MIT",
+    "licenseFile": "../../../LICENSE",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.ico"
-    ]
+    ],
+    "resources": {
+      "../../../sidecars/ai-agent/dist/*.js": "ai-agent/",
+      "../../../sidecars/ai-agent/dist/package.json": "ai-agent/package.json"
+    },
+    "fileAssociations": [
+      {
+        "ext": [
+          "otpack"
+        ],
+        "name": "OpenTrainer pack",
+        "description": "OpenTrainer cheat pack",
+        "role": "Viewer",
+        "mimeType": "application/x-opentrainer-pack"
+      }
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBBNjlGQUUyQUIzRkRDQTUKUldTbDNEK3I0dnBwQ29zM2hRcU9qL290ZzZ6aGxqZytVbHF3dDJCT2tXQk5aZExmY0toYkgwZ0sK",
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

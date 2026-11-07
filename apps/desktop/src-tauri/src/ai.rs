@@ -2,10 +2,16 @@
 //! (`sidecars/ai-agent`), which runs the Claude Agent SDK with this app as its
 //! only tool server (`opentrainer-desktop --mcp`, the guarded ot-mcp tools),
 //! and relays its messages to the UI as `ai-event`s.
+//!
+//! In the installed app the helper's own scripts ship with OpenTrainer
+//! (`<install>\ai-agent`), but the Claude engine they need (Anthropic's Agent
+//! SDK, about 330 MB) isn't ours to ship: the player downloads it from npm on
+//! first use, into `%LOCALAPPDATA%\org.opentrainer.desktop\ai-helper`.
 
 use std::io::{BufRead, BufReader, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -32,6 +38,8 @@ struct Running {
 pub struct AiState {
     running: Arc<Mutex<Option<Running>>>,
     transcript: Arc<Mutex<Vec<Value>>>,
+    /// The engine download is running.
+    installing: AtomicBool,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -60,18 +68,10 @@ impl AiState {
     }
 }
 
-/// The sidecar script: `OT_AI_AGENT`, next to the exe, or the repo's build.
-fn sidecar_script() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("OT_AI_AGENT") {
-        return Some(PathBuf::from(p));
-    }
-    let beside = std::env::current_exe()
-        .ok()?
-        .parent()?
-        .join("ai-agent")
-        .join("index.js");
-    if beside.is_file() {
-        return Some(beside);
+/// The repository's build of the helper (development builds only).
+fn repo_script() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
     }
     let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -82,6 +82,98 @@ fn sidecar_script() -> Option<PathBuf> {
         .join("dist")
         .join("index.js");
     repo.is_file().then_some(repo)
+}
+
+/// The helper's scripts shipped with the app (`<exe folder>\ai-agent`).
+fn bundled_dir() -> Option<PathBuf> {
+    let dir = std::env::current_exe().ok()?.parent()?.join("ai-agent");
+    dir.join("package.json").is_file().then_some(dir)
+}
+
+/// Where the helper and its engine are downloaded to.
+fn local_dir() -> Option<PathBuf> {
+    std::env::var_os("LOCALAPPDATA").map(|d| {
+        PathBuf::from(d)
+            .join("org.opentrainer.desktop")
+            .join("ai-helper")
+    })
+}
+
+fn engine_in(dir: &Path) -> PathBuf {
+    dir.join("node_modules")
+        .join("@anthropic-ai")
+        .join("claude-agent-sdk-win32-x64")
+        .join("claude.exe")
+}
+
+/// The engine versions a helper folder asks for (its package.json's
+/// `dependencies`).
+fn wanted(dir: &Path) -> Option<Value> {
+    let text = std::fs::read_to_string(dir.join("package.json")).ok()?;
+    serde_json::from_str::<Value>(&text)
+        .ok()?
+        .get("dependencies")
+        .cloned()
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Download {
+    /// Development build or `OT_AI_AGENT`: nothing to download.
+    NotNeeded,
+    Missing,
+    /// This OpenTrainer needs another engine version.
+    Outdated,
+    Ready,
+}
+
+fn download_state() -> Download {
+    if std::env::var_os("OT_AI_AGENT").is_some() || repo_script().is_some() {
+        return Download::NotNeeded;
+    }
+    let (Some(bundled), Some(local)) = (bundled_dir(), local_dir()) else {
+        return Download::Missing;
+    };
+    if !engine_in(&local).is_file() || !local.join("index.js").is_file() {
+        return Download::Missing;
+    }
+    if wanted(&bundled) != wanted(&local) {
+        return Download::Outdated;
+    }
+    Download::Ready
+}
+
+/// Copies the shipped scripts over the downloaded copy when they differ
+/// (after OpenTrainer was updated). The engine is left alone.
+fn refresh_scripts() {
+    let (Some(bundled), Some(local)) = (bundled_dir(), local_dir()) else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(&bundled) else {
+        return;
+    };
+    for e in entries.flatten() {
+        let from = e.path();
+        if from.extension().is_some_and(|x| x == "js") {
+            let to = local.join(e.file_name());
+            if std::fs::read(&from).ok() != std::fs::read(&to).ok() {
+                let _ = std::fs::copy(&from, &to);
+            }
+        }
+    }
+}
+
+/// The sidecar script: `OT_AI_AGENT`, the repository's build (development),
+/// or the downloaded copy.
+fn sidecar_script() -> Option<PathBuf> {
+    if let Some(p) = std::env::var_os("OT_AI_AGENT") {
+        return Some(PathBuf::from(p));
+    }
+    if let Some(repo) = repo_script() {
+        return Some(repo);
+    }
+    let local = local_dir()?.join("index.js");
+    (download_state() == Download::Ready).then_some(local)
 }
 
 /// The Claude engine the Agent SDK runs (`claude.exe` from its Windows
@@ -150,20 +242,40 @@ pub struct AiStatus {
     pub available: bool,
     /// Why it isn't available, in plain words.
     pub problem: Option<String>,
+    /// The engine can be downloaded (`ai_install`) to fix the problem.
+    pub download: Download,
+    pub installing: bool,
     pub running: bool,
     pub transcript: Vec<Value>,
     /// Signed in to a Claude account (for the subscription option).
     pub signed_in: Option<bool>,
 }
 
+const NODE_MISSING: &str = "The AI helper needs Node.js (free). Install the LTS version from https://nodejs.org, then reopen OpenTrainer.";
+
 fn problem() -> Option<String> {
+    if !node_works() {
+        return Some(NODE_MISSING.into());
+    }
+    match download_state() {
+        Download::Missing => {
+            return Some(
+                "The AI helper's engine (from Anthropic, about 330 MB) isn't downloaded yet."
+                    .into(),
+            );
+        }
+        Download::Outdated => {
+            return Some(
+                "This version of OpenTrainer needs a newer AI engine (about 330 MB to download)."
+                    .into(),
+            );
+        }
+        Download::NotNeeded | Download::Ready => {}
+    }
     if sidecar_script().is_none() {
         return Some(
             "The AI helper isn't built yet. Run `npm run build:agent` (Try OpenTrainer.cmd does this).".into(),
         );
-    }
-    if !node_works() {
-        return Some("The AI helper needs Node.js. Install it from https://nodejs.org.".into());
     }
     None
 }
@@ -180,10 +292,107 @@ pub async fn ai_status(state: State<'_, AiState>) -> CmdResult<AiStatus> {
     Ok(AiStatus {
         available: problem.is_none(),
         problem,
+        download: download_state(),
+        installing: state.installing.load(Ordering::SeqCst),
         running,
         transcript,
         signed_in,
     })
+}
+
+/// Clears `installing` when the download ends, however it ends.
+struct InstallingFlag<'a>(&'a AtomicBool);
+
+impl Drop for InstallingFlag<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn install_engine(app: &AppHandle) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let say = |text: &str| {
+        let _ = app.emit("ai-install-progress", text);
+    };
+    let bundled = bundled_dir().ok_or("this copy of OpenTrainer has no AI helper scripts")?;
+    let local = local_dir().ok_or("%LOCALAPPDATA% is not set")?;
+    if !node_works() {
+        return Err(NODE_MISSING.into());
+    }
+    std::fs::create_dir_all(&local).map_err(|e| format!("{}: {e}", local.display()))?;
+    say("Copying the helper…");
+    for e in std::fs::read_dir(&bundled)
+        .map_err(|e| e.to_string())?
+        .flatten()
+    {
+        let from = e.path();
+        if from.extension().is_some_and(|x| x == "js" || x == "json") {
+            std::fs::copy(&from, local.join(e.file_name())).map_err(|e| e.to_string())?;
+        }
+    }
+    say("Downloading the engine from npm (about 330 MB, this can take a few minutes)…");
+    // Fixed arguments only: exact versions from package.json, no install
+    // scripts, nothing else.
+    let out = Command::new("cmd")
+        .args([
+            "/C",
+            "npm",
+            "install",
+            "--omit=dev",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+            "--no-package-lock",
+            "--loglevel=error",
+        ])
+        .current_dir(&local)
+        .creation_flags(CREATE_NO_WINDOW)
+        .stdin(Stdio::null())
+        .output()
+        .map_err(|e| format!("couldn't run npm: {e}"))?;
+    if !out.status.success() {
+        let err = String::from_utf8_lossy(&out.stderr);
+        let last: Vec<&str> = err.lines().filter(|l| !l.trim().is_empty()).collect();
+        let tail = last[last.len().saturating_sub(3)..].join(" ");
+        return Err(format!("the download failed: {tail}"));
+    }
+    if !engine_in(&local).is_file() {
+        return Err("the download finished but the engine isn't there; try again".into());
+    }
+    say("Done.");
+    Ok(())
+}
+
+/// Downloads the AI engine (after the player agreed).
+#[tauri::command]
+pub async fn ai_install(app: AppHandle, state: State<'_, AiState>) -> CmdResult<()> {
+    if state.installing.swap(true, Ordering::SeqCst) {
+        return Err(CommandError::new(
+            "aiInstalling",
+            "the AI engine is already downloading",
+        ));
+    }
+    let _flag = InstallingFlag(&state.installing);
+    let handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || install_engine(&handle))
+        .await
+        .map_err(|e| CommandError::new("io", e.to_string()))?
+        .map_err(|e| CommandError::new("aiInstall", e))
+}
+
+/// Deletes the downloaded AI engine (frees about 330 MB).
+#[tauri::command]
+pub async fn ai_uninstall(state: State<'_, AiState>) -> CmdResult<()> {
+    if lock(&state.running).is_some() || state.installing.load(Ordering::SeqCst) {
+        return Err(CommandError::new("aiRunning", "stop the AI helper first"));
+    }
+    let local =
+        local_dir().ok_or_else(|| CommandError::new("noAppData", "%LOCALAPPDATA% is not set"))?;
+    if local.is_dir() {
+        std::fs::remove_dir_all(&local)
+            .map_err(|e| CommandError::new("io", format!("{}: {e}", local.display())))?;
+    }
+    Ok(())
 }
 
 /// Opens a window where the player signs in to Claude (in their browser).
@@ -285,6 +494,7 @@ pub async fn ai_start(
         json!({ "pid": process.pid, "name": process.name, "exe": process.exe_path })
     };
 
+    refresh_scripts();
     let script =
         sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
     let exe = std::env::current_exe()

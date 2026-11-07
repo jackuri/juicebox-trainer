@@ -6,7 +6,7 @@
   "description": "OpenTrainer AI helper: drives the guarded ot-mcp tools with the Claude Agent SDK.",
   "license": "MIT",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/runtime-package.mjs",
     "typecheck": "tsc -p tsconfig.check.json",
     "test": "vitest run"
   },
