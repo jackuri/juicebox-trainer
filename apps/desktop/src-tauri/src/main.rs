@@ -3,6 +3,7 @@
 
 mod ai;
 mod commands;
+mod dialogs;
 mod gamepad;
 mod hotkeys;
 mod library;
@@ -155,6 +156,8 @@ fn main() {
             sharing::packs_export,
             sharing::packs_show_file,
             sharing::packs_pick_otpack,
+            dialogs::pick_folder,
+            dialogs::pick_exe,
             sharing::packs_preview,
             sharing::packs_import,
             sharing::packs_remove,

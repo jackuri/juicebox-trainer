@@ -119,14 +119,15 @@ pub async fn packs_show_file(path: String) -> CmdResult<()> {
 
 // ----- import ---------------------------------------------------------------
 
-/// Lets the player pick an `.otpack`. `None` if they cancelled.
+/// Lets the player pick an `.otpack` or a plain `pack.json`. `None` if they
+/// cancelled.
 #[tauri::command]
 pub async fn packs_pick_otpack(app: AppHandle) -> CmdResult<Option<String>> {
     let picked = app
         .dialog()
         .file()
         .set_title("Open a pack")
-        .add_filter("OpenTrainer pack", &[share::EXTENSION])
+        .add_filter("OpenTrainer pack", &[share::EXTENSION, "json"])
         .blocking_pick_file();
     picked
         .map(|p| p.into_path().map(|p| p.display().to_string()).map_err(io))
@@ -212,21 +213,12 @@ fn preview(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
     }
 }
 
+/// Opens an `.otpack` or a plain `pack.json`.
 fn open_otpack(path: &str) -> CmdResult<share::Opened> {
-    let p = Path::new(path);
-    if !p
-        .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case(share::EXTENSION))
-    {
-        return Err(CommandError::new(
-            "notOtpack",
-            format!("{path} isn't an .otpack file"),
-        ));
-    }
-    share::open_file(p).map_err(|e| CommandError::new("notOtpack", e.to_string()))
+    share::open_path(Path::new(path)).map_err(|e| CommandError::new("notOtpack", e.to_string()))
 }
 
-/// What an `.otpack` file contains.
+/// What an `.otpack` or `pack.json` file contains.
 #[tauri::command]
 pub async fn packs_preview(path: String) -> CmdResult<PackPreview> {
     let o = open_otpack(&path)?;
@@ -261,7 +253,7 @@ fn install(
     }
 }
 
-/// Installs an `.otpack`. A different pack for the same game is only
+/// Installs an `.otpack` or `pack.json`. A different pack for the same game is only
 /// replaced with `replace`.
 #[tauri::command]
 pub async fn packs_import(path: String, replace: bool) -> CmdResult<ImportResult> {

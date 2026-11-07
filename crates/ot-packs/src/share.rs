@@ -5,6 +5,8 @@
 //! two entries into memory, with size limits; nothing is unpacked to disk and
 //! nothing in it is run. The pack goes through the same validator as every
 //! other pack, so an imported pack can't do more than a hand-written one.
+//!
+//! A plain `pack.json` can be opened the same way ([`open_path`]).
 
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
@@ -47,7 +49,7 @@ pub enum ShareError {
     Io(String),
     #[error("this isn't an .otpack file ({0})")]
     NotOtpack(String),
-    #[error("the file is {0} bytes; .otpack files are limited to {MAX_FILE_BYTES}")]
+    #[error("the file is {0} bytes, too big to be a pack")]
     TooBig(u64),
     #[error("it was made by a newer OpenTrainer (format {0}); update OpenTrainer to open it")]
     Newer(u32),
@@ -160,6 +162,55 @@ pub fn open_file(path: &Path) -> Result<Opened, ShareError> {
     open(&std::fs::read(path).map_err(io)?)
 }
 
+/// Opens a plain `pack.json` (the file a pack folder holds, as shared on
+/// forums or in the community repository). Same size limit and validator as
+/// the `pack.json` inside an `.otpack`; the manifest is made up from the pack.
+pub fn open_pack_json(bytes: &[u8]) -> Result<Opened, ShareError> {
+    if bytes.len() as u64 > MAX_PACK_BYTES {
+        return Err(ShareError::TooBig(bytes.len() as u64));
+    }
+    // Notepad and some editors start UTF-8 files with a byte-order mark.
+    let bytes = bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes);
+    let text = String::from_utf8(bytes.to_vec())
+        .map_err(|_| ShareError::NotOtpack("the file isn't text".into()))?;
+    let (pack, warnings) = parse(&text)?;
+    let manifest = Manifest {
+        format: FORMAT,
+        pack_id: pack.game.id.clone(),
+        pack_version: pack.meta.pack_version.clone(),
+        exported: None,
+        app: None,
+    };
+    Ok(Opened {
+        manifest,
+        text,
+        pack,
+        warnings,
+    })
+}
+
+/// Opens an `.otpack` or a plain `.json` pack file, by extension.
+pub fn open_path(path: &Path) -> Result<Opened, ShareError> {
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase());
+    match ext.as_deref() {
+        Some(EXTENSION) => open_file(path),
+        Some("json") => {
+            let io = |e: std::io::Error| ShareError::Io(format!("{}: {e}", path.display()));
+            let len = std::fs::metadata(path).map_err(io)?.len();
+            if len > MAX_PACK_BYTES {
+                return Err(ShareError::TooBig(len));
+            }
+            open_pack_json(&std::fs::read(path).map_err(io)?)
+        }
+        _ => Err(ShareError::NotOtpack(format!(
+            "{} isn't an .otpack or pack.json file",
+            path.display()
+        ))),
+    }
+}
+
 /// A file name for an exported pack: `<id>-<version>.otpack`.
 pub fn file_name(pack: &Pack) -> String {
     let version: String = pack
@@ -225,6 +276,49 @@ mod tests {
             zip.write_all(data).unwrap();
         }
         zip.finish().unwrap().into_inner()
+    }
+
+    #[test]
+    fn opens_plain_pack_json() {
+        let opened = open_pack_json(sample().as_bytes()).unwrap();
+        assert_eq!(opened.text, sample());
+        assert_eq!(opened.manifest.pack_id, "testbed-native");
+        assert!(opened.manifest.app.is_none());
+
+        let mut bom = b"\xEF\xBB\xBF".to_vec();
+        bom.extend_from_slice(sample().as_bytes());
+        assert_eq!(open_pack_json(&bom).unwrap().text, sample());
+
+        assert!(matches!(
+            open_pack_json(b"{\"schema\":1}"),
+            Err(ShareError::Invalid(_))
+        ));
+        assert!(matches!(
+            open_pack_json(&[0xFF, 0xFE, 0x00]),
+            Err(ShareError::NotOtpack(_))
+        ));
+        let big = vec![b' '; (MAX_PACK_BYTES + 1) as usize];
+        assert!(matches!(open_pack_json(&big), Err(ShareError::TooBig(_))));
+    }
+
+    #[test]
+    fn opens_files_by_extension() {
+        let dir = std::env::temp_dir().join(format!("ot-share-path-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let json = dir.join("pack.JSON");
+        std::fs::write(&json, sample()).unwrap();
+        let otpack = dir.join("x.otpack");
+        std::fs::write(&otpack, export(sample(), "1.1.0", "2026-11-07").unwrap()).unwrap();
+        let other = dir.join("x.txt");
+        std::fs::write(&other, sample()).unwrap();
+
+        assert_eq!(open_path(&json).unwrap().text, sample());
+        assert_eq!(open_path(&otpack).unwrap().text, sample());
+        assert!(matches!(open_path(&other), Err(ShareError::NotOtpack(_))));
+        // A pack.json renamed to .otpack is still refused (it isn't a zip).
+        std::fs::write(&otpack, sample()).unwrap();
+        assert!(matches!(open_path(&otpack), Err(ShareError::NotOtpack(_))));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
