@@ -241,7 +241,8 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.6.0 | Saves I | Locator, snapshots on launch/exit, restore, diff, Steam Cloud warnings |
 | 0.7.0 | Saves II | Codecs (JSON/INI/gzip/zlib/Base64/GVAS/PlayerPrefs), structured editor, hex fallback, checksum fixers, quick codes. SQLite moved to a later version (large dependency; user chose to wait) |
 | 0.8.0 | AI I | ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on testbed. `find_what_writes` and local models moved to 0.9.0 |
-| 0.9.0 | AI II | REA + `um` integration, engine fast paths (Unity Mono, IL2CPP, Unreal), self-healing, save diff labelling |
+| 0.9.0 | AI II | `find_what_writes` (hardware breakpoints) and code-patch cheats, self-healing packs, engine recon (+ optional `um scan`), AI save diff labelling |
+| 0.9.1 | AI III | Engine fast paths (Unity Mono, IL2CPP, Unreal), REA integration, local models (Ollama / LM Studio) |
 | 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets, library auto-detect + launch |
 | 1.0.0 | Release | Installer, code signing, auto-update, docs, `.otpack` import/export, MIT release on GitHub |
 

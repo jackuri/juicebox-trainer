@@ -1,9 +1,10 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.8.0_
+_Last updated: 2026-11-07 — v0.9.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.8.0 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.8.0 (pushed and tagged). v0.9.0
+  is committed locally and not pushed yet.
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -26,16 +27,18 @@ _Last updated: 2026-11-07 — v0.8.0_
   permissions, isolated settings, budget cap), "Make a trainer (AI)" view with step-by-step
   Done / Yes / No prompts. Live test drives a whole agent session against the testbed. PLAN §8
   decisions recorded.
+- v0.9.0 AI II: find what writes (hardware breakpoints, x64 + WOW64, live-tested), AI code-patch
+  cheats (watch tools + prompt), pack repair (heal, Trainer "Try to repair", `pack_heal`), engine
+  detection (`game_recon`, optional `um scan`), "Explain with AI" for save comparisons.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.8.0 as planned.
+- Nothing. Stopped after v0.9.0 as planned.
 
 ## Next
-- v0.9.0 AI II (PLAN §6): REA + `um` integration, engine fast paths (Unity Mono, IL2CPP, Unreal),
-  self-healing packs, save diff labelling. Also: `find_what_writes` (hardware breakpoints) so the
-  agent can make code patches, and local models (Ollama / LM Studio).
+- v0.9.1 AI III (PLAN §6): engine fast paths (Unity Mono / IL2CPP / Unreal object readers), REA as an
+  optional analysis backend, local models (Ollama / LM Studio).
 - Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
@@ -44,6 +47,16 @@ _Last updated: 2026-11-07 — v0.8.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- The v0.9.0 AI features (code cheats via find-what-writes, repair, explain a save) are tested with
+  the tool server against the testbed and with a stand-in for Claude, but haven't had a real Claude
+  run yet.
+- Find what writes attaches as a debugger. Single-player games with DRM that refuses debuggers may
+  close or complain; OpenTrainer doesn't hide from them (by design). Only one debugger can attach,
+  so it fails if another (e.g. Visual Studio) is attached.
+- Pack repair needs the cheat's code to still exist and look mostly the same (60% of the old
+  signature's fixed bytes); static-address value cheats need a new pointer scan instead.
+- `um scan` is only used when `um` is a Windows command (`um.exe`/`um.cmd`/`um.bat`); the plugin's
+  bash launcher isn't called.
 - Real AI runs (user approved): the first stopped at "Not logged in" (the Claude desktop app's
   sign-in isn't shared with the Agent SDK's engine), so the sign-in check and button were added.
   After the user signed in, a full session on the testbed (scripted player) found gold, used two
@@ -52,9 +65,6 @@ _Last updated: 2026-11-07 — v0.8.0_
   revert_all; fixed (cheat_set keeps the original value).
 - The AI helper needs Node.js and, for the subscription, a signed-in Claude Code on the PC. API keys
   are read from the `ANTHROPIC_API_KEY` environment variable; the app doesn't store keys.
-- Without `find_what_writes`, AI cheats are value cheats via pointer paths (and patches only where
-  the agent can find a signature another way); pointer scans can return many paths, so the helper
-  may ask the player to restart the game once.
 - The Agent SDK's Windows engine is about 330 MB in `node_modules` (and in CI installs).
 - The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
   through by hand yet (covered by frontend tests and live tests against the testbed).

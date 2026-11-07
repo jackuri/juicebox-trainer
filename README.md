@@ -166,6 +166,21 @@ The helper can only use OpenTrainer's guarded tools: it can't run programs or re
 refuses games with anti-cheat, and its test changes are undone when it stops. Every step it takes is
 logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
 
+For "infinite" cheats the helper finds the game code that changes the value (it briefly attaches as
+a debugger while you, say, take some damage) and turns that code off, so it rarely needs a restart.
+
+## When a game update breaks a pack
+
+Load the pack on the **Trainer** tab. If some cheats show as failed, click **Try to repair**:
+OpenTrainer looks for the same code in the new version, and saves a repaired copy of the pack (your
+old one is kept as `pack.json.bak`).
+
+## Ask the AI what changed in a save
+
+In **Save backups**, make a backup, do something in the game and save, then click **Compare with
+now** on that backup and **Explain with AI**. The helper tells you which values changed and what they
+probably are ("this is your gold").
+
 ## If OpenTrainer crashes
 
 Changes to game code are written down before they are made

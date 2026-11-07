@@ -4,6 +4,32 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-11-07
+
+### Added
+- **Find what writes to an address** (`ot_core::writes`): OpenTrainer attaches as a debugger (visibly;
+  it doesn't hide), sets a hardware write breakpoint on the value in every thread, and lists the
+  instructions that wrote to it while the player played. Nothing in the game is changed; the
+  breakpoints are cleared and the debugger leaves without closing the game. x64 and 32-bit games.
+- **Code-patch cheats from the AI helper**: new tools `watch_writes_start` / `watch_writes_stop`
+  (with a ready-made patch idea: the instruction's bytes replaced by NOPs). The helper now prefers
+  this for "infinite" cheats, which needs no game restarts.
+- **Pack repair after game updates** (`ot_packs::heal`, Trainer tab **Try to repair**, AI tool
+  `pack_heal`): cheats whose signature stopped matching are found again by the closest match in the
+  new code (only a single clear winner above 60% is accepted), get a fresh unique signature, and the
+  pack is saved as your copy with a bumped version and the new build's hash (old file kept as
+  `pack.json.bak`).
+- **Engine detection** (`ot_core::engine`, AI tool `game_recon`): Unity (Mono / IL2CPP, with the
+  Unity version), Unreal, Godot, GameMaker, Ren'Py, RPG Maker MV/MZ and XP/VX, XNA/FNA/MonoGame, with
+  tips for finding cheats in each. Adds `um scan --json` output when the universal-modder `um`
+  command is installed (optional).
+- **Explain with AI** on a save comparison (backup vs now): the helper reads the diff with read-only
+  save tools and labels each change in plain words ("player.gold went from 250 to 300: your gold").
+
+### Changed
+- The roadmap splits AI II: engine fast paths (Mono / IL2CPP / Unreal readers), REA and local models
+  move to 0.9.1.
+
 ## [0.8.0] - 2026-11-07
 
 ### Added
