@@ -57,9 +57,10 @@ _Last updated: 2026-11-07 — v1.0.0_
   works.
 
 ## In progress
-- v1.0.0 is committed locally, waiting for the user's test and "push and tag". The community packs
-  repository (`jackuri/opentrainer-packs`) is prepared but not created; it needs the user's OK
-  (it would be public).
+- v1.0.0 is committed locally, waiting for the user's test and "push and tag".
+- The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
+  (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
+  pack were downloaded, the SHA-256 matched and `otpack validate` passed.
 
 ## Next
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
@@ -81,7 +82,8 @@ _Last updated: 2026-11-07 — v1.0.0_
   password); losing it means installed copies can't update.
 - The installer isn't code-signed, so Windows shows "Windows protected your PC" (More info → Run
   anyway).
-- The community list shows "isn't online yet" until `jackuri/opentrainer-packs` exists.
+- The community packs repository links to `jackuri/opentrainer`, which is private, so visitors
+  get "page not found" there until this repository is public.
 - The AI engine download pins the SDK and zod to the tested versions, but not their own
   dependencies (about 105 packages from npm, no lockfile).
 - GitHub release assets of a private repository need a sign-in to download, so the releases page
