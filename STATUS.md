@@ -3,8 +3,9 @@
 _Last updated: 2026-11-06 — v0.5.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.4.0. v0.5.0 is committed locally
-  and not pushed yet.
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.5.0 (pushed and tagged).
+- `Try OpenTrainer.cmd` checked by hand: it opens the testbed and the app (after the leftover-server
+  fix).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
