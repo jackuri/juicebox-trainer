@@ -3,7 +3,7 @@
 _Last updated: 2026-11-07 — v0.9.3_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.9.2 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.9.3 (pushed and tagged).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -44,7 +44,7 @@ _Last updated: 2026-11-07 — v0.9.3_
   works.
 
 ## In progress
-- Nothing. v0.9.3 is committed locally, waiting for "push and tag".
+- Nothing. Stopped after v0.9.3 as planned.
 
 ## Next
 - 0.10.0 Extras (PLAN §6).
