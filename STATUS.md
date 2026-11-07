@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.9.2_
+_Last updated: 2026-11-07 — v0.9.3_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.9.2 (pushed and tagged).
@@ -36,16 +36,18 @@ _Last updated: 2026-11-07 — v0.9.2_
   game not started), Unreal version + tips (verified on real UE 4.19 / 5.7 exes), anti-cheat note in
   game_classes, better name search. Manual probes (`OT_IL2CPP_PROBE`, `OT_DOTNET_PROBE`, ignored
   tests) read a real game's files on this PC; no game data is committed.
+- v0.9.3 AI V: Unreal object reader (`unreal_find`): classes, properties (type + offset) and live
+  object values for UE 4.23+ / UE5 games, self-calibrating layout, memory-search fallback when the
+  object list can't be read directly (no decoding). Tested read-only on Species: Unknown (UE 5.7,
+  solo): 12,592 classes, player Health / MaxHealth found.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.9.2 as planned.
+- Nothing. v0.9.3 is committed locally, waiting for "push and tag".
 
 ## Next
-- v0.9.3 AI V (PLAN §6): Unreal object/property reader in a running game. Needs the user's OK to start
-  a single-player Unreal game they own (candidates found: Captain Hardcore, UE 4.19; Species: Unknown,
-  UE 5.7). Then 0.10.0 Extras.
+- 0.10.0 Extras (PLAN §6).
 - Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
@@ -54,6 +56,10 @@ _Last updated: 2026-11-07 — v0.9.2_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- Unreal: games whose object list can't be read directly (e.g. Species: Unknown) use the slower
+  memory search; the first `unreal_find` there took about 6 minutes (the game's memory is paged in
+  from disk). Results are kept for the session. UE 4.22 and older (a different name list) aren't
+  read; Captain Hardcore (UE 4.19) wasn't tried. No real AI run of `unreal_find` yet.
 - Local AI (Ollama / LM Studio) and the analysis server are wired and unit-tested but not run for
   real here (neither is installed on this PC). Ollama's Claude-compatible API doesn't support
   tool_choice or prompt caching; the helper doesn't need them.

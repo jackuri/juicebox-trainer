@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.3] - 2026-11-07
+
+### Added
+- **Unreal object reader** (`ot_core::unreal`, AI tool `unreal_find`) for UE 4.23+ and UE5 games
+  while they run. It reads the engine's name list and its classes, then lists the game's classes and
+  properties by name (e.g. "Health") with their types and offsets, and reads the live objects of a
+  class with their values and addresses. Object layout (where a class keeps its parent and
+  properties) is worked out from well-known engine classes instead of fixed offsets.
+- **Slower search**: when a game's object list can't be read directly, the reader finds classes and
+  objects by searching the game's memory, like the value scanner does. It doesn't decode or get
+  around anything. The first search can take several minutes on a big game; the result is kept for
+  the rest of the session, so later searches are quick.
+- Tested on a real single-player UE 5.7 game (played solo, read-only): 12,592 classes and structs,
+  the player character's `Health` and `MaxHealth` found with the right offsets.
+
+### Changed
+- Unreal tips in `game_recon` point the AI to `unreal_find`.
+- `ot-core` is built optimized in development builds and tests (memory scans walk gigabytes).
+
 ## [0.9.2] - 2026-11-07
 
 ### Added
