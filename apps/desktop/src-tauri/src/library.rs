@@ -1,0 +1,456 @@
+//! Games library: installed games (Steam, Epic, GOG, Xbox, the player's own)
+//! with their pack and anti-cheat status, and "Play with cheats": start the
+//! game, wait for it, attach, load its pack and apply the chosen preset.
+//!
+//! Games the anti-cheat guard blocks are shown as blocked and can't be
+//! started from here. Attaching still goes through ot-core's guard.
+
+use std::collections::{HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
+
+use ot_saves::installs::{self, Install, Launch, OwnGame};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager, State};
+use windows::Win32::UI::Shell::ShellExecuteW;
+use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+use windows::core::{HSTRING, PCWSTR, w};
+
+use crate::commands::{self, AppState, CmdResult, CommandError, SessionInfo, TrainerView};
+use crate::saves::SavesState;
+
+#[derive(Debug, Default)]
+pub struct LibraryState {
+    busy: AtomicBool,
+    cancel: AtomicBool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackRef {
+    pub key: String,
+    pub name: String,
+    pub ai: bool,
+    pub exe: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LibraryGame {
+    #[serde(flatten)]
+    pub install: Install,
+    pub pack: Option<PackRef>,
+    pub presets: Vec<String>,
+    pub auto_preset: Option<String>,
+    /// Why the anti-cheat guard blocks this game, if it does.
+    pub blocked: Option<String>,
+}
+
+/// `%APPDATA%\OpenTrainer` (the player's own games list lives here).
+fn app_dir() -> Option<PathBuf> {
+    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("OpenTrainer"))
+}
+
+/// Valid packs by exe name (lowercase). The player's packs win over the
+/// built-in examples.
+fn packs_by_exe() -> HashMap<String, (PackRef, String)> {
+    let mut out = HashMap::new();
+    for found in ot_packs::store::all() {
+        let Ok(text) = found.text else { continue };
+        let Ok((pack, _)) = ot_packs::parse(&text) else {
+            continue;
+        };
+        out.insert(
+            pack.game.exe.to_lowercase(),
+            (
+                PackRef {
+                    key: found.key,
+                    name: pack.game.name,
+                    ai: pack.meta.is_ai(),
+                    exe: pack.game.exe,
+                },
+                pack.game.id,
+            ),
+        );
+    }
+    out
+}
+
+fn describe(
+    install: Install,
+    packs: &HashMap<String, (PackRef, String)>,
+    settings_dir: Option<&Path>,
+) -> LibraryGame {
+    let mut exes: Vec<PathBuf> = installs::exes_in(Path::new(&install.folder))
+        .into_iter()
+        .map(|(p, _)| p)
+        .collect();
+    if let Some(e) = &install.exe {
+        exes.insert(0, PathBuf::from(e));
+    }
+    let found = exes.iter().find_map(|e| {
+        let name = e.file_name()?.to_string_lossy().to_lowercase();
+        packs.get(&name)
+    });
+    let (presets, auto_preset) = match (found, settings_dir) {
+        (Some((_, id)), Some(dir)) => {
+            let s = ot_packs::settings::load(dir, id);
+            (
+                s.presets.into_iter().map(|p| p.name).collect(),
+                s.auto_preset,
+            )
+        }
+        _ => (Vec::new(), None),
+    };
+    let probe = exes
+        .first()
+        .cloned()
+        .unwrap_or_else(|| Path::new(&install.folder).join("game.exe"));
+    let verdict = ot_core::guard::check_install(&probe);
+    let blocked = (!verdict.allowed).then(|| {
+        let names: Vec<&str> = verdict
+            .findings
+            .iter()
+            .map(|f| f.product.as_str())
+            .collect();
+        if names.is_empty() {
+            "anti-cheat found".to_string()
+        } else {
+            format!("anti-cheat found: {}", names.join(", "))
+        }
+    });
+    LibraryGame {
+        install,
+        pack: found.map(|(p, _)| p.clone()),
+        presets,
+        auto_preset,
+        blocked,
+    }
+}
+
+fn all_installs() -> Vec<Install> {
+    let mut all = installs::detect();
+    if let Some(dir) = app_dir() {
+        all.extend(installs::load_own(&dir).iter().map(OwnGame::install));
+    }
+    all
+}
+
+fn list(settings_dir: Option<&Path>) -> Vec<LibraryGame> {
+    let packs = packs_by_exe();
+    let mut games: Vec<LibraryGame> = all_installs()
+        .into_iter()
+        .map(|i| describe(i, &packs, settings_dir))
+        .collect();
+    // Games with a pack first, then by name.
+    games.sort_by_key(|g| (g.pack.is_none(), g.install.name.to_lowercase()));
+    games
+}
+
+fn blocking_err(e: impl std::fmt::Display) -> CommandError {
+    CommandError::new("io", e.to_string())
+}
+
+#[tauri::command]
+pub async fn library_list(state: State<'_, AppState>) -> CmdResult<Vec<LibraryGame>> {
+    let dir = state.settings_dir.get().cloned();
+    tauri::async_runtime::spawn_blocking(move || list(dir.as_deref()))
+        .await
+        .map_err(blocking_err)
+}
+
+/// Adds a game by its exe path.
+#[tauri::command]
+pub async fn library_add(exe: String) -> CmdResult<()> {
+    let dir = app_dir().ok_or_else(|| CommandError::new("io", "%APPDATA% is not set"))?;
+    let game = installs::own_game(Path::new(exe.trim().trim_matches('"')))
+        .map_err(|e| CommandError::new("io", e))?;
+    let mut own = installs::load_own(&dir);
+    own.retain(|g| !g.exe.eq_ignore_ascii_case(&game.exe));
+    own.push(game);
+    installs::save_own(&dir, &own).map_err(blocking_err)
+}
+
+/// Removes a game the player added (store games can't be removed).
+#[tauri::command]
+pub async fn library_remove(id: String) -> CmdResult<()> {
+    let dir = app_dir().ok_or_else(|| CommandError::new("io", "%APPDATA% is not set"))?;
+    let mut own = installs::load_own(&dir);
+    own.retain(|g| g.install().id != id);
+    installs::save_own(&dir, &own).map_err(blocking_err)
+}
+
+#[tauri::command]
+pub async fn library_open_folder(id: String) -> CmdResult<()> {
+    let game = all_installs()
+        .into_iter()
+        .find(|g| g.id == id)
+        .ok_or_else(|| CommandError::new("notFound", "that game isn't installed any more"))?;
+    std::process::Command::new("explorer.exe")
+        .arg(&game.folder)
+        .spawn()
+        .map_err(blocking_err)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn library_cancel(lib: State<'_, LibraryState>) {
+    lib.cancel.store(true, Ordering::SeqCst);
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlayResult {
+    pub session: SessionInfo,
+    pub trainer: Option<TrainerView>,
+    /// The preset that was applied.
+    pub preset: Option<String>,
+}
+
+fn progress(app: &AppHandle, message: &str) {
+    let _ = app.emit("library-progress", message);
+}
+
+fn launch(launch: &Launch) -> CmdResult<()> {
+    let (target, dir) = match launch {
+        Launch::Uri(u) => (u.clone(), None),
+        Launch::Exe(e) => (
+            e.clone(),
+            Path::new(e).parent().map(|d| HSTRING::from(d.as_os_str())),
+        ),
+        Launch::Manual => return Ok(()),
+    };
+    let target = HSTRING::from(target);
+    let dir_ptr = dir.as_ref().map_or(PCWSTR::null(), |d| PCWSTR(d.as_ptr()));
+    // SAFETY: plain ShellExecuteW with NUL-terminated wide strings that
+    // outlive the call. The target comes from the store's own listing or the
+    // player's own game list.
+    let r = unsafe {
+        ShellExecuteW(
+            None,
+            w!("open"),
+            PCWSTR(target.as_ptr()),
+            PCWSTR::null(),
+            dir_ptr,
+            SW_SHOWNORMAL,
+        )
+    };
+    if r.0 as isize <= 32 {
+        return Err(CommandError::new(
+            "launch",
+            "Windows couldn't start the game",
+        ));
+    }
+    Ok(())
+}
+
+/// Running processes whose exe is inside `folder`.
+fn running_in(folder: &str) -> Vec<ot_core::ProcessInfo> {
+    let prefix = format!(
+        "{}\\",
+        folder
+            .replace('/', "\\")
+            .trim_end_matches('\\')
+            .to_lowercase()
+    );
+    ot_core::list_processes()
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|p| {
+            p.exe_path
+                .as_ref()
+                .is_some_and(|e| e.replace('/', "\\").to_lowercase().starts_with(&prefix))
+        })
+        .collect()
+}
+
+/// The game's main process: the pack's exe if it's running, else the one
+/// with the biggest exe (a launcher or bootstrap exe is small).
+fn pick(procs: &[ot_core::ProcessInfo], pack_exe: Option<&str>) -> Option<u32> {
+    if let Some(want) = pack_exe
+        && let Some(p) = procs.iter().find(|p| p.name.eq_ignore_ascii_case(want))
+    {
+        return Some(p.pid);
+    }
+    procs
+        .iter()
+        .max_by_key(|p| {
+            p.exe_path
+                .as_ref()
+                .and_then(|e| std::fs::metadata(e).ok())
+                .map_or(0, |m| m.len())
+        })
+        .map(|p| p.pid)
+}
+
+struct Busy<'a>(&'a AtomicBool);
+impl Drop for Busy<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+}
+
+fn play(app: &AppHandle, id: &str) -> CmdResult<PlayResult> {
+    let lib = app.state::<LibraryState>();
+    if lib.busy.swap(true, Ordering::SeqCst) {
+        return Err(CommandError::new("busy", "a game is already being started"));
+    }
+    let _busy = Busy(&lib.busy);
+    lib.cancel.store(false, Ordering::SeqCst);
+    let state = app.state::<AppState>();
+    let install = all_installs()
+        .into_iter()
+        .find(|g| g.id == id)
+        .ok_or_else(|| CommandError::new("notFound", "that game isn't installed any more"))?;
+    let game = describe(
+        install,
+        &packs_by_exe(),
+        state.settings_dir.get().map(PathBuf::as_path),
+    );
+    if let Some(why) = &game.blocked {
+        return Err(CommandError::new(
+            "blocked",
+            format!(
+                "OpenTrainer won't start {} with cheats ({why}). It's for single-player games only.",
+                game.install.name
+            ),
+        ));
+    }
+    let name = game.install.name.clone();
+    let folder = game.install.folder.clone();
+    let pack_exe = game.pack.as_ref().map(|p| p.exe.clone());
+
+    let already: HashSet<u32> = running_in(&folder).iter().map(|p| p.pid).collect();
+    let manual = matches!(game.install.launch, Launch::Manual);
+    if already.is_empty() {
+        launch(&game.install.launch)?;
+        progress(
+            app,
+            &if manual {
+                format!(
+                    "Start {name} yourself (e.g. from the Xbox app). OpenTrainer is waiting for it…"
+                )
+            } else {
+                format!("Starting {name}… (waiting for it to open)")
+            },
+        );
+    } else {
+        progress(app, &format!("{name} is already running."));
+    }
+    let limit = Duration::from_secs(if manual { 600 } else { 300 });
+    let started = Instant::now();
+    let pid = loop {
+        if lib.cancel.load(Ordering::SeqCst) {
+            return Err(CommandError::new(
+                "cancelled",
+                "stopped waiting for the game",
+            ));
+        }
+        if started.elapsed() > limit {
+            return Err(CommandError::new(
+                "timeout",
+                format!("{name} didn't start. Start it yourself, then attach from the Cheats tab."),
+            ));
+        }
+        if !running_in(&folder).is_empty() {
+            // Give a launcher a moment to start the real game.
+            if already.is_empty() {
+                std::thread::sleep(Duration::from_secs(4));
+            }
+            if let Some(pid) = pick(&running_in(&folder), pack_exe.as_deref()) {
+                break pid;
+            }
+        }
+        std::thread::sleep(Duration::from_secs(1));
+    };
+
+    progress(app, &format!("Attaching to {name}…"));
+    let saves = app.state::<SavesState>();
+    let mut tries = 0;
+    let session = loop {
+        match commands::attach_pid(&state, &saves, pid) {
+            Ok(s) => break s,
+            // A game that's still starting can refuse at first; anti-cheat
+            // refusals are final.
+            Err(e) if e.kind != "blocked" && tries < 3 => {
+                tries += 1;
+                std::thread::sleep(Duration::from_secs(2));
+            }
+            Err(e) => return Err(e),
+        }
+    };
+    let _ = app.emit("trainer-changed", "library");
+
+    let Some(pack) = game.pack else {
+        return Ok(PlayResult {
+            session,
+            trainer: None,
+            preset: None,
+        });
+    };
+    progress(app, &format!("Loading {}…", pack.name));
+    let mut trainer = Some(commands::load_key(&state, pack.key)?);
+    let preset = game.auto_preset;
+    if let Some(p) = &preset {
+        let (view, waiting) = commands::apply_preset(&state, p)?;
+        trainer = Some(view);
+        if let Some(w) = waiting {
+            commands::retry_in_background(app.clone(), w);
+        }
+    }
+    Ok(PlayResult {
+        session,
+        trainer,
+        preset,
+    })
+}
+
+/// "Play with cheats": starts the game (or uses it if it's running), waits
+/// for it, attaches, loads its pack and applies its start preset.
+#[tauri::command]
+pub async fn library_play(id: String, app: AppHandle) -> CmdResult<PlayResult> {
+    tauri::async_runtime::spawn_blocking(move || play(&app, &id))
+        .await
+        .map_err(blocking_err)?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn proc(pid: u32, name: &str, exe: Option<&str>) -> ot_core::ProcessInfo {
+        ot_core::ProcessInfo {
+            pid,
+            parent_pid: 0,
+            name: name.into(),
+            exe_path: exe.map(str::to_string),
+            arch: ot_core::Arch::X64,
+            threads: 1,
+        }
+    }
+
+    #[test]
+    fn picks_the_packs_exe_then_the_biggest() {
+        let dir = std::env::current_exe().unwrap();
+        let big = dir.display().to_string();
+        let procs = [
+            proc(1, "Launcher.exe", Some(r"C:\nope\Launcher.exe")),
+            proc(2, "game.exe", Some(&big)),
+        ];
+        assert_eq!(pick(&procs, Some("launcher.exe")), Some(1));
+        assert_eq!(pick(&procs, None), Some(2));
+        assert_eq!(pick(&[], None), None);
+    }
+
+    #[test]
+    fn lists_games_with_pack_and_guard_status() {
+        // Whatever is installed here: it must not fail, and every blocked
+        // game says why.
+        for g in list(None) {
+            if let Some(why) = &g.blocked {
+                assert!(why.starts_with("anti-cheat"), "{why}");
+            }
+        }
+    }
+}

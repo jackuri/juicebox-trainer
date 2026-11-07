@@ -3,10 +3,14 @@
 
 mod ai;
 mod commands;
+mod gamepad;
 mod hotkeys;
+mod library;
+mod overlay;
+mod remote;
 mod saves;
 
-use tauri::{Emitter, Manager, RunEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
@@ -51,6 +55,14 @@ fn main() {
         .manage(commands::AppState::default())
         .manage(saves::SavesState::open(ot_saves::default_root()))
         .manage(ai::AiState::default())
+        .manage(library::LibraryState::default())
+        .manage(remote::RemoteState::default())
+        .on_window_event(|window, event| {
+            // Closing the main window closes OpenTrainer (and the overlay).
+            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
         .setup(move |app| {
             saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
@@ -79,6 +91,18 @@ fn main() {
                 let _ = handle.emit("trainer-changed", cheat);
             }))?;
             let _ = app.state::<commands::AppState>().hotkeys.set(service);
+            let handle = app.handle().clone();
+            let pads = gamepad::PadService::start(Box::new(move |generation, cheat| {
+                handle
+                    .state::<commands::AppState>()
+                    .on_pad(generation, cheat);
+                let _ = handle.emit("trainer-changed", cheat);
+            }))?;
+            let state = app.state::<commands::AppState>();
+            let _ = state.pads.set(pads);
+            if let Some(dir) = ot_packs::settings::default_dir() {
+                let _ = state.settings_dir.set(dir);
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -114,6 +138,26 @@ fn main() {
             commands::trainer_release,
             commands::trainer_press,
             commands::trainer_repair,
+            commands::preset_apply,
+            commands::preset_save,
+            commands::preset_delete,
+            commands::preset_auto,
+            commands::cheat_note,
+            commands::cheat_favourite,
+            commands::cheat_key,
+            commands::cheat_pad,
+            library::library_list,
+            library::library_add,
+            library::library_remove,
+            library::library_open_folder,
+            library::library_cancel,
+            library::library_play,
+            overlay::overlay_set,
+            overlay::overlay_visible,
+            remote::remote_start,
+            remote::remote_stop,
+            remote::remote_status,
+            remote::remote_forget,
             commands::pointer_scan,
             commands::pointer_filter,
             commands::pointer_results,
@@ -153,6 +197,7 @@ fn main() {
         if let RunEvent::Exit = event {
             // Restore patches and stop freezes before the process ends.
             app.state::<ai::AiState>().shutdown();
+            app.state::<remote::RemoteState>().stop();
             app.state::<commands::AppState>().shutdown();
         }
     });

@@ -15,11 +15,13 @@ use ot_core::{
     ScanOptions, Value, ValueType, Verdict,
 };
 use ot_packs::schema::PackArch;
+use ot_packs::settings::{self, GameSettings, PresetCheat};
 use ot_packs::{BuildMatch, CheatState, Issue, LoadError, Pack, Trainer, store};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tracing::warn;
 
+use crate::gamepad::{PadRegistration, PadService};
 use crate::hotkeys::{HotkeyService, Registration};
 
 /// App-wide state: at most one attached process.
@@ -30,6 +32,11 @@ pub struct AppState {
     scanning: AtomicBool,
     /// Set once at startup; absent in unit tests (packs load without hotkeys).
     pub hotkeys: OnceLock<HotkeyService>,
+    /// Controller chords. Set once at startup; absent in unit tests.
+    pub pads: OnceLock<PadService>,
+    /// Where per-game settings (presets, own keys) are kept. Absent in unit
+    /// tests, where settings live only in memory.
+    pub settings_dir: OnceLock<PathBuf>,
     /// Crash-safe journal folder for code changes. Set at startup; absent in
     /// unit tests.
     pub journal_dir: OnceLock<PathBuf>,
@@ -68,6 +75,13 @@ struct LoadedTrainer {
     warnings: Vec<Issue>,
     hotkey_errors: BTreeMap<String, String>,
     hotkeys: Option<Registration>,
+    pads: Option<PadRegistration>,
+    settings: GameSettings,
+    /// Preset cheats that couldn't be turned on yet (waiting for the game).
+    pending: Vec<String>,
+    /// Bumped by every change the player makes, so a waiting preset stops
+    /// retrying once they take over.
+    epoch: u64,
     trainer: Trainer,
 }
 
@@ -108,6 +122,11 @@ impl AppState {
     pub fn shutdown(&self) {
         self.scan_control.cancel();
         self.live().take();
+    }
+
+    /// The attached game's process id.
+    pub fn attached_pid(&self) -> Option<u32> {
+        self.live().as_ref().map(|l| l.process.pid())
     }
 
     fn live(&self) -> MutexGuard<'_, Option<Live>> {
@@ -176,7 +195,7 @@ fn not_attached() -> CommandError {
     CommandError::new("notAttached", "not attached to a process")
 }
 
-type CmdResult<T> = Result<T, CommandError>;
+pub type CmdResult<T> = Result<T, CommandError>;
 
 /// Runs `f` with the live session, then drops the session on fatal errors.
 fn with_live<T>(state: &AppState, f: impl FnOnce(&mut Live) -> CmdResult<T>) -> CmdResult<T> {
@@ -245,6 +264,15 @@ pub async fn attach(
     pid: u32,
     state: State<'_, AppState>,
     saves: State<'_, crate::saves::SavesState>,
+) -> CmdResult<SessionInfo> {
+    attach_pid(&state, &saves, pid)
+}
+
+/// Attaches to `pid` (guarded by ot-core) and backs up its saves.
+pub(crate) fn attach_pid(
+    state: &AppState,
+    saves: &crate::saves::SavesState,
+    pid: u32,
 ) -> CmdResult<SessionInfo> {
     // Detach first so a failed attach never leaves the old session half-alive.
     state.live().take();
@@ -981,11 +1009,26 @@ pub struct TrainerView {
     pub cheats: Vec<CheatState>,
     /// Cheat id → why its hotkey could not be registered.
     pub hotkey_errors: BTreeMap<String, String>,
+    /// Cheat id → controller combo (the player's own).
+    pub pads: BTreeMap<String, String>,
+    pub settings: GameSettings,
+    /// Preset cheats still waiting to turn on (e.g. until a level loads).
+    pub pending: Vec<String>,
 }
 
 fn trainer_view(t: &mut LoadedTrainer) -> CmdResult<TrainerView> {
     t.trainer.refresh()?;
-    let cheats = t.trainer.states()?;
+    let mut cheats = t.trainer.states()?;
+    // Show the keys that are really registered (the player's own or the pack's).
+    let keys: BTreeMap<String, String> = t
+        .settings
+        .hotkeys(t.trainer.pack())
+        .into_iter()
+        .map(|(id, k)| (id, k.to_string()))
+        .collect();
+    for c in &mut cheats {
+        c.hotkey = keys.get(&c.id).cloned();
+    }
     Ok(TrainerView {
         key: t.key.clone(),
         pack: t.trainer.pack().clone(),
@@ -994,6 +1037,14 @@ fn trainer_view(t: &mut LoadedTrainer) -> CmdResult<TrainerView> {
         warnings: t.warnings.clone(),
         cheats,
         hotkey_errors: t.hotkey_errors.clone(),
+        pads: t
+            .settings
+            .pads
+            .iter()
+            .map(|(id, c)| (id.clone(), c.to_string()))
+            .collect(),
+        settings: t.settings.clone(),
+        pending: t.pending.clone(),
     })
 }
 
@@ -1009,13 +1060,63 @@ fn with_trainer(
 ) -> CmdResult<TrainerView> {
     with_live(state, |l| {
         let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        // The player is in charge now: stop a waiting preset.
+        t.epoch += 1;
+        t.pending.clear();
         f(&mut t.trainer)?;
         trainer_view(t)
     })
 }
 
+/// Runs `f` on the loaded trainer's settings, saves them, re-registers keys
+/// and returns the fresh view.
+fn with_settings(
+    state: &AppState,
+    f: impl FnOnce(&mut GameSettings, &Pack) -> Result<(), String>,
+) -> CmdResult<TrainerView> {
+    with_live(state, |l| {
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        let pack = t.trainer.pack().clone();
+        let mut next = t.settings.clone();
+        f(&mut next, &pack).map_err(|e| CommandError::new("settings", e))?;
+        if let Some(dir) = state.settings_dir.get() {
+            settings::save(dir, &pack.game.id, &next).map_err(|e| {
+                CommandError::new("io", format!("couldn't save your settings: {e}"))
+            })?;
+        }
+        let keys_changed = next.keys != t.settings.keys || next.pads != t.settings.pads;
+        t.settings = next;
+        if keys_changed {
+            register_keys(state, t);
+        }
+        trainer_view(t)
+    })
+}
+
+/// (Re-)registers the loaded pack's keyboard keys and controller combos.
+fn register_keys(state: &AppState, t: &mut LoadedTrainer) {
+    let pack = t.trainer.pack();
+    if let Some(service) = state.hotkeys.get() {
+        let (reg, results) = service.register(t.settings.hotkeys(pack));
+        t.hotkey_errors = results
+            .into_iter()
+            .filter_map(|(id, e)| e.map(|e| (id, e)))
+            .collect();
+        // The old registration drops after the new one is in place.
+        t.hotkeys = Some(reg);
+    }
+    if let Some(service) = state.pads.get() {
+        t.pads = Some(service.register(t.settings.pad_chords(pack)));
+    }
+}
+
 #[tauri::command]
 pub async fn trainer_load(key: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    load_key(&state, key)
+}
+
+/// Loads the pack with `key` (from `packs_list`) into the session.
+pub(crate) fn load_key(state: &AppState, key: String) -> CmdResult<TrainerView> {
     let found = store::all()
         .into_iter()
         .find(|f| f.key == key)
@@ -1023,7 +1124,7 @@ pub async fn trainer_load(key: String, state: State<'_, AppState>) -> CmdResult<
     let text = found.text.map_err(|e| CommandError::new("io", e))?;
     let (pack, warnings) =
         ot_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
-    with_live(&state, |l| load_into(&state, l, key, pack, warnings))
+    with_live(state, |l| load_into(state, l, key, pack, warnings))
 }
 
 /// Loads `pack` as the session's trainer (registering its hotkeys).
@@ -1037,25 +1138,24 @@ fn load_into(
     {
         // Unload the old pack first so its patches are restored.
         l.trainer = None;
+        let settings = state
+            .settings_dir
+            .get()
+            .map(|dir| settings::load(dir, &pack.game.id))
+            .unwrap_or_default();
         let trainer = Trainer::load(Arc::clone(&l.process), pack)?;
-        let (hotkeys, hotkey_errors) = match state.hotkeys.get() {
-            Some(service) => {
-                let (reg, results) = service.register(trainer.hotkeys());
-                let errors = results
-                    .into_iter()
-                    .filter_map(|(id, e)| e.map(|e| (id, e)))
-                    .collect();
-                (Some(reg), errors)
-            }
-            None => (None, BTreeMap::new()),
-        };
         let loaded = l.trainer.insert(LoadedTrainer {
             key,
             warnings,
-            hotkey_errors,
-            hotkeys,
+            hotkey_errors: BTreeMap::new(),
+            hotkeys: None,
+            pads: None,
+            settings,
+            pending: Vec::new(),
+            epoch: 0,
             trainer,
         });
+        register_keys(state, loaded);
         trainer_view(loaded)
     }
 }
@@ -1162,19 +1262,278 @@ impl AppState {
     /// A registered hotkey was pressed. Ignored unless `generation` is the
     /// loaded trainer's registration.
     pub fn on_hotkey(&self, generation: u64, cheat: &str) {
+        self.on_key(cheat, |t| {
+            t.hotkeys.as_ref().map(Registration::id) == Some(generation)
+        });
+    }
+
+    /// A controller combo was pressed (same rules as [`Self::on_hotkey`]).
+    pub fn on_pad(&self, generation: u64, cheat: &str) {
+        self.on_key(cheat, |t| {
+            t.pads.as_ref().map(PadRegistration::id) == Some(generation)
+        });
+    }
+
+    fn on_key(&self, cheat: &str, current: impl FnOnce(&LoadedTrainer) -> bool) {
         let result = with_live(self, |l| {
             let Some(t) = l.trainer.as_mut() else {
                 return Ok(());
             };
-            if t.hotkeys.as_ref().map(Registration::id) != Some(generation) {
+            if !current(t) {
                 return Ok(());
             }
+            t.epoch += 1;
+            t.pending.clear();
             t.trainer.hotkey(cheat).map_err(CommandError::from)
         });
         if let Err(e) = result {
             warn!(%cheat, "hotkey action failed: {}", e.message);
         }
     }
+
+    /// The loaded pack for the phone remote: `{"pack": null}` when none.
+    pub fn remote_view(&self) -> serde_json::Value {
+        let view = with_live(self, |l| match l.trainer.as_mut() {
+            Some(t) => trainer_view(t).map(Some),
+            None => Ok(None),
+        });
+        let Ok(Some(v)) = view else {
+            return serde_json::json!({ "pack": null });
+        };
+        let cheats: Vec<serde_json::Value> = v
+            .pack
+            .cheats
+            .iter()
+            .filter_map(|c| {
+                let st = v.cheats.iter().find(|s| s.id == c.id)?;
+                let (min, max, step) = match (&c.slider, &c.number) {
+                    (Some(s), _) => (
+                        Some(s.min.clone()),
+                        Some(s.max.clone()),
+                        Some(s.step.clone()),
+                    ),
+                    (_, Some(n)) => (n.min.clone(), n.max.clone(), None),
+                    _ => (None, None, None),
+                };
+                let label = c.button.as_ref().map(|b| match (&b.add, &b.set) {
+                    (Some(a), _) if a.as_f64().is_some_and(|x| x >= 0.0) => format!("+{a}"),
+                    (Some(a), _) => a.to_string(),
+                    (_, Some(s)) => format!("Set {s}"),
+                    _ => "Go".into(),
+                });
+                Some(serde_json::json!({
+                    "id": c.id,
+                    "name": c.name,
+                    "category": c.category,
+                    "ui": c.ui,
+                    "active": st.active,
+                    "status": st.status,
+                    "message": st.message,
+                    "value": st.value,
+                    "min": min,
+                    "max": max,
+                    "step": step,
+                    "label": label,
+                }))
+            })
+            .collect();
+        serde_json::json!({ "pack": { "game": v.pack.game.name }, "cheats": cheats })
+    }
+
+    /// Does what a phone asked, like the trainer's own buttons.
+    pub fn remote_act(&self, a: &crate::remote::Action) -> Result<(), String> {
+        let r = match a.op.as_str() {
+            "toggle" => with_trainer(self, |t| t.set_active(&a.id, a.on.unwrap_or(true))),
+            "press" => with_trainer(self, |t| t.press(&a.id)),
+            "set" => with_trainer(self, |t| {
+                t.set_value(&a.id, a.value.as_deref().unwrap_or(""))
+            }),
+            "release" => with_trainer(self, |t| t.release(&a.id)),
+            _ => return Err("unknown action".into()),
+        };
+        r.map(|_| ()).map_err(|e| e.message)
+    }
+
+    /// Tries preset cheats that couldn't turn on yet again. Returns what's
+    /// still waiting, or `None` when it should stop (pack changed or unloaded,
+    /// the player changed something, or the game is gone).
+    pub fn retry_preset(
+        &self,
+        key: &str,
+        epoch: u64,
+        entries: &[PresetCheat],
+    ) -> Option<Vec<PresetCheat>> {
+        with_live(self, |l| {
+            let Some(t) = l
+                .trainer
+                .as_mut()
+                .filter(|t| t.key == key && t.epoch == epoch)
+            else {
+                return Ok(None);
+            };
+            let left: Vec<PresetCheat> = settings::apply(&mut t.trainer, entries, false)
+                .into_iter()
+                .map(|(e, _)| e)
+                .collect();
+            t.pending = left.iter().map(|e| e.id.clone()).collect();
+            Ok(Some(left))
+        })
+        .ok()
+        .flatten()
+    }
+}
+
+// ----- presets, favourites, notes, own keys -------------------------------------
+
+/// A preset whose cheats aren't all on yet: what to retry.
+#[derive(Debug, Clone)]
+pub struct Waiting {
+    pub key: String,
+    pub epoch: u64,
+    pub entries: Vec<PresetCheat>,
+}
+
+/// Applies preset `name` to the loaded pack.
+pub(crate) fn apply_preset(
+    state: &AppState,
+    name: &str,
+) -> CmdResult<(TrainerView, Option<Waiting>)> {
+    with_live(state, |l| {
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        let preset = t
+            .settings
+            .preset(name)
+            .cloned()
+            .ok_or_else(|| CommandError::new("settings", format!("no preset named {name}")))?;
+        t.epoch += 1;
+        let left: Vec<PresetCheat> = settings::apply(&mut t.trainer, &preset.cheats, true)
+            .into_iter()
+            .map(|(e, _)| e)
+            .collect();
+        t.pending = left.iter().map(|e| e.id.clone()).collect();
+        let waiting = (!left.is_empty()).then(|| Waiting {
+            key: t.key.clone(),
+            epoch: t.epoch,
+            entries: left,
+        });
+        Ok((trainer_view(t)?, waiting))
+    })
+}
+
+/// Keeps trying a preset's waiting cheats every 2 seconds for up to 10
+/// minutes (e.g. a value that only exists once a level has loaded).
+pub(crate) fn retry_in_background(app: tauri::AppHandle, waiting: Waiting) {
+    use tauri::{Emitter, Manager};
+    std::thread::spawn(move || {
+        let mut entries = waiting.entries;
+        for _ in 0..300 {
+            std::thread::sleep(std::time::Duration::from_secs(2));
+            let state = app.state::<AppState>();
+            match state.retry_preset(&waiting.key, waiting.epoch, &entries) {
+                Some(left) => {
+                    if left.len() != entries.len() {
+                        let _ = app.emit("trainer-changed", "preset");
+                    }
+                    if left.is_empty() {
+                        return;
+                    }
+                    entries = left;
+                }
+                None => return,
+            }
+        }
+    });
+}
+
+#[tauri::command]
+pub async fn preset_apply(
+    name: String,
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    let (view, waiting) = apply_preset(&state, &name)?;
+    if let Some(w) = waiting {
+        retry_in_background(app, w);
+    }
+    Ok(view)
+}
+
+/// Saves what's on now as preset `name`.
+#[tauri::command]
+pub async fn preset_save(name: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    let entries = with_live(&state, |l| {
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        let states = t.trainer.states()?;
+        Ok(settings::capture(t.trainer.pack(), &states))
+    })?;
+    if entries.is_empty() {
+        return Err(CommandError::new(
+            "settings",
+            "turn on the cheats you want first, then save them as a preset",
+        ));
+    }
+    with_settings(&state, |s, _| s.save_preset(&name, entries))
+}
+
+#[tauri::command]
+pub async fn preset_delete(name: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, _| {
+        s.delete_preset(&name);
+        Ok(())
+    })
+}
+
+/// The preset applied when the game is started from the library (or none).
+#[tauri::command]
+pub async fn preset_auto(
+    name: Option<String>,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, _| s.set_auto_preset(name.as_deref()))
+}
+
+#[tauri::command]
+pub async fn cheat_note(
+    id: String,
+    note: String,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, _| {
+        s.set_note(&id, &note);
+        Ok(())
+    })
+}
+
+#[tauri::command]
+pub async fn cheat_favourite(
+    id: String,
+    on: bool,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, _| {
+        s.set_favourite(&id, on);
+        Ok(())
+    })
+}
+
+/// The player's own key: text, `""` for none, or `null` for the pack's.
+#[tauri::command]
+pub async fn cheat_key(
+    id: String,
+    key: Option<String>,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, pack| s.set_key(pack, &id, key.as_deref()))
+}
+
+/// The cheat's controller combo, or `null` / `""` for none.
+#[tauri::command]
+pub async fn cheat_pad(
+    id: String,
+    chord: Option<String>,
+    state: State<'_, AppState>,
+) -> CmdResult<TrainerView> {
+    with_settings(&state, |s, pack| s.set_pad(pack, &id, chord.as_deref()))
 }
 
 #[cfg(test)]
