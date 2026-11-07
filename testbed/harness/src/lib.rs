@@ -85,7 +85,17 @@ pub struct Testbed {
 
 impl Testbed {
     pub fn spawn(exe: &Path) -> Self {
-        let mut child = Command::new(exe)
+        Self::spawn_with_env(exe, &[])
+    }
+
+    /// Like [`Testbed::spawn`] with extra environment variables (e.g.
+    /// `OT_TESTBED_SAVE_DIR`).
+    pub fn spawn_with_env(exe: &Path, env: &[(&str, &Path)]) -> Self {
+        let mut command = Command::new(exe);
+        for (k, v) in env {
+            command.env(k, v);
+        }
+        let mut child = command
             .arg("--json")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

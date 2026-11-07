@@ -22,10 +22,15 @@
 //! | 2 | fire: `ammo -= shots` | `8B 01 29 D0 89 01` |
 //! | 3 | load the static root | x64 `48 8B 0D rel32` (`mov rcx,[rip+WORLD]`), x86 `8B 0D abs32` |
 //! | 4 | earn: `gold += amount` | `8B 01 01 D0 89 01` (`mov eax,[rcx]; add eax,edx; mov [rcx],eax`) |
+//!
+//! `save` writes the stats to `AppData\LocalLow\TestCo\Testbed\save1.json` and
+//! `load` reads them back, like a Unity game (it also writes
+//! `<exe>_Datapp.info`), so the save manager has something to back up.
 
 use std::arch::asm;
 use std::io::{self, BufRead, Write};
 use std::mem::offset_of;
+use std::path::PathBuf;
 use std::ptr::{self, addr_of, addr_of_mut};
 use std::sync::atomic::{AtomicPtr, Ordering};
 
@@ -298,7 +303,107 @@ fn human_state() -> String {
     )
 }
 
-const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | tick | help | quit";
+const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | save | load | tick | help | quit";
+
+/// Where `save` writes, like a Unity game: `AppData\LocalLow\TestCo\Testbed`.
+/// Tests point it elsewhere with `OT_TESTBED_SAVE_DIR`.
+fn save_dir() -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("OT_TESTBED_SAVE_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    let profile = std::env::var_os("USERPROFILE")?;
+    Some(
+        PathBuf::from(profile)
+            .join("AppData")
+            .join("LocalLow")
+            .join("TestCo")
+            .join("Testbed"),
+    )
+}
+
+/// Writes `<exe>_Datapp.info` (company and product) like a Unity game, so
+/// OpenTrainer's save locator finds the save folder.
+fn write_app_info() {
+    let Ok(exe) = std::env::current_exe() else {
+        return;
+    };
+    let (Some(dir), Some(stem)) = (exe.parent(), exe.file_stem()) else {
+        return;
+    };
+    let data = dir.join(format!("{}_Data", stem.to_string_lossy()));
+    let info = data.join("app.info");
+    if !info.exists() && std::fs::create_dir_all(&data).is_ok() {
+        let _ = std::fs::write(info, "TestCo\nTestbed\n");
+    }
+}
+
+fn save_game() -> String {
+    let Some(dir) = save_dir() else {
+        return "can't find a save folder".into();
+    };
+    let text = format!(
+        concat!(
+            "{{\n",
+            "  \"version\": 1,\n",
+            "  \"player\": {{\n",
+            "    \"name\": \"Tester\",\n",
+            "    \"health\": {},\n",
+            "    \"maxHealth\": {},\n",
+            "    \"ammo\": {},\n",
+            "    \"gold\": {},\n",
+            "    \"speed\": {}\n",
+            "  }}\n",
+            "}}\n"
+        ),
+        get!(health),
+        get!(max_health),
+        get!(ammo),
+        get!(gold),
+        get!(speed)
+    );
+    let path = dir.join("save1.json");
+    match std::fs::create_dir_all(&dir).and_then(|()| std::fs::write(&path, text)) {
+        Ok(()) => format!("saved to {}", path.display()),
+        Err(e) => format!("save failed: {e}"),
+    }
+}
+
+/// The number after `"key":` in the save text.
+fn field(text: &str, key: &str) -> Option<f64> {
+    let at = text.find(&format!("\"{key}\":"))? + key.len() + 3;
+    let rest = text[at..].trim_start();
+    let end = rest
+        .find(|c: char| !(c.is_ascii_digit() || c == '-' || c == '.'))
+        .unwrap_or(rest.len());
+    rest[..end].parse().ok()
+}
+
+fn load_game() -> String {
+    let Some(path) = save_dir().map(|d| d.join("save1.json")) else {
+        return "can't find a save folder".into();
+    };
+    let Ok(text) = std::fs::read_to_string(&path) else {
+        return "no save yet (type save first)".into();
+    };
+    let int = |k| field(&text, k).map(|v| v as i32);
+    match (
+        int("health"),
+        int("maxHealth"),
+        int("ammo"),
+        int("gold"),
+        field(&text, "speed"),
+    ) {
+        (Some(h), Some(m), Some(a), Some(g), Some(s)) => {
+            set!(health, h);
+            set!(max_health, m);
+            set!(ammo, a);
+            set!(gold, g);
+            set!(speed, s as f32);
+            "loaded".into()
+        }
+        _ => "the save file is damaged".into(),
+    }
+}
 
 /// Runs one command. Returns `None` to quit.
 fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
@@ -330,6 +435,8 @@ fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
                 "not enough gold".into()
             }
         }
+        "save" => save_game(),
+        "load" => load_game(),
         "tick" => format!("tick {}", bump_tick()),
         "help" => HELP.into(),
         "quit" | "exit" => return None,
@@ -341,6 +448,7 @@ fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
 fn main() {
     let json = std::env::args().any(|a| a == "--json");
     WORLD.store(new_world(), Ordering::Release);
+    write_app_info();
 
     let stdout = io::stdout();
     let mut out = stdout.lock();
