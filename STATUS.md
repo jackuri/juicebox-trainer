@@ -45,11 +45,12 @@ _Last updated: 2026-11-07 — v0.10.0_
   keys, controller combos (XInput), overlay window (click-through, no injection), phone remote (off
   by default, one-time QR pairing). All checks pass. Live-tested: presets on the testbed; the
   remote's pairing over real sockets; the library lists this PC's games (30 Steam, 1 GOG).
+- Hand-tested by the user on v0.10.0: reported working.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. v0.10.0 is committed locally, waiting for the user's test and "push and tag".
+- Nothing. v0.10.0 is pushed and tagged.
 
 ## Next
 - 1.0.0 Release (PLAN §6): installer, code signing, auto-update, docs, `.otpack` import/export.
@@ -61,7 +62,7 @@ _Last updated: 2026-11-07 — v0.10.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
-- v0.10.0 hasn't been clicked through by hand yet: the overlay, the phone remote on a real phone,
+- v0.10.0: the user reported it works; not confirmed one by one: the phone remote on a real phone,
   controller combos with a real controller and "Play with cheats" with a store game.
 - The overlay doesn't show over exclusive-fullscreen games (by design, PLAN §8); switch the game to
   borderless or windowed.
