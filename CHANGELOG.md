@@ -26,6 +26,15 @@ All notable changes to this project are documented here. The format follows
 - **Explain with AI** on a save comparison (backup vs now): the helper reads the diff with read-only
   save tools and labels each change in plain words ("player.gold went from 250 to 300: your gold").
 
+- Tested for real on the testbed: asked for "Infinite health", the helper found the damage code with
+  find-what-writes and saved a working code-patch cheat in one session, with no game restarts
+  (about $0.19).
+
+### Fixed
+- Saving an AI pack for a game that already had one replaced the earlier cheats. `pack_write` now
+  keeps them (new cheats with the same id replace old ones) and keeps the old file as
+  `pack.json.bak`.
+
 ### Changed
 - The roadmap splits AI II: engine fast paths (Mono / IL2CPP / Unreal readers), REA and local models
   move to 0.9.1.

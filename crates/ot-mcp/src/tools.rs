@@ -599,7 +599,7 @@ impl Tools {
                 );
             }
         }
-        let pack = parse_pack(&raw)?;
+        let mut pack = parse_pack(&raw)?;
         let dir = self
             .cfg
             .packs_dir
@@ -607,13 +607,40 @@ impl Tools {
             .ok_or("no packs folder on this PC")?
             .join(&pack.game.id);
         let path = dir.join("pack.json");
+        let mut kept = Vec::new();
         if let Ok(existing) = std::fs::read_to_string(&path) {
-            let is_ai = ot_packs::parse(&existing).is_ok_and(|(p, _)| p.meta.is_ai());
-            if !is_ai {
+            let old = ot_packs::parse(&existing).ok().map(|(p, _)| p);
+            if !old.as_ref().is_some_and(|p| p.meta.is_ai()) {
                 return Err(format!(
                     "{} already has a pack that wasn't made by the AI; pick another game id",
                     path.display()
                 ));
+            }
+            // Keep the cheats an earlier AI session made for this game; a
+            // cheat with the same id is replaced by the new one.
+            if let Some(old) = old {
+                for c in old.cheats {
+                    if !pack.cheats.iter().any(|n| n.id == c.id) {
+                        kept.push(c.name.clone());
+                        pack.cheats.push(c);
+                    }
+                }
+                for s in old.save_codes {
+                    if !pack.save_codes.iter().any(|n| n.id == s.id) {
+                        pack.save_codes.push(s);
+                    }
+                }
+                for b in old.game.builds {
+                    if !pack.game.builds.iter().any(|n| n.sha256 == b.sha256) {
+                        pack.game.builds.push(b);
+                    }
+                }
+                // Merged cheats must still form a valid pack (e.g. hotkeys).
+                let text = serde_json::to_string(&pack).map_err(err)?;
+                ot_packs::parse(&text).map_err(|e| {
+                    format!("merged with the earlier AI pack it isn't valid ({e}); give the new cheats other ids or hotkeys")
+                })?;
+                let _ = std::fs::copy(&path, dir.join("pack.json.bak"));
             }
         }
         std::fs::create_dir_all(&dir).map_err(err)?;
@@ -621,7 +648,11 @@ impl Tools {
         let tmp = dir.join("pack.json.tmp");
         std::fs::write(&tmp, &text).map_err(err)?;
         std::fs::rename(&tmp, &path).map_err(err)?;
-        Ok(json!({ "written": path.display().to_string(), "cheats": pack.cheats.len() }))
+        Ok(json!({
+            "written": path.display().to_string(),
+            "cheats": pack.cheats.len(),
+            "keptFromEarlier": kept,
+        }))
     }
 
     fn game_recon(&mut self) -> Res {

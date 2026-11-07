@@ -217,6 +217,15 @@ fn agent_makes_a_code_cheat_with_find_what_writes() {
         "health still went down"
     );
 
+    // Saving, then saving another AI pack for the same game, keeps both cheats.
+    call(&mut t, "pack_write", json!({ "pack": pack }));
+    let mut more = pack.clone();
+    more["cheats"] = json!([{ "id": "gold", "name": "Set gold", "ui": "number",
+        "impl": { "kind": "value", "type": "i32", "address": { "base": "testbed_native.exe+0x10" } } }]);
+    let second = call(&mut t, "pack_write", json!({ "pack": more }));
+    assert_eq!(second["keptFromEarlier"], json!(["Infinite health"]));
+    assert_eq!(second["cheats"], 2);
+
     // A pack "from an older build": repair finds the site again.
     let mut old = pack.clone();
     old["cheats"][0]["impl"]["aob"] = json!("0F 1F 80 54 4F 99 01 8B 01 ?? ?? 89 01");

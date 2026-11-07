@@ -47,9 +47,12 @@ _Last updated: 2026-11-07 — v0.9.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
-- The v0.9.0 AI features (code cheats via find-what-writes, repair, explain a save) are tested with
-  the tool server against the testbed and with a stand-in for Claude, but haven't had a real Claude
-  run yet.
+- Real AI run of the v0.9.0 code-cheat path (user approved): "Infinite health" on the testbed, found
+  with find-what-writes, working patch saved in one session, no restarts, about $0.19; the pack
+  works on a fresh testbed. Repair and "explain a save" have no real Claude run yet. The run also
+  showed AI packs for the same game overwrote each other; fixed (merged).
+- The AI helper trusts the player's answers; a wrong "Done" or "Yes" (e.g. healing instead of taking
+  damage) can make it patch the wrong code. It asks the player to confirm in game before saving.
 - Find what writes attaches as a debugger. Single-player games with DRM that refuses debuggers may
   close or complain; OpenTrainer doesn't hide from them (by design). Only one debugger can attach,
   so it fails if another (e.g. Visual Studio) is attached.
