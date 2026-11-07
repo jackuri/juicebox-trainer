@@ -217,9 +217,21 @@ pub struct AiStartRequest {
     pub backup: Option<String>,
     pub wishes: Vec<String>,
     pub notes: String,
-    /// `subscription` (Claude login) or `apiKey` (ANTHROPIC_API_KEY).
+    /// `subscription` (Claude login), `apiKey` (ANTHROPIC_API_KEY) or
+    /// `local` (Ollama / LM Studio).
     pub backend: String,
     pub max_budget_usd: f64,
+    /// For `local`: the server address and the model's name there.
+    #[serde(default)]
+    pub local_url: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+    /// Optional static-analysis tool server (e.g. REA): its command and
+    /// arguments, chosen by the player.
+    #[serde(default)]
+    pub analysis_command: Option<String>,
+    #[serde(default)]
+    pub analysis_args: Vec<String>,
 }
 
 fn push(transcript: &Mutex<Vec<Value>>, app: &AppHandle, event: Value) {
@@ -340,7 +352,17 @@ pub async fn ai_start(
         "backup": request.backup,
         "wishes": request.wishes,
         "notes": request.notes,
-        "backend": if request.backend == "apiKey" { "apiKey" } else { "subscription" },
+        "backend": match request.backend.as_str() {
+            "apiKey" => "apiKey",
+            "local" => "local",
+            _ => "subscription",
+        },
+        "localUrl": request.local_url,
+        "model": request.model.filter(|m| !m.trim().is_empty()),
+        "analysis": request
+            .analysis_command
+            .filter(|c| !c.trim().is_empty())
+            .map(|command| json!({ "command": command, "args": request.analysis_args })),
         "maxBudgetUsd": request.max_budget_usd.clamp(0.5, 50.0),
     });
     state.send(&start)

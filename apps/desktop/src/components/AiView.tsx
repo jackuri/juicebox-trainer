@@ -29,6 +29,45 @@ interface Props {
   onRefreshProcesses: () => void;
 }
 
+type Backend = "subscription" | "apiKey" | "local";
+
+interface Settings {
+  backend: Backend;
+  budget: string;
+  localUrl: string;
+  model: string;
+  analysisCommand: string;
+  analysisArgs: string;
+}
+
+const DEFAULTS: Settings = {
+  backend: "subscription",
+  budget: "5",
+  localUrl: "http://localhost:11434",
+  model: "",
+  analysisCommand: "",
+  analysisArgs: "",
+};
+
+const SETTINGS_KEY = "opentrainer.ai.settings";
+
+function loadSettings(): Settings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) } : DEFAULTS;
+  } catch {
+    return DEFAULTS;
+  }
+}
+
+function saveSettings(s: Settings) {
+  try {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+  } catch {
+    // Settings are a convenience; the helper works without them.
+  }
+}
+
 /** "Make a trainer": the AI helper finds cheats with the player's help. */
 export function AiView({ processes, onRefreshProcesses }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
@@ -36,8 +75,16 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
   const [pid, setPid] = useState("");
   const [wishes, setWishes] = useState<string[]>(["Infinite health", "Lots of money / gold"]);
   const [other, setOther] = useState("");
-  const [backend, setBackend] = useState<"subscription" | "apiKey">("subscription");
-  const [budget, setBudget] = useState("5");
+  const [settings, setSettings] = useState<Settings>(loadSettings);
+  const { backend, budget } = settings;
+  const update = (patch: Partial<Settings>) =>
+    setSettings((s) => {
+      const next = { ...s, ...patch };
+      saveSettings(next);
+      return next;
+    });
+  const setBackend = (b: Backend) => update({ backend: b });
+  const setBudget = (v: string) => update({ budget: v });
   const [reply, setReply] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
@@ -77,6 +124,10 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
         notes: "",
         backend,
         maxBudgetUsd: Number(budget) || 5,
+        localUrl: backend === "local" ? settings.localUrl : undefined,
+        model: backend === "local" ? settings.model : undefined,
+        analysisCommand: settings.analysisCommand.trim() || undefined,
+        analysisArgs: settings.analysisArgs.split(" ").filter(Boolean),
       });
       setStatus((s) => (s ? { ...s, running: true } : s));
     } catch (e) {
@@ -210,7 +261,61 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
               <input type="radio" checked={backend === "apiKey"} onChange={() => setBackend("apiKey")} />
               An Anthropic API key (set as ANTHROPIC_API_KEY in Windows; you pay per use)
             </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={backend === "local"} onChange={() => setBackend("local")} />
+              A free AI running on this PC (Ollama or LM Studio). Slower, and finds cheats less often
+            </label>
+            {backend === "local" && (
+              <div className="ml-6 flex flex-col gap-2 rounded-md bg-zinc-900 p-2 text-xs">
+                <label className="flex items-center gap-2">
+                  Address
+                  <input
+                    aria-label="Local AI address"
+                    className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1"
+                    value={settings.localUrl}
+                    onChange={(e) => update({ localUrl: e.target.value })}
+                  />
+                </label>
+                <label className="flex items-center gap-2">
+                  Model
+                  <input
+                    aria-label="Local AI model"
+                    className="flex-1 rounded border border-zinc-700 bg-zinc-950 px-2 py-1"
+                    placeholder="e.g. qwen3-coder (its name in Ollama or LM Studio)"
+                    value={settings.model}
+                    onChange={(e) => update({ model: e.target.value })}
+                  />
+                </label>
+                <p className="text-zinc-500">
+                  Ollama uses http://localhost:11434, LM Studio http://localhost:1234. Pick a model
+                  that can use tools and has a large context (64k or more).
+                </p>
+              </div>
+            )}
           </fieldset>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-zinc-400">Advanced: code analysis tool (optional)</summary>
+            <div className="mt-2 flex flex-col gap-2 text-xs">
+              <p className="text-zinc-500">
+                An MCP server for reading game files (for example REA). The helper only uses it to
+                understand code it found. Leave empty if you don&apos;t have one.
+              </p>
+              <input
+                aria-label="Analysis tool command"
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+                placeholder="Command, e.g. C:\Tools\rea\rea-mcp.exe"
+                value={settings.analysisCommand}
+                onChange={(e) => update({ analysisCommand: e.target.value })}
+              />
+              <input
+                aria-label="Analysis tool arguments"
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+                placeholder="Arguments (optional)"
+                value={settings.analysisArgs}
+                onChange={(e) => update({ analysisArgs: e.target.value })}
+              />
+            </div>
+          </details>
           {backend === "subscription" && status?.signedIn === false && (
             <div className="flex flex-col gap-2 rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="note">
               <p>
@@ -244,7 +349,8 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
               !pid ||
               starting ||
               (wishes.length === 0 && !other.trim()) ||
-              (backend === "subscription" && status?.signedIn === false)
+              (backend === "subscription" && status?.signedIn === false) ||
+              (backend === "local" && !settings.model.trim())
             }
             onClick={() => void start()}
           >

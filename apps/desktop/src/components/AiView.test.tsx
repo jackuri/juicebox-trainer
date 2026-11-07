@@ -32,6 +32,7 @@ function status(over: Record<string, unknown> = {}) {
 beforeEach(() => {
   invoke.mockReset();
   emit = null;
+  localStorage.clear();
   invoke.mockImplementation((cmd: string) =>
     cmd === "ai_status" ? Promise.resolve(status()) : Promise.resolve(undefined),
   );
@@ -59,6 +60,7 @@ describe("AiView", () => {
           notes: "",
           backend: "subscription",
           maxBudgetUsd: 5,
+          analysisArgs: [],
         },
       }),
     );
@@ -99,6 +101,30 @@ describe("AiView", () => {
     render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     expect(invoke).toHaveBeenCalledWith("ai_cancel", undefined);
+  });
+});
+
+describe("AiView settings", () => {
+  it("uses a local model when chosen, and remembers it", async () => {
+    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
+    fireEvent.click(screen.getByLabelText(/free AI running on this PC/));
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Local AI model"), { target: { value: "qwen3-coder" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_start", {
+        request: expect.objectContaining({
+          backend: "local",
+          localUrl: "http://localhost:11434",
+          model: "qwen3-coder",
+        }),
+      }),
+    );
+    expect(JSON.parse(localStorage.getItem("opentrainer.ai.settings") ?? "{}")).toMatchObject({
+      backend: "local",
+      model: "qwen3-coder",
+    });
   });
 });
 

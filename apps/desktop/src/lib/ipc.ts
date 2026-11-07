@@ -504,8 +504,14 @@ export interface AiStartRequest {
   backup?: string;
   wishes: string[];
   notes: string;
-  backend: "subscription" | "apiKey";
+  backend: "subscription" | "apiKey" | "local";
   maxBudgetUsd: number;
+  /** For "local": Ollama (http://localhost:11434) or LM Studio (http://localhost:1234). */
+  localUrl?: string;
+  model?: string;
+  /** Optional static-analysis tool server (e.g. REA). */
+  analysisCommand?: string;
+  analysisArgs?: string[];
 }
 
 /** Calls `cb` for each message from the AI helper. Returns an unsubscribe function. */
