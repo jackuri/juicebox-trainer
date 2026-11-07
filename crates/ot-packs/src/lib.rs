@@ -6,12 +6,14 @@
 //! at an AOB-located site with instructions from a safe allowlist). Everything
 //! goes through `ot-core`, so the anti-cheat guard applies.
 
+pub mod community;
 pub mod heal;
 pub mod hotkey;
 pub mod numbers;
 pub mod pad;
 pub mod schema;
 pub mod settings;
+pub mod share;
 pub mod store;
 pub mod trainer;
 pub mod validate;

@@ -127,7 +127,7 @@ impl Ctx {
     }
 }
 
-fn is_slug(s: &str) -> bool {
+pub(crate) fn is_slug(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 64
         && s.chars()
