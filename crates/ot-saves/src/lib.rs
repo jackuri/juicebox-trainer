@@ -14,6 +14,7 @@ pub mod diff;
 pub mod editor;
 pub mod error;
 pub mod folders;
+pub mod installs;
 pub mod library;
 pub mod locate;
 pub mod quick;
