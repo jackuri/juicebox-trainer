@@ -22,7 +22,8 @@ A free, open-source Windows app that combines a game **trainer**, a **save manag
 | `crates/ot-core` | Process attach, memory read/write, module map, anti-cheat guard |
 | `crates/ot-packs` | Cheat pack schema, validator, store, trainer runtime, `otpack` CLI |
 | `crates/ot-saves` | Save locator, backups, compare, guarded restore |
-| `crates/ot-mcp` | Guarded MCP server for the AI agent (later versions) |
+| `crates/ot-mcp` | Guarded MCP server (tools) for the AI helper |
+| `sidecars/ai-agent` | AI helper: Claude Agent SDK, talks to the app and to `ot-mcp` |
 | `packs/examples` | Example packs for the testbed |
 | `testbed/native`, `testbed/harness` | Fake "game" used by tests (x64 and x86), and test helpers |
 | `scripts/` | `check.ps1` (all checks), `bump-version.mjs` |
@@ -147,6 +148,23 @@ before a restore are kept as a "Before a restore" backup, so you can undo it. Ba
 
 Or click a **Quick code** such as "999,999 gold (in the save file)": it comes from the testbed's
 cheat pack. Files OpenTrainer can't read as values open as bytes, with a number inspector.
+
+## Make a trainer with AI
+
+This uses your Claude subscription: sign in to Claude Code on this PC once. Or set an Anthropic API
+key as `ANTHROPIC_API_KEY` in Windows and pick "API key".
+
+1. Start the fake game (or double-click `Try OpenTrainer.cmd`).
+2. In OpenTrainer click **Make a trainer (AI)**, pick `testbed_native.exe`, tick the cheats you want
+   and click **Start**.
+3. Do what it asks in the fake game's window (for example `spend 50`), then press **Done** or answer
+   **Yes / No**.
+4. When it finishes, go to **Cheats**, attach to the game, and load the new pack (marked AI) on the
+   Trainer tab.
+
+The helper can only use OpenTrainer's guarded tools: it can't run programs or read your files, it
+refuses games with anti-cheat, and its test changes are undone when it stops. Every step it takes is
+logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
 
 ## If OpenTrainer crashes
 

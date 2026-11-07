@@ -240,7 +240,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.5.0 | Stability | Pointer scanner, AOB maker, original-byte verification, restore-on-exit (crash-safe journal). Code caves moved to a later version |
 | 0.6.0 | Saves I | Locator, snapshots on launch/exit, restore, diff, Steam Cloud warnings |
 | 0.7.0 | Saves II | Codecs (JSON/INI/gzip/zlib/Base64/GVAS/PlayerPrefs), structured editor, hex fallback, checksum fixers, quick codes. SQLite moved to a later version (large dependency; user chose to wait) |
-| 0.8.0 | AI I | ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on testbed |
+| 0.8.0 | AI I | ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on testbed. `find_what_writes` and local models moved to 0.9.0 |
 | 0.9.0 | AI II | REA + `um` integration, engine fast paths (Unity Mono, IL2CPP, Unreal), self-healing, save diff labelling |
 | 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets, library auto-detect + launch |
 | 1.0.0 | Release | Installer, code signing, auto-update, docs, `.otpack` import/export, MIT release on GitHub |
@@ -259,12 +259,13 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 
 ---
 
-## 8. Open decisions (confirm before Phase 0.8)
-1. Final name.
-2. Default AI backend (subscription via Agent SDK vs API key vs local).
-3. Community pack hub: none / GitHub-repo index / website.
-4. Exclusive-fullscreen overlay: accept limitation, or offer opt-in in-process overlay for single-player games
-   only (more AV/compat risk).
+## 8. Decisions (confirmed by the user, 2026-11-07, before v0.8.0)
+1. Final name: **OpenTrainer** (kept).
+2. Default AI backend: **Claude subscription via the Claude Agent SDK** (signed-in Claude Code). API key and
+   local models remain options in Settings.
+3. Community pack hub: **a GitHub-repo index** (public repo listing packs; the app downloads from it). Built
+   with `.otpack` import/export (v1.0 or earlier).
+4. Exclusive-fullscreen overlay: **accept the limitation** (windowed/borderless only; no in-process overlay).
 
 ## 9. Notes on the two source repos
 - **universal-modder** (MIT): skills + `um` CLI (Python). Most useful parts: `um scan` (engine, anti-cheat,

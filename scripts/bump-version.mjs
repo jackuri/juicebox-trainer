@@ -30,6 +30,7 @@ edit("Cargo.toml", (s) =>
 for (const rel of [
   "package.json",
   "apps/desktop/package.json",
+  "sidecars/ai-agent/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
 ]) {
   edit(rel, (s) => s.replace(/("version":\s*")[^"]+(")/, `$1${version}$2`));

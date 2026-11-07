@@ -21,8 +21,10 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist node_modules (
-  echo Installing the app's packages, once...
+rem Install when packages are missing or older than this version (the AI
+rem helper's package arrived in 0.8.0).
+if not exist node_modules\@anthropic-ai\claude-agent-sdk\package.json (
+  echo Installing the app's packages. This happens once and can take a few minutes...
   call npm ci
   if errorlevel 1 (
     echo Installing packages failed.
@@ -46,6 +48,10 @@ if errorlevel 1 (
 echo Opening the fake game (testbed) in its own window...
 rem Its own build folder, so an older testbed that is still open doesn't block it.
 start "OpenTrainer testbed (fake game)" cmd /k cargo run -q -p testbed-native --target-dir target\try
+
+echo Preparing the AI helper...
+call npm run build:agent >nul
+if errorlevel 1 echo The AI helper could not be built; the rest of OpenTrainer still works.
 
 echo Starting OpenTrainer. The app window opens when it's ready.
 echo Close this window to stop OpenTrainer.

@@ -11,6 +11,7 @@ function Invoke-Step([string]$Name, [scriptblock]$Command) {
 
 if (-not (Test-Path node_modules)) { Invoke-Step 'npm ci' { npm ci } }
 Invoke-Step 'Build web UI'            { npm run build:web }
+Invoke-Step 'Build AI helper'         { npm run build:agent }
 Invoke-Step 'cargo fmt'               { cargo fmt --all --check }
 Invoke-Step 'cargo clippy (x64)'      { cargo clippy --workspace --all-targets -- -D warnings }
 Invoke-Step 'cargo clippy (testbed x86)' { cargo clippy -p testbed-native --target i686-pc-windows-msvc --all-features -- -D warnings }

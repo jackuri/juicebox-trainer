@@ -4,6 +4,37 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-11-07
+
+### Added
+- **Make a trainer (AI)** view: pick your running game, tick the cheats you want, and an AI helper
+  finds them with you. It asks for one small thing at a time ("Spend some gold, then press Done",
+  "Does your gold show 12345?") with big Done / Yes / No buttons, shows what it is doing and the
+  estimated cost, can be cancelled at any time, and saves a cheat pack marked as AI-made and tagged
+  with your game's build. Load it on the Trainer tab as usual.
+- **`ot-mcp`**: the guarded tool server the AI uses (MCP over stdio; also `opentrainer-desktop --mcp`).
+  Tools: list processes, attach (anti-cheat guard first, saves backed up), game info, first/next
+  scans, read, test writes (undone by `revert_all`, detach or exit), pointer scan and re-check, AOB
+  maker and uniqueness check, pack validate / try / cheat on-off / write, save snapshot / diff /
+  read. Every call is logged to `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
+- **AI helper sidecar** (`sidecars/ai-agent`, Node + the Claude Agent SDK). The agent gets no
+  built-in tools (no shell, files or web): only the guarded OpenTrainer tools and "ask the player",
+  everything else is denied, and no user settings or plugins are loaded. Default model Claude Opus
+  5.5; uses your Claude subscription by default, or `ANTHROPIC_API_KEY` if you choose. A spending
+  limit (default $5) stops long runs.
+- Decisions recorded (PLAN §8): keep the name OpenTrainer, Claude subscription as the default AI,
+  a GitHub-repo pack index for sharing (later), no in-game overlay for exclusive fullscreen.
+- New dependencies: `@anthropic-ai/claude-agent-sdk` (Anthropic's terms; its Windows engine is about
+  330 MB) and `zod` (MIT), in the sidecar only.
+
+### Changed
+- `Try OpenTrainer.cmd` installs packages when the AI helper's are missing and builds the helper.
+- The check script and CI build the AI helper and run its tests and typecheck.
+
+### Not yet
+- "Find what writes to this address" (hardware breakpoints) and local AI models are planned for a
+  later version.
+
 ## [0.7.0] - 2026-11-07
 
 ### Added

@@ -1,9 +1,10 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.7.0_
+_Last updated: 2026-11-07 — v0.8.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.7.0 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.7.0 (pushed and tagged). v0.8.0
+  is committed locally and not pushed yet.
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -21,16 +22,22 @@ _Last updated: 2026-11-07 — v0.7.0_
   (registry, also backed up / compared / restored), gzip / zlib / Base64 wrappers and CRC32 / MD5 /
   SHA-1 / SHA-256 checksums recomputed on save, hex view with number inspector, quick codes from
   packs (validated placeholders), guarded saving (game closed, guard, backup first). All checks pass.
+- v0.8.0 AI I: guarded `ot-mcp` tool server (20 tools, logged, every change revertible, guard on
+  attach, saves backed up), AI helper sidecar (Claude Agent SDK, no built-in tools, dontAsk
+  permissions, isolated settings, budget cap), "Make a trainer (AI)" view with step-by-step
+  Done / Yes / No prompts. Live test drives a whole agent session against the testbed. PLAN §8
+  decisions recorded.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.7.0 as planned.
+- Nothing. Stopped after v0.8.0 as planned.
 
 ## Next
-- v0.8.0 AI I (PLAN §6): ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on the
-  testbed. Open decisions in PLAN §8 (name, default AI backend, pack hub, overlay) must be confirmed
-  with the user first.
+- v0.9.0 AI II (PLAN §6): REA + `um` integration, engine fast paths (Unity Mono, IL2CPP, Unreal),
+  self-healing packs, save diff labelling. Also: `find_what_writes` (hardware breakpoints) so the
+  agent can make code patches, and local models (Ollama / LM Studio).
+- Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
 - Small follow-ups: hotkey rebinding, "Load pack from file…", auto-load a pack on attach, a
@@ -38,6 +45,15 @@ _Last updated: 2026-11-07 — v0.7.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- The AI helper has not been run against the real Claude service yet (tests use a stand-in for
+  Claude; the tool server is tested live against the testbed). A first real run uses the user's
+  Claude subscription allowance, so it waits for the user's go-ahead.
+- The AI helper needs Node.js and, for the subscription, a signed-in Claude Code on the PC. API keys
+  are read from the `ANTHROPIC_API_KEY` environment variable; the app doesn't store keys.
+- Without `find_what_writes`, AI cheats are value cheats via pointer paths (and patches only where
+  the agent can find a signature another way); pointer scans can return many paths, so the helper
+  may ask the player to restart the game once.
+- The Agent SDK's Windows engine is about 330 MB in `node_modules` (and in CI installs).
 - The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
   through by hand yet (covered by frontend tests and live tests against the testbed).
 - Save editor limits: Unreal saves from UE 5.4+ open as hex; Unreal text values, engine structs,
