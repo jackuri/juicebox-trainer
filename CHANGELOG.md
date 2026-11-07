@@ -4,6 +4,34 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.10.0] - 2026-11-07
+
+### Added
+- **Games tab (library)**: finds installed games from Steam (all library folders), Epic, GOG and
+  Xbox / PC Game Pass (`ot_saves::installs`), plus games added by their exe. Each game shows its
+  pack, its start preset and whether the anti-cheat guard blocks it (online / anti-cheat games
+  can't be started from here). **Play with cheats** starts the game through its store (or uses it
+  if it's already running), waits for it, attaches (guarded as always), loads its pack and applies
+  its start preset. Xbox games are started from the Xbox app while OpenTrainer waits.
+- **Presets** (`ot_packs::settings`): save what's on as "Story mode" and similar, apply with one
+  click, or pick one to use when the game starts from the Games tab. Cheats that can't turn on
+  yet (e.g. the value only exists once a level has loaded) keep trying for up to 10 minutes and
+  stop as soon as you change something yourself.
+- **Favourites, notes and your own keys** per cheat: favourites show first; set your own keyboard
+  key by pressing it (or none), and reset to the pack's key. Kept in
+  `%APPDATA%\OpenTrainer\settings\<game-id>.json`, apart from the pack.
+- **Controller hotkeys** (XInput): button combos like `LB+RB+DPadUp`, set by pressing them on the
+  controller or typing them. Two or more buttons are required, because the game sees the same
+  buttons. Polling only runs while a pack with combos is loaded.
+- **Overlay**: a small see-through window on top of the game listing the cheats, their keys and
+  which are on. Clicks pass through it; nothing is injected into the game. Works with windowed and
+  borderless games (exclusive fullscreen hides it, as decided in PLAN §8).
+- **Phone remote**, off by default: turn it on and scan the QR code with a phone on the same Wi-Fi.
+  Each QR code works once and gives that phone its own random key; other requests need it, changes
+  also need a custom header, and the PC must be addressed by IP. The phone can only do what the
+  trainer's buttons do. "Unpair phones" and "Turn off" end every phone's access.
+- Dependency: `qrcode` 0.14 (MIT / Apache-2.0, SVG output only) for the pairing QR code.
+
 ## [0.9.3] - 2026-11-07
 
 ### Added

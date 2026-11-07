@@ -245,7 +245,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.9.1 | AI III | Unity Mono / .NET class and field names (`game_classes`), optional REA analysis server, local models (Ollama / LM Studio) |
 | 0.9.2 | AI IV | Unity IL2CPP metadata names (self-calibrating, formats 24–39), Unreal engine version and tips, anti-cheat note |
 | 0.9.3 | AI V | Unreal object/property reader (GNames / GObjects) in a running game, with a memory-search fallback; tested on a real single-player UE 5.7 game with the user's OK |
-| 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets, library auto-detect + launch |
+| 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets (+ favourites, notes, own keys), library auto-detect (Steam / Epic / GOG / Xbox / own) + "Play with cheats". `um scan --list` not used yet |
 | 1.0.0 | Release | Installer, code signing, auto-update, docs, `.otpack` import/export, MIT release on GitHub |
 
 ---

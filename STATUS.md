@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.9.3_
+_Last updated: 2026-11-07 — v0.10.0_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.9.3 (pushed and tagged).
@@ -40,14 +40,19 @@ _Last updated: 2026-11-07 — v0.9.3_
   object values for UE 4.23+ / UE5 games, self-calibrating layout, memory-search fallback when the
   object list can't be read directly (no decoding). Tested read-only on Species: Unknown (UE 5.7,
   solo): 12,594 classes, the player's Health / MaxHealth read live (100 / 100).
+- v0.10.0 Extras: Games tab (Steam / Epic / GOG / Xbox / own exe, pack + guard status, "Play with
+  cheats" with a start preset), presets that keep trying until values exist, favourites, notes, own
+  keys, controller combos (XInput), overlay window (click-through, no injection), phone remote (off
+  by default, one-time QR pairing). All checks pass. Live-tested: presets on the testbed; the
+  remote's pairing over real sockets; the library lists this PC's games (30 Steam, 1 GOG).
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.9.3 as planned.
+- Nothing. v0.10.0 is committed locally, waiting for the user's test and "push and tag".
 
 ## Next
-- 0.10.0 Extras (PLAN §6).
+- 1.0.0 Release (PLAN §6): installer, code signing, auto-update, docs, `.otpack` import/export.
 - Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
@@ -56,6 +61,17 @@ _Last updated: 2026-11-07 — v0.9.3_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- v0.10.0 hasn't been clicked through by hand yet: the overlay, the phone remote on a real phone,
+  controller combos with a real controller and "Play with cheats" with a store game.
+- The overlay doesn't show over exclusive-fullscreen games (by design, PLAN §8); switch the game to
+  borderless or windowed.
+- The phone remote needs the PC and phone on the same network; Windows asks once to allow it
+  through the firewall. It uses plain HTTP on the local network (pairing keeps other devices out,
+  but someone on the same Wi-Fi could watch the traffic). Port 47110, or a free one if taken.
+- "Play with cheats" picks the game's process as the pack's exe or the biggest exe running from the
+  install folder; a game that starts from outside its folder isn't found (attach from Cheats).
+- Library: Epic and GOG are read from their own listing files and registry keys; Xbox games are
+  found in `X:\XboxGames\*\Content` only. `um scan --list` isn't used.
 - Unreal: games whose object list can't be read directly (e.g. Species: Unknown) use the slower
   memory search; the first `unreal_find` there took about 6 minutes (the game's memory is paged in
   from disk). Results are kept for the session. UE 4.22 and older (a different name list) aren't
