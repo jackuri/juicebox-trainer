@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { AboutView } from "./components/AboutView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
+import { Icon, Logo } from "./components/Icon";
 import { LibraryView } from "./components/LibraryView";
 import { PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
@@ -134,48 +135,67 @@ export default function App() {
   }
 
   return (
-    <div className="grid h-full grid-rows-[auto_auto_1fr]">
-      <header className="flex items-center gap-3 border-b border-zinc-800 px-4 py-2">
-        <h1 className="text-lg font-semibold tracking-tight">OpenTrainer</h1>
-        {info && (
-          <span className="font-mono text-xs text-zinc-500" data-testid="version">
-            v{info.version}
-          </span>
-        )}
-        <nav className="ml-4 flex gap-1" aria-label="Views">
+    <div className="grid h-full grid-cols-[216px_1fr]">
+      <aside className="flex min-h-0 flex-col border-r border-zinc-800/70 bg-ink/70 px-3 pb-3 pt-4">
+        <div className="flex items-center gap-2.5 px-2">
+          <Logo className="h-8 w-8 shrink-0" />
+          <div className="min-w-0">
+            <h1 className="text-[15px] font-semibold leading-tight tracking-tight">OpenTrainer</h1>
+            {info && (
+              <span className="text-[11px] text-zinc-500" data-testid="version">
+                v{info.version}
+              </span>
+            )}
+          </div>
+        </div>
+        <nav className="mt-6 flex flex-col gap-0.5" aria-label="Views">
           {(
             [
-              ["games", "Games"],
-              ["cheats", "Cheats"],
-              ["packs", "Packs"],
-              ["saves", "Save backups"],
-              ["ai", "Make a trainer (AI)"],
-              ["about", "About"],
+              ["games", "Games", "games"],
+              ["cheats", "Cheats", "cheats"],
+              ["packs", "Packs", "packs"],
+              ["saves", "Save backups", "saves"],
+              ["ai", "Make a trainer (AI)", "ai"],
+              ["about", "About", "about"],
             ] as const
-          ).map(([v, label]) => (
+          ).map(([v, label, icon]) => (
             <button
               key={v}
               aria-pressed={view === v}
               onClick={() => setView(v)}
-              className={`rounded px-3 py-1 text-sm ${
-                view === v ? "bg-zinc-800 text-zinc-100" : "text-zinc-400 hover:text-zinc-200"
+              className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                view === v
+                  ? "bg-zinc-800/80 text-white"
+                  : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
               }`}
             >
+              {view === v && <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-emerald-400" />}
+              <Icon
+                name={icon}
+                className={`h-[18px] w-[18px] shrink-0 ${view === v ? "text-emerald-300" : "text-zinc-500 group-hover:text-zinc-300"}`}
+              />
               {label}
             </button>
           ))}
         </nav>
-        <span className="ml-auto text-xs text-zinc-400">
+        <div className="mt-auto rounded-xl bg-zinc-900/80 px-3 py-2.5 text-xs ring-1 ring-zinc-800">
           {session ? (
-            <span className="text-emerald-400">
-              Attached to {session.process.name} ({session.process.pid})
-            </span>
+            <div className="flex items-start gap-2">
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-green-400 shadow-[0_0_8px] shadow-green-400/70" />
+              <span className="min-w-0 break-words text-zinc-200">
+                Attached to {session.process.name} ({session.process.pid})
+              </span>
+            </div>
           ) : (
-            "Not attached"
+            <div className="flex items-center gap-2 text-zinc-500">
+              <span className="h-2 w-2 rounded-full bg-zinc-600" />
+              Not attached
+            </div>
           )}
-        </span>
-      </header>
+        </div>
+      </aside>
 
+      <div className="grid min-h-0 grid-rows-[auto_1fr]">
       <div>
         {update && view !== "about" && (
           <div className="flex items-center gap-3 bg-sky-950/60 px-4 py-1.5 text-xs text-sky-100" role="status">
@@ -221,7 +241,7 @@ export default function App() {
           onOpenAi={() => setView("ai")}
         />
       ) : (
-        <div className="grid min-h-0 grid-cols-[320px_1fr]">
+        <div className="grid min-h-0 grid-cols-[272px_1fr]">
           <ProcessList
             processes={processes}
             selectedPid={session?.process.pid ?? selected?.pid ?? null}
@@ -232,7 +252,7 @@ export default function App() {
 
           <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
             {recovered.length > 0 && (
-              <div className="flex items-start gap-3 rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
+              <div className="flex items-start gap-3 rounded-lg bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
                 <div className="flex-1">
                   <p>OpenTrainer closed unexpectedly last time. It put the games' original code back:</p>
                   <ul className="mt-1 list-disc pl-5 text-xs">
@@ -253,23 +273,27 @@ export default function App() {
               </div>
             )}
             {error && !error.verdict && (
-              <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+              <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
                 {error.message}
               </p>
             )}
 
             {session ? (
               <>
-                <div className="flex items-center gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium">{session.process.name}</p>
-                    <p className="truncate text-xs text-zinc-500">
+                <div className="relative flex shrink-0 items-center gap-4 overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-900/60 via-zinc-900 to-zinc-900 px-5 py-4 ring-1 ring-zinc-800">
+                  <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-emerald-500/20 blur-3xl" />
+                  <div className="relative min-w-0">
+                    <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-emerald-300">
+                      <span className="h-1.5 w-1.5 rounded-full bg-green-400" /> Attached
+                    </p>
+                    <p className="mt-0.5 truncate text-2xl font-semibold tracking-tight">{session.process.name}</p>
+                    <p className="truncate text-xs text-zinc-400">
                       PID {session.process.pid} · {session.process.arch} ·{" "}
                       {session.process.exePath ?? "path unknown"}
                     </p>
                   </div>
                   <button
-                    className="ml-auto rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700"
+                    className="relative ml-auto rounded-lg bg-zinc-800/90 px-4 py-2 text-sm font-medium ring-1 ring-zinc-700 hover:bg-zinc-700"
                     onClick={() => void detach()}
                   >
                     Detach
@@ -283,9 +307,9 @@ export default function App() {
                 />
               </>
             ) : selected ? (
-              <div className="flex max-w-xl flex-col gap-3">
-                <div>
-                  <p className="font-medium">{selected.name}</p>
+              <div className="flex max-w-xl flex-col gap-4 rounded-2xl bg-zinc-900/80 p-5 ring-1 ring-zinc-800">
+                <div className="min-w-0">
+                  <p className="truncate text-xl font-semibold tracking-tight">{selected.name}</p>
                   <p className="truncate text-xs text-zinc-500">
                     PID {selected.pid} · {selected.arch} · {selected.exePath ?? "path unknown"}
                   </p>
@@ -293,7 +317,7 @@ export default function App() {
                 {checking && <p className="text-sm text-zinc-400">Checking for anti-cheat…</p>}
                 {verdict && verdict.pid === selected.pid && <GuardVerdict verdict={verdict} />}
                 <button
-                  className="self-start rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="btn-accent self-start rounded-xl px-8 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
                   disabled={!verdict?.allowed || verdict.pid !== selected.pid || checking}
                   onClick={() => void attach()}
                 >
@@ -301,8 +325,10 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <div className="m-auto max-w-sm text-center text-sm text-zinc-400">
-                <p>Pick a single-player game from the list to check it and attach.</p>
+              <div className="m-auto flex max-w-sm flex-col items-center text-center text-sm text-zinc-400">
+                <Logo className="mb-4 h-14 w-14 opacity-90" />
+                <p className="text-base font-medium text-zinc-200">Pick a game to start</p>
+                <p className="mt-1">Choose a single-player game from the list. OpenTrainer checks it, then you attach.</p>
                 <p className="mt-2 text-xs text-zinc-500">
                   Your game&apos;s saves are backed up when you attach (see Save backups).
                 </p>
@@ -311,6 +337,7 @@ export default function App() {
           </main>
         </div>
       )}
+      </div>
     </div>
   );
 }
