@@ -114,6 +114,7 @@ pub struct Diff {
 enum Source {
     Blob,
     File(PathBuf),
+    Bytes(Vec<u8>),
 }
 
 struct Item {
@@ -145,7 +146,7 @@ fn side_items(store: &Store, folders: &[String], side: Side<'_>) -> Result<BTree
         }
         Side::Current => {
             for s in scan(folders, Limits::default())? {
-                let Ok(bytes) = std::fs::read(&s.abs) else {
+                let Ok(bytes) = s.read() else {
                     continue;
                 };
                 let folder = folders[s.folder].clone();
@@ -156,7 +157,10 @@ fn side_items(store: &Store, folders: &[String], side: Side<'_>) -> Result<BTree
                         path: s.rel,
                         size: bytes.len() as u64,
                         sha: sha256_bytes(&bytes),
-                        source: Source::File(s.abs),
+                        source: match s.data {
+                            Some(d) => Source::Bytes(d),
+                            None => Source::File(s.abs),
+                        },
                     },
                 );
             }
@@ -169,6 +173,7 @@ fn bytes_of(store: &Store, item: &Item) -> Result<Vec<u8>> {
     match &item.source {
         Source::Blob => store.read_blob(&item.sha),
         Source::File(p) => std::fs::read(p).map_err(|e| Error::io("can't read", p, e)),
+        Source::Bytes(b) => Ok(b.clone()),
     }
 }
 

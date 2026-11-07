@@ -1,22 +1,31 @@
-//! Save manager (PLAN.md §2.3, roadmap v0.6.0): finds a game's save folders,
-//! backs them up when the game starts and closes (and on request), compares
-//! backups and restores them.
+//! Save manager (PLAN.md §2.3): finds a game's save folders (and Unity
+//! registry saves), backs them up when the game starts and closes (and on
+//! request), compares and restores backups (v0.6.0), and opens and edits saves
+//! (v0.7.0): JSON, INI and Unreal saves with gzip / zlib / Base64 wrappers and
+//! checksums, PlayerPrefs, a hex fallback, and quick codes from cheat packs.
 //!
-//! Save files are only copied and compared as bytes here; nothing in them is
-//! parsed or run. Restoring goes through the anti-cheat guard's install-folder
-//! check and needs the game closed (see [`restore`]).
+//! Saves are parsed structurally from their bytes; nothing in them is ever
+//! deserialised into objects or run. Restoring and editing go through the
+//! anti-cheat guard's install-folder check, need the game closed, and back up
+//! first (see [`restore`] and [`editor`]).
 
+pub mod codec;
 pub mod diff;
+pub mod editor;
 pub mod error;
 pub mod folders;
 pub mod library;
 pub mod locate;
+pub mod quick;
+pub mod registry;
 pub mod restore;
 pub mod steam;
 pub mod store;
 pub mod watch;
 
+pub use codec::{Edit, Field, FieldKind};
 pub use diff::{Diff, Side, diff};
+pub use editor::{EditReport, FileView, SaveFile};
 pub use error::{Error, Result};
 pub use folders::Roots;
 pub use library::{Game, Library, default_root};

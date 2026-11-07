@@ -11,11 +11,12 @@
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use ot_core::hash::sha256_file;
+use ot_core::hash::{sha256_bytes, sha256_file};
 use serde::Serialize;
 
 use crate::error::{Error, Result};
 use crate::library::Game;
+use crate::registry;
 use crate::store::{self, Limits, Reason, Store, key, safe_rel, scan, time_of, write_atomic};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -57,6 +58,8 @@ pub fn is_running(exe: &str) -> Result<bool> {
 
 struct Planned {
     target: PathBuf,
+    /// The registry key, for a value of a registry "folder".
+    registry: Option<String>,
     sha: String,
     modified_ms: Option<u64>,
     rel: String,
@@ -114,13 +117,24 @@ pub(crate) fn restore_unchecked(
 
     let mut plan = Vec::with_capacity(manifest.files.len());
     for f in &manifest.files {
-        let rel =
-            safe_rel(&f.path).ok_or_else(|| damaged(format!("bad file path {:?}", f.path)))?;
+        let folder = &manifest.folders[f.folder];
+        let reg = registry::is_registry(folder);
+        let target = if reg {
+            if f.path.is_empty() || f.path.contains('\0') {
+                return Err(damaged(format!("bad value name {:?}", f.path)));
+            }
+            PathBuf::new()
+        } else {
+            let rel =
+                safe_rel(&f.path).ok_or_else(|| damaged(format!("bad file path {:?}", f.path)))?;
+            Path::new(folder).join(rel)
+        };
         if !store.has_blob(&f.sha256) {
             return Err(damaged(format!("the stored copy of {} is missing", f.path)));
         }
         plan.push(Planned {
-            target: Path::new(&manifest.folders[f.folder]).join(rel),
+            target,
+            registry: reg.then(|| folder.clone()),
             sha: f.sha256.clone(),
             modified_ms: f.modified_ms,
             rel: f.path.clone(),
@@ -145,6 +159,21 @@ pub(crate) fn restore_unchecked(
     let mut written = 0;
     let mut unchanged = 0;
     for p in &plan {
+        if let Some(key) = &p.registry {
+            let current = registry::read_values(key).unwrap_or_default();
+            let same = current
+                .iter()
+                .any(|v| v.name == p.rel && sha256_bytes(&v.to_bytes()) == p.sha);
+            if same {
+                unchanged += 1;
+                continue;
+            }
+            let value = registry::RegValue::from_bytes(&p.rel, &contents[&p.sha])
+                .ok_or_else(|| damaged(format!("bad registry value {:?}", p.rel)))?;
+            registry::set_value(key, &value).map_err(|e| Error::io("can't write", key, e))?;
+            written += 1;
+            continue;
+        }
         if p.target.is_file() && sha256_file(&p.target).is_ok_and(|s| s == p.sha) {
             unchanged += 1;
             continue;
@@ -175,7 +204,13 @@ pub(crate) fn restore_unchecked(
             continue;
         }
         if options.remove_extra {
-            std::fs::remove_file(&s.abs).map_err(|e| Error::io("can't delete", &s.abs, e))?;
+            let folder = &restored_folders[s.folder];
+            if s.data.is_some() {
+                registry::delete_value(folder, &s.rel)
+                    .map_err(|e| Error::io("can't delete", folder, e))?;
+            } else {
+                std::fs::remove_file(&s.abs).map_err(|e| Error::io("can't delete", &s.abs, e))?;
+            }
             removed.push(s.rel);
         } else {
             extra.push(s.rel);
@@ -267,6 +302,47 @@ mod tests {
             std::fs::read_to_string(saves.join("sub").join("same.dat")).unwrap(),
             "same"
         );
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn backs_up_and_restores_registry_saves() {
+        let base = crate::test_dir("restore-reg");
+        let key = crate::registry::TestKey::new("restore");
+        key.unity_sample();
+        let mut g = game(&base, false);
+        g.folders[0].path = key.0.clone();
+        let store = Store::new(base.join("store"));
+        let snap = store
+            .create(&g.folder_paths(), Reason::Manual, "", Limits::default())
+            .unwrap()
+            .snapshot;
+        assert_eq!(snap.files, 4);
+        let values = registry::read_values(&key.0).unwrap();
+        let gold = registry::edit(&values, "gold", "5").unwrap();
+        registry::set_value(&key.0, &gold).unwrap();
+        key.set(
+            "extra_h1",
+            windows::Win32::System::Registry::REG_DWORD,
+            &1i32.to_le_bytes(),
+        );
+
+        let d = crate::diff(
+            &store,
+            &g.folder_paths(),
+            crate::Side::Snapshot(&snap.id),
+            crate::Side::Current,
+        )
+        .unwrap();
+        assert_eq!(d.files.len(), 2);
+
+        let r =
+            restore_unchecked(&g, &store, &snap.id, RestoreOptions { remove_extra: true }).unwrap();
+        assert_eq!((r.written, r.unchanged), (1, 3));
+        assert_eq!(r.removed, vec!["extra_h1".to_string()]);
+        let after = registry::fields(&registry::read_values(&key.0).unwrap());
+        assert!(after.iter().any(|f| f.path == "gold" && f.value == "250"));
+        assert_eq!(after.len(), 4);
         std::fs::remove_dir_all(&base).unwrap();
     }
 

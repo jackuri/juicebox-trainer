@@ -46,6 +46,8 @@ pub enum Error {
     NoKnownFolder(&'static str),
     #[error("could not list running programs: {0}")]
     Process(String),
+    #[error("{0}")]
+    Edit(String),
 }
 
 impl Error {
@@ -73,6 +75,7 @@ impl Error {
             Self::BadData { .. } => "badData",
             Self::NoKnownFolder(_) => "noKnownFolder",
             Self::Process(_) => "process",
+            Self::Edit(_) => "badEdit",
         }
     }
 }

@@ -126,3 +126,66 @@ fn back_up_compare_and_restore_testbed_saves() {
     let text = std::fs::read_to_string(save_dir.join("save1.json")).unwrap();
     assert!(text.contains(&format!("\"gold\": {},", gold_before + 1000)));
 }
+
+#[test]
+fn edit_testbed_save_and_apply_a_quick_code() {
+    let _s = serial();
+    let tmp = TempDir::new("save-edit");
+    let exe = plain(tmp.copy_testbed(r"Game\testbed_native.exe"));
+    let low = plain(tmp.0.join("LocalLow"));
+    let save_dir = low.join("TestCo").join("Testbed");
+    let env = [("OT_TESTBED_SAVE_DIR", save_dir.as_path())];
+    let mut game = Testbed::spawn_with_env(&exe, &env);
+    game.send("save");
+
+    let roots = Roots {
+        local_low: Some(low.clone()),
+        ..Roots::default()
+    };
+    let mut lib = Library::open(tmp.0.join("store")).unwrap();
+    let g = lib.add(&exe, &roots).unwrap();
+    let store = lib.store(&g.id).unwrap();
+    let folder = g.folders[0].path.clone();
+
+    let view = ot_saves::editor::open(&g, &folder, "save1.json").unwrap();
+    assert_eq!(view.codec, "json");
+    assert!(view.fields.iter().any(|f| f.path == "player.gold"));
+
+    // Editing is refused while the game runs.
+    let edit = ot_saves::Edit::Set {
+        path: "player.health".into(),
+        value: "42".into(),
+    };
+    assert!(matches!(
+        ot_saves::editor::save(
+            &g,
+            &store,
+            &folder,
+            "save1.json",
+            std::slice::from_ref(&edit)
+        ),
+        Err(Error::GameRunning(_))
+    ));
+    game.kill();
+
+    let r = ot_saves::editor::save(&g, &store, &folder, "save1.json", &[edit]).unwrap();
+    assert!(r.changed);
+    let r = ot_saves::quick::apply(
+        &g,
+        &store,
+        &roots,
+        "json",
+        "{localappdatalow}/TestCo/Testbed/save1.json",
+        "player.gold",
+        &serde_json::json!(999_999),
+    )
+    .unwrap();
+    assert!(r.changed);
+    assert_eq!(store.list().unwrap().len(), 2, "a backup before each edit");
+
+    let mut game = Testbed::spawn_with_env(&exe, &env);
+    let loaded = game.send("load");
+    assert_eq!(loaded["message"], "loaded");
+    assert_eq!(loaded["gold"].as_i64().unwrap(), 999_999);
+    assert_eq!(loaded["health"].as_i64().unwrap(), 42);
+}

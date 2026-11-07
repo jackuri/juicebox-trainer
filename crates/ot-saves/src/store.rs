@@ -16,6 +16,7 @@ use ot_core::hash::sha256_bytes;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
+use crate::registry;
 
 /// Automatic backups kept per game (manual ones don't count).
 pub const KEEP_AUTOMATIC: usize = 30;
@@ -43,6 +44,8 @@ pub enum Reason {
     Manual,
     /// Taken right before restoring another backup.
     BeforeRestore,
+    /// Taken right before editing a save.
+    BeforeEdit,
 }
 
 impl Reason {
@@ -145,9 +148,22 @@ impl Default for Limits {
 #[derive(Debug, Clone)]
 pub(crate) struct Scanned {
     pub folder: usize,
+    /// Path inside the folder, or the value name for a registry key.
     pub rel: String,
     pub abs: PathBuf,
     pub modified_ms: Option<u64>,
+    /// A registry value's bytes (type + data); `None` for files.
+    pub data: Option<Vec<u8>>,
+}
+
+impl Scanned {
+    /// The bytes as stored in a backup.
+    pub fn read(&self) -> std::io::Result<Vec<u8>> {
+        match &self.data {
+            Some(d) => Ok(d.clone()),
+            None => std::fs::read(&self.abs),
+        }
+    }
 }
 
 pub(crate) fn now_ms() -> u64 {
@@ -178,6 +194,29 @@ pub(crate) fn scan(folders: &[String], limits: Limits) -> Result<Vec<Scanned>> {
     let mut out = Vec::new();
     let mut bytes = 0u64;
     for (index, folder) in folders.iter().enumerate() {
+        if registry::is_registry(folder) {
+            // A key that doesn't exist (yet) is empty, like a missing folder.
+            for v in registry::read_values(folder).unwrap_or_default() {
+                let data = v.to_bytes();
+                bytes += data.len() as u64;
+                out.push(Scanned {
+                    folder: index,
+                    rel: v.name,
+                    abs: PathBuf::new(),
+                    modified_ms: None,
+                    data: Some(data),
+                });
+                if out.len() > limits.max_files || bytes > limits.max_bytes {
+                    return Err(Error::TooLarge {
+                        files: out.len(),
+                        bytes,
+                        max_files: limits.max_files,
+                        max_bytes: limits.max_bytes,
+                    });
+                }
+            }
+            continue;
+        }
         let root = PathBuf::from(folder);
         if !root.is_dir() {
             continue;
@@ -215,6 +254,7 @@ pub(crate) fn scan(folders: &[String], limits: Limits) -> Result<Vec<Scanned>> {
                     rel,
                     abs: path,
                     modified_ms: ms_of(meta.modified()),
+                    data: None,
                 });
                 if out.len() > limits.max_files || bytes > limits.max_bytes {
                     return Err(Error::TooLarge {
@@ -376,7 +416,7 @@ impl Store {
         let mut skipped = Vec::new();
         let mut total = 0;
         for s in scanned {
-            let bytes = match std::fs::read(&s.abs) {
+            let bytes = match s.read() {
                 Ok(b) => b,
                 Err(e) => {
                     skipped.push(Skipped {

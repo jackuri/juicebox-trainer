@@ -76,7 +76,7 @@ pub fn game_id(exe: &Path) -> String {
 }
 
 /// Removes `.` and `..` from a path without touching the disk.
-fn clean(path: &Path) -> PathBuf {
+pub(crate) fn clean(path: &Path) -> PathBuf {
     use std::path::Component;
     let mut out = PathBuf::new();
     for c in path.components() {
@@ -243,6 +243,15 @@ impl Library {
             path: path.to_path_buf(),
             why: why.to_string(),
         };
+        let text = path.to_string_lossy().trim_end_matches('\\').to_string();
+        if crate::registry::is_registry(&text) {
+            if !crate::registry::key_exists(&text) {
+                return Err(bad(
+                    r"that registry key doesn't exist (only HKCU\Software\... keys can be used)",
+                ));
+            }
+            return self.push_folder(id, text, "Added by you (registry)");
+        }
         if !path.is_absolute() {
             return Err(bad(
                 "use a full path, like C:\\Users\\you\\Documents\\My Games\\Game",
@@ -261,6 +270,14 @@ impl Library {
         if self.inside_root(&p) {
             return Err(bad("that is where OpenTrainer keeps its backups"));
         }
+        self.push_folder(id, p, "Added by you")
+    }
+
+    fn push_folder(&mut self, id: &str, p: String, reason: &str) -> Result<Game> {
+        let bad = |why: &str| Error::BadFolder {
+            path: PathBuf::from(&p),
+            why: why.to_string(),
+        };
         let game = self.get(id)?;
         if let Some(other) = game.folders.iter().find(|f| overlaps(&f.path, &p)) {
             return Err(bad(&format!(
@@ -280,7 +297,7 @@ impl Library {
         let game = self.get_mut(id)?;
         game.folders.push(SaveFolder {
             path: p,
-            reason: "Added by you".into(),
+            reason: reason.into(),
             user_added: true,
             steam_cloud: false,
         });

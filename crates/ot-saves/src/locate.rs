@@ -144,7 +144,13 @@ impl Finder<'_> {
     /// Adds `path` if it exists, isn't (inside) the install folder and doesn't
     /// overlap a folder already found.
     fn add(&mut self, path: PathBuf, reason: String, steam_cloud: bool) {
-        if !path.is_dir() {
+        let p = path.to_string_lossy();
+        let exists = if crate::registry::is_registry(&p) {
+            crate::registry::key_exists(&p)
+        } else {
+            path.is_dir()
+        };
+        if !exists {
             return;
         }
         let key = path.to_string_lossy().to_lowercase();
@@ -226,6 +232,11 @@ pub fn locate(exe: &Path, roots: &Roots) -> Located {
         f.add(
             low.join(company).join(product),
             format!("Unity save folder ({company} / {product})"),
+            false,
+        );
+        f.add(
+            PathBuf::from(format!(r"HKCU\Software\{company}\{product}")),
+            "Unity PlayerPrefs (registry)".into(),
             false,
         );
     }
