@@ -25,6 +25,9 @@ from the releases page above. You can compare the file with `SHA256SUMS.txt` the
 
 ## The tabs
 
+The tabs are in the bar on the left. The bottom of that bar says which game OpenTrainer is
+attached to, if any.
+
 | Tab | What it's for |
 |---|---|
 | **Games** | Your installed games (Steam, Epic, GOG, Xbox) and "Play with cheats" |
