@@ -279,5 +279,5 @@ fn reads_class_names_of_dotnet_games() {
     let e = t
         .call("game_classes", &json!({ "exe": native.to_string_lossy() }))
         .unwrap_err();
-    assert!(e.contains("Unity (Mono) and .NET"), "{e}");
+    assert!(e.contains("Unity (Mono or IL2CPP) and .NET"), "{e}");
 }

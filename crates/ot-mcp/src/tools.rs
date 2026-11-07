@@ -684,12 +684,15 @@ impl Tools {
                 .ok_or("can't get the game's file path")?,
         };
         let engine = ot_core::engine::detect(Path::new(&exe));
-        if !matches!(
-            engine.engine,
-            ot_core::engine::Engine::UnityMono | ot_core::engine::Engine::Xna
-        ) {
+        let il2cpp = engine.engine == ot_core::engine::Engine::UnityIl2cpp;
+        if !il2cpp
+            && !matches!(
+                engine.engine,
+                ot_core::engine::Engine::UnityMono | ot_core::engine::Engine::Xna
+            )
+        {
             return Err(format!(
-                "class names can be read for Unity (Mono) and .NET games; this game is {}",
+                "class names can be read for Unity (Mono or IL2CPP) and .NET games; this game is {}",
                 engine.name
             ));
         }
@@ -703,7 +706,16 @@ impl Tools {
             .filter(|q| !q.trim().is_empty());
         let mut classes = Vec::new();
         let mut read = Vec::new();
-        for path in ot_core::dotnet::game_assemblies(Path::new(&exe)) {
+        if il2cpp {
+            let path = ot_core::il2cpp::metadata_path(Path::new(&exe))
+                .ok_or("this IL2CPP game has no global-metadata.dat where Unity keeps it")?;
+            classes = ot_core::il2cpp::read_file(&path).map_err(err)?;
+            read.push("global-metadata.dat".to_string());
+        }
+        for path in il2cpp
+            .then(Vec::new)
+            .unwrap_or_else(|| ot_core::dotnet::game_assemblies(Path::new(&exe)))
+        {
             if let Ok(mut c) = ot_core::dotnet::read_assembly(&path) {
                 read.push(
                     path.file_name()
@@ -716,6 +728,11 @@ impl Tools {
         if read.is_empty() {
             return Err("found no readable game assemblies".into());
         }
+        // Anti-cheat code in the game: say so (the guard decides on attach).
+        let anti_cheat = classes.iter().any(|c| {
+            let ns = c.namespace.to_ascii_lowercase();
+            ns.contains("anticheat") || ns.contains("easyanticheat") || ns.contains("battleye")
+        });
         let hits = ot_core::dotnet::search(&classes, query, limit);
         let list: Vec<String> = hits
             .iter()
@@ -730,10 +747,17 @@ impl Tools {
             })
             .collect();
         Ok(json!({
+            "antiCheatCode": anti_cheat.then_some(
+                "This game includes anti-cheat code, so it is probably an online game. OpenTrainer won't attach while anti-cheat is active; tell the player if attach is refused."
+            ),
             "assemblies": read,
             "classes": classes.len(),
             "fields": list,
-            "tip": "These are the game's own names and types. Scan with the matching type (float, int, double...). Values live on the heap and move between runs, so prefer code patches found with watch_writes_start.",
+            "tip": if il2cpp {
+                "These are the game's own names (IL2CPP keeps types in GameAssembly.dll, so they show as ?). Health and speed are usually float, money and counts usually int. Values live on the heap; prefer code patches found with watch_writes_start."
+            } else {
+                "These are the game's own names and types. Scan with the matching type (float, int, double...). Values live on the heap and move between runs, so prefer code patches found with watch_writes_start."
+            },
         }))
     }
 
@@ -1076,7 +1100,7 @@ pub fn definitions() -> Vec<Value> {
         ),
         tool(
             "game_classes",
-            "Unity (Mono) and .NET games only: the game's class fields whose names match 'query' (e.g. health, gold), with their types; without a query, fields with common cheat names.",
+            "Unity (Mono or IL2CPP) and .NET games: the game's class fields whose names match 'query' (e.g. health, gold), with their types (IL2CPP: names only); without a query, fields with common cheat names.",
             schema(
                 json!({ "query": { "type": "string" }, "limit": { "type": "integer" }, "exe": { "type": "string" } }),
                 &[],
