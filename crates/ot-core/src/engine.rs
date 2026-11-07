@@ -42,6 +42,7 @@ impl Engine {
         match self {
             Engine::UnityMono => &[
                 "Game logic is .NET code (Assembly-CSharp.dll) compiled at run time; values live on the managed heap and move between runs.",
+                "Call game_classes (e.g. query \"health\") to see the game's own field names and types before scanning.",
                 "Prefer a code patch at the instruction found by find_what_writes over pointer paths; pointer paths usually start in mono-2.0-bdwgc.dll or UnityPlayer.dll if needed.",
                 "Values are often float (health, speed) or int (money).",
             ],
@@ -69,6 +70,7 @@ impl Engine {
             ],
             Engine::Xna => &[
                 ".NET game: values live on the managed heap and move; prefer code patches found with find_what_writes.",
+                "Call game_classes (e.g. query \"health\") to see the game's own field names and types before scanning.",
             ],
             Engine::Native => &[
                 "Pointer paths usually start in the game's exe; code patches at the instruction found by find_what_writes are often the most stable.",

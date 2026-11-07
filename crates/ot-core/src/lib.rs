@@ -8,6 +8,7 @@
 pub mod address;
 pub mod aob;
 pub mod code;
+pub mod dotnet;
 pub mod engine;
 pub mod error;
 pub mod freeze;
