@@ -8,6 +8,7 @@
 pub mod address;
 pub mod aob;
 pub mod code;
+pub mod engine;
 pub mod error;
 pub mod freeze;
 pub mod guard;
@@ -22,6 +23,7 @@ pub mod session;
 pub mod signature;
 pub mod value;
 mod win;
+pub mod writes;
 
 pub use aob::Pattern;
 pub use error::{Error, Result};

@@ -91,6 +91,10 @@ pub enum Error {
     #[error("restore journal: {0}")]
     Journal(String),
 
+    /// Watching for writes (debugger) failed.
+    #[error("{0}")]
+    Debugger(String),
+
     #[error("{op} failed: {source}")]
     Win32 {
         op: &'static str,
@@ -127,6 +131,7 @@ impl Error {
             Error::PointerMapTooLarge { .. } => "pointerMapTooLarge",
             Error::SignatureNotUnique { .. } => "signatureNotUnique",
             Error::Journal(_) => "journal",
+            Error::Debugger(_) => "debugger",
             Error::Win32 { .. } => "win32",
         }
     }
