@@ -1,9 +1,10 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.6.0_
+_Last updated: 2026-11-07 — v0.7.0_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.6.0 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.6.0 (pushed and tagged). v0.7.0
+  is committed locally and not pushed yet.
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -17,25 +18,35 @@ _Last updated: 2026-11-07 — v0.6.0_
   exit / attach / by hand with notes, content-deduplicated store with retention, compare (text lines
   and binary bytes), guarded restore (game closed, install-folder guard check, hash check, backup
   first), Steam Cloud warnings, Save backups view. Testbed `save` / `load`. All checks pass locally.
+- v0.7.0 Saves II: save editor for JSON, INI, Unreal GVAS (up to UE 5.3) and Unity PlayerPrefs
+  (registry, also backed up / compared / restored), gzip / zlib / Base64 wrappers and CRC32 / MD5 /
+  SHA-1 / SHA-256 checksums recomputed on save, hex view with number inspector, quick codes from
+  packs (validated placeholders), guarded saving (game closed, guard, backup first). All checks pass.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.6.0 as planned.
+- Nothing. Stopped after v0.7.0 as planned.
 
 ## Next
-- v0.7.0 Saves II (PLAN §6): codecs (JSON / zlib / GVAS / PlayerPrefs / SQLite), structured editor,
-  hex fallback, checksum fixers, quick codes.
+- v0.8.0 AI I (PLAN §6): ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on the
+  testbed. Open decisions in PLAN §8 (name, default AI backend, pack hub, overlay) must be confirmed
+  with the user first.
+- SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
 - Small follow-ups: hotkey rebinding, "Load pack from file…", auto-load a pack on attach, a
   "Find pointers" button on scanner results, "copy as pack JSON" for pointer paths, a folder picker
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
-- The Save backups view, Pointers and Signatures tabs haven't been clicked through by hand yet
-  (covered by frontend tests and live tests against the testbed).
-- Unity PlayerPrefs saves live in the registry (`HKCU\Software\<company>\<product>`) and are not
-  backed up yet (v0.7.0 codecs).
+- The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
+  through by hand yet (covered by frontend tests and live tests against the testbed).
+- Save editor limits: Unreal saves from UE 5.4+ open as hex; Unreal text values, engine structs,
+  maps and sets are read-only; XML / YAML saves open as hex; files over 64 MB aren't opened.
+- PlayerPrefs floats are assumed to be REG_QWORD doubles (Unity's Windows format); a game that
+  stores numbers differently shows them as raw whole numbers.
+- Wrapper detection only handles a checksum over the whole rest of the file; seeded or partial
+  checksums, and encryption, aren't detected (encrypted saves open as hex and are not decrypted).
 - Folders are added by pasting a path (no folder picker yet).
 - Every attached program is added to Save backups (it can be removed there). Its saves are backed
   up at attach only if a save folder was found.

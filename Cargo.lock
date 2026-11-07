@@ -1818,6 +1818,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "md-5"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69b6441f590336821bb897fb28fc622898ccceb1d6cea3fde5ea86b090c4de98"
+dependencies = [
+ "cfg-if",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2176,7 +2186,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "opentrainer-desktop"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ot-core",
  "ot-packs",
@@ -2198,7 +2208,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "ot-core"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "iced-x86",
  "serde",
@@ -2212,11 +2222,11 @@ dependencies = [
 
 [[package]]
 name = "ot-mcp"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "ot-packs"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ot-core",
  "serde",
@@ -2228,11 +2238,17 @@ dependencies = [
 
 [[package]]
 name = "ot-saves"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
+ "base64 0.23.1",
+ "crc32fast",
+ "flate2",
+ "md-5",
  "ot-core",
  "serde",
  "serde_json",
+ "sha1",
+ "sha2 0.11.1",
  "similar",
  "testbed-harness",
  "thiserror 2.0.21",
@@ -2897,6 +2913,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3424,7 +3451,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-harness"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "ot-core",
  "serde_json",
@@ -3432,7 +3459,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-native"
-version = "0.6.0"
+version = "0.7.0"
 
 [[package]]
 name = "thiserror"

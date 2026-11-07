@@ -239,7 +239,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.4.0 | Packs | Pack schema + validator, value/patch ops, hotkeys, trainer UI, example packs vs testbed |
 | 0.5.0 | Stability | Pointer scanner, AOB maker, original-byte verification, restore-on-exit (crash-safe journal). Code caves moved to a later version |
 | 0.6.0 | Saves I | Locator, snapshots on launch/exit, restore, diff, Steam Cloud warnings |
-| 0.7.0 | Saves II | Codecs (JSON/zlib/GVAS/PlayerPrefs/SQLite), structured editor, hex fallback, checksum fixers, quick codes |
+| 0.7.0 | Saves II | Codecs (JSON/INI/gzip/zlib/Base64/GVAS/PlayerPrefs), structured editor, hex fallback, checksum fixers, quick codes. SQLite moved to a later version (large dependency; user chose to wait) |
 | 0.8.0 | AI I | ai-agent sidecar, ot-mcp, guided "Make a trainer" for native games on testbed |
 | 0.9.0 | AI II | REA + `um` integration, engine fast paths (Unity Mono, IL2CPP, Unreal), self-healing, save diff labelling |
 | 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets, library auto-detect + launch |

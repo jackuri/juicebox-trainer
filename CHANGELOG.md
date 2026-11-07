@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-11-07
+
+### Added
+- **Save editor** (`ot_saves::codec`, `ot_saves::editor`; **Edit saves** in the Save backups view).
+  Open any file in a game's save folders and change its values:
+  - **JSON** and **INI** saves: every value listed by path (`player.gold`, `items[2].count`,
+    `Player.Gold`); an edit replaces only that value's text, so spacing and order stay as they were.
+  - **Unreal saves** (`.sav`, GVAS, up to UE 5.3): the property tree, with numbers and true/false
+    values editable in place. Text, engine structs, maps and sets are shown read-only.
+  - **Unity PlayerPrefs** in the registry (`HKCU\Software\<company>\<product>`): found automatically
+    for Unity games, backed up, compared and restored like a folder, and editable (each value keeps
+    its registry type).
+  - **Wrappers** detected and put back on saving: gzip, zlib, Base64, and checksums (CRC32, MD5,
+    SHA-1, SHA-256 at the start or end of the file), which are recomputed after an edit.
+  - **Hex view** for anything else (or any file, via "Show bytes"): pages of bytes, a number
+    inspector (8/16/32/64-bit, float, double) and "Change bytes here".
+  - Opening and saving with no changes gives back the same bytes. Files are parsed from their
+    bytes; nothing is deserialised or run.
+  - Saving is refused while the game runs or when the guard finds anti-cheat in the game's folder,
+    and every save folder is backed up first ("Before an edit").
+- **Quick codes**: a cheat pack's `saveCodes` now show as one-click buttons for that game (same
+  checks and backup). `file` starts with a folder placeholder (`{documents}`, `{mygames}`,
+  `{savedgames}`, `{appdata}`, `{localappdata}`, `{localappdatalow}`, `{playerprefs}`) and must be in
+  one of the game's save folders. The validator now checks codecs, placeholders and values. The
+  example packs have "999,999 gold" and "99 ammo" codes for the testbed's save file.
+- New dependencies (small, MIT/Apache): `flate2`, `base64`, `crc32fast`, `md-5`, `sha1`.
+
+### Changed
+- SQLite saves are not in this version (they need a large library); the plan moves them later.
+
 ## [0.6.0] - 2026-11-07
 
 ### Added

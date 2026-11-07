@@ -137,6 +137,17 @@ Restoring needs the game closed and is refused for games with anti-cheat. Your s
 before a restore are kept as a "Before a restore" backup, so you can undo it. Backups are stored in
 `%LOCALAPPDATA%\OpenTrainer\saves`.
 
+## Edit a save
+
+1. In the fake game type `save`, then `quit` (saves can only be changed while the game is closed).
+2. In **Save backups**, pick the testbed. Under **Edit saves**, click **Open** next to `save1.json`.
+3. Change `player.gold` to `5000` and click **Save changes**. (Your saves are backed up first, as
+   "Before an edit".)
+4. Start the fake game again and type `load`: gold is 5000.
+
+Or click a **Quick code** such as "999,999 gold (in the save file)": it comes from the testbed's
+cheat pack. Files OpenTrainer can't read as values open as bytes, with a number inspector.
+
 ## If OpenTrainer crashes
 
 Changes to game code are written down before they are made
