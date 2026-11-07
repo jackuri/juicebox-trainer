@@ -58,12 +58,22 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
     }
   }
 
-  async function add() {
+  async function add(path = addPath) {
     setError(null);
     try {
-      await api.libraryAdd(addPath.trim());
+      await api.libraryAdd(path.trim());
       setAddPath("");
       load();
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  async function browse() {
+    setError(null);
+    try {
+      const picked = await api.pickExe("Pick the game's .exe");
+      if (picked) await add(picked);
     } catch (e) {
       setError(toCommandError(e).message);
     }
@@ -166,7 +176,11 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
       </ul>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-zinc-900 pt-3 text-xs">
-        <span className="text-zinc-400">Game not listed? Paste the path of its .exe:</span>
+        <span className="text-zinc-400">Game not listed?</span>
+        <button className="rounded-md bg-zinc-800 px-3 py-1 hover:bg-zinc-700" onClick={() => void browse()}>
+          Browse for its .exe…
+        </button>
+        <span className="text-zinc-500">or paste the path:</span>
         <input
           aria-label="Game exe path"
           className="min-w-72 flex-1 rounded-md bg-zinc-900 px-2 py-1 font-mono outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"

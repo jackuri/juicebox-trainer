@@ -56,6 +56,16 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
     return onSavesChanged(reload);
   }, [apply, reload]);
 
+  async function browseExe() {
+    setError(null);
+    try {
+      const picked = await api.pickExe("Pick the game's .exe");
+      if (picked) await add(() => api.savesAddExe(picked));
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
   async function add(how: () => Promise<SaveGame>) {
     setError(null);
     try {
@@ -139,6 +149,9 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
             </button>
           </div>
           <div className="flex gap-1">
+            <button className={button} onClick={() => void browseExe()}>
+              Browse…
+            </button>
             <input
               aria-label="Game exe path"
               className={input}
@@ -302,9 +315,18 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
       onChanged();
     });
 
-  const addFolder = () =>
+  const addFolder = (path = folder) =>
     run(async () => {
-      await api.savesAddFolder(game.id, folder);
+      await api.savesAddFolder(game.id, path);
+      setFolder("");
+      onChanged();
+    });
+
+  const browseFolder = () =>
+    run(async () => {
+      const picked = await api.pickFolder(`Pick a save folder for ${game.name}`);
+      if (!picked) return;
+      await api.savesAddFolder(game.id, picked);
       setFolder("");
       onChanged();
     });
@@ -433,10 +455,13 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
           </ul>
         )}
         <div className="flex gap-1">
+          <button className={button} disabled={busy} onClick={() => void browseFolder()}>
+            Browse for a folder…
+          </button>
           <input
             aria-label="Folder to add"
             className={input}
-            placeholder="Add a folder: paste its full path"
+            placeholder="or paste its full path"
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
           />

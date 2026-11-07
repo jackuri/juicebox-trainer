@@ -104,4 +104,22 @@ describe("LibraryView", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add game" }));
     expect(await screen.findByText(/is not an \.exe file/)).toBeInTheDocument();
   });
+
+  it("adds a game picked with Browse, and does nothing when cancelled", async () => {
+    let picked: string | null = null;
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "library_list") return Promise.resolve([game({})]);
+      if (cmd === "pick_exe") return Promise.resolve(picked);
+      return Promise.resolve();
+    });
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    const browse = await screen.findByRole("button", { name: "Browse for its .exe…" });
+    fireEvent.click(browse);
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("pick_exe", { titleText: "Pick the game's .exe", start: null }));
+    expect(invoke).not.toHaveBeenCalledWith("library_add", expect.anything());
+
+    picked = "C:\\Games\\Mine\\mine.exe";
+    fireEvent.click(browse);
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_add", { exe: "C:\\Games\\Mine\\mine.exe" }));
+  });
 });

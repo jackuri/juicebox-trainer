@@ -251,6 +251,24 @@ describe("SavesView", () => {
     }
   });
 
+  it("adds a save folder and a game picked with Browse", async () => {
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "pick_folder") return Promise.resolve("C:\\Users\\me\\Saved Games\\Testbed");
+      if (cmd === "pick_exe") return Promise.resolve("C:\\Games\\T\\t.exe");
+      if (cmd === "saves_add_folder" || cmd === "saves_add_exe") return Promise.resolve(game);
+      return base(cmd, args);
+    });
+    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    await screen.findByText("before boss");
+    fireEvent.click(screen.getByRole("button", { name: "Browse for a folder…" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("saves_add_folder", { id: game.id, path: "C:\\Users\\me\\Saved Games\\Testbed" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Browse…" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("saves_add_exe", { path: "C:\\Games\\T\\t.exe" }));
+  });
+
   it("adds a running game and shows errors", async () => {
     invoke.mockImplementation((cmd: string) => {
       if (cmd === "saves_overview") return Promise.resolve({ games: [], steamRunning: false, root: null });

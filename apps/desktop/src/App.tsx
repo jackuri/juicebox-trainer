@@ -11,6 +11,7 @@ import {
   api,
   type AppInfo,
   type CommandError,
+  isPackFile,
   onFileDrop,
   onOtpackOpen,
   onUpdateAvailable,
@@ -35,7 +36,7 @@ export default function App() {
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
   const [view, setView] = useState<View>("cheats");
-  /** An .otpack to show in Packs (opened from Explorer or dropped). */
+  /** A pack file to show in Packs (opened from Explorer or dropped). */
   const [openPath, setOpenPath] = useState<string | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
@@ -51,12 +52,12 @@ export default function App() {
     const stopOpen = onOtpackOpen(openOtpack);
     const stopUpdate = onUpdateAvailable(setUpdate);
     const stopDrop = onFileDrop((paths) => {
-      const pack = paths.find((p) => p.toLowerCase().endsWith(".otpack"));
+      const pack = paths.find(isPackFile);
       if (pack) {
         setDropError(null);
         openOtpack(pack);
       } else if (paths.length > 0) {
-        setDropError("Only .otpack pack files can be dropped here.");
+        setDropError("Only pack files (.otpack or pack.json) can be dropped here.");
       }
     });
     return () => {
@@ -276,6 +277,7 @@ export default function App() {
                 </div>
                 <SessionTools
                   session={session}
+                  onShowPacks={() => setView("packs")}
                   onSessionLost={sessionLost}
                   onRefreshModules={() => void refreshModules()}
                 />

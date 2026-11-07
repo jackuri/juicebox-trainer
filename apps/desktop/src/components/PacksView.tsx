@@ -188,7 +188,8 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         </div>
         <p className="text-xs text-zinc-500">
           Share a pack by sending its <code>.otpack</code> file. To open one, double-click it, drop it on this window or use
-          “Open a pack file…”.
+          “Open a pack file…”. A plain <code>pack.json</code> (e.g. from a forum or the community repository) opens the
+          same way.
         </p>
         {packs === null && <p className="text-sm text-zinc-500">Loading…</p>}
         <ul className="flex flex-col gap-2">

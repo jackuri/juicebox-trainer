@@ -341,6 +341,11 @@ export interface CommunityList {
 }
 
 /** Files dropped on the window (their paths). */
+/** Files OpenTrainer opens as packs: `.otpack`, or a plain pack `.json`. */
+export function isPackFile(path: string): boolean {
+  return /\.(otpack|json)$/i.test(path.trim());
+}
+
 export function onFileDrop(cb: (paths: string[]) => void): () => void {
   let unlisten: (() => void) | null = null;
   let stopped = false;
@@ -814,6 +819,12 @@ export const api = {
   packsExport: (key: string) => invoke<string | null>("packs_export", { key }),
   packsShowFile: (path: string) => invoke<void>("packs_show_file", { path }),
   packsPickOtpack: () => invoke<string | null>("packs_pick_otpack"),
+  /** Windows folder picker; `null` if cancelled. `start`: a folder or file to start in. */
+  pickFolder: (titleText: string, start?: string) =>
+    invoke<string | null>("pick_folder", { titleText, start: start ?? null }),
+  /** Windows file picker for a program (.exe); `null` if cancelled. */
+  pickExe: (titleText: string, start?: string) =>
+    invoke<string | null>("pick_exe", { titleText, start: start ?? null }),
   packsPreview: (path: string) => invoke<PackPreview>("packs_preview", { path }),
   packsImport: (path: string, replace: boolean) =>
     invoke<ImportResult>("packs_import", { path, replace }),
