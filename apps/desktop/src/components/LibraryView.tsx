@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
   api,
   type LibraryGame,
@@ -80,18 +80,18 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
   }
 
   return (
-    <main className="flex min-h-0 flex-col gap-3 overflow-y-auto p-4" aria-label="Games">
+    <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-6" aria-label="Games">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-medium">Games on this PC</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Games on this PC</h2>
         <input
           aria-label="Find a game"
-          className="ml-auto w-56 rounded-md bg-zinc-900 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="ml-auto w-56 rounded-lg bg-zinc-900 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="Find a game…"
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
         <button
-          className="rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
+          className="rounded-lg bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
           onClick={() => {
             setError(null);
             setGames(null);
@@ -103,7 +103,7 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
       </div>
 
       {playing && progress && (
-        <div className="flex items-center gap-3 rounded-md bg-sky-950/40 px-3 py-2 text-sm text-sky-200" role="status">
+        <div className="flex items-center gap-3 rounded-lg bg-sky-950/40 px-3 py-2 text-sm text-sky-200" role="status">
           <span className="flex-1">{progress}</span>
           <button className="rounded bg-sky-900/60 px-2 py-1 text-xs hover:bg-sky-800/60" onClick={() => void api.libraryCancel()}>
             Stop waiting
@@ -111,7 +111,7 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
         </div>
       )}
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -120,18 +120,32 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
         <p className="text-sm text-zinc-400">No games found. Add one below by its .exe.</p>
       )}
 
-      <ul className="flex flex-col gap-2">
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(236px,1fr))] gap-4">
         {shown.map((g) => (
-          <li key={g.id} className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800" data-testid={`game-${g.id}`}>
-            <div className="min-w-0 flex-1">
-              <p className={`text-sm ${g.blocked ? "text-zinc-500" : ""}`}>
-                {g.name} <span className="text-xs text-zinc-500">· {STORE[g.store]}</span>
-              </p>
-              <p className="flex flex-wrap gap-2 text-xs text-zinc-500">
+          <li
+            key={g.id}
+            className={`group flex flex-col overflow-hidden rounded-2xl bg-zinc-900/80 ring-1 ring-zinc-800 transition hover:ring-zinc-600 ${
+              g.blocked ? "opacity-70" : ""
+            }`}
+            data-testid={`game-${g.id}`}
+          >
+            <Cover name={g.name} dim={Boolean(g.blocked)}>
+              <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
+                {STORE[g.store]}
+              </span>
+              {g.pack && !g.blocked && (
+                <span className="absolute right-2.5 top-2.5 rounded-full bg-green-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-950">
+                  Cheats
+                </span>
+              )}
+            </Cover>
+            <div className="flex flex-1 flex-col gap-2 p-3">
+              <p className={`line-clamp-2 text-sm font-semibold leading-snug ${g.blocked ? "text-zinc-400" : ""}`}>{g.name}</p>
+              <p className="flex flex-col gap-0.5 text-xs text-zinc-500">
                 {g.blocked ? (
                   <span className="text-amber-400">Online / anti-cheat ({g.blocked.replace(/^anti-cheat found:? ?/, "") || "found"}): not supported</span>
                 ) : g.pack ? (
-                  <span className="text-emerald-400">
+                  <span className="text-emerald-300">
                     Pack: {g.pack.name}
                     {g.pack.ai ? " (AI-made)" : ""}
                   </span>
@@ -141,55 +155,60 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
                 {g.autoPreset && <span className="text-sky-300">Starts with: {g.autoPreset}</span>}
                 {g.launch.kind === "manual" && !g.blocked && <span>You start it yourself; OpenTrainer waits for it</span>}
               </p>
+              <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
+                <button
+                  className="btn-accent flex-1 rounded-lg px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={Boolean(g.blocked) || playing !== null}
+                  aria-label={`Play ${g.name}`}
+                  onClick={() => void play(g)}
+                >
+                  {g.pack ? "Play with cheats" : "Play and attach"}
+                </button>
+                <button
+                  className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700"
+                  aria-label={`Open folder of ${g.name}`}
+                  onClick={() => void api.libraryOpenFolder(g.id).catch((e: unknown) => setError(toCommandError(e).message))}
+                >
+                  Folder
+                </button>
+                {g.store === "own" && (
+                  <button
+                    className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700"
+                    aria-label={`Remove ${g.name}`}
+                    onClick={() => void api.libraryRemove(g.id).then(load)}
+                  >
+                    Remove
+                  </button>
+                )}
+                {!g.blocked && !g.pack && (
+                  <button
+                    className="w-full rounded-lg bg-emerald-950/60 px-3 py-1.5 text-xs font-medium text-emerald-200 ring-1 ring-emerald-800 hover:bg-emerald-900/70"
+                    onClick={onOpenAi}
+                  >
+                    Make one with AI
+                  </button>
+                )}
+              </div>
             </div>
-            {!g.blocked && !g.pack && (
-              <button className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700" onClick={onOpenAi}>
-                Make one with AI
-              </button>
-            )}
-            <button
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700"
-              aria-label={`Open folder of ${g.name}`}
-              onClick={() => void api.libraryOpenFolder(g.id).catch((e: unknown) => setError(toCommandError(e).message))}
-            >
-              Folder
-            </button>
-            {g.store === "own" && (
-              <button
-                className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700"
-                aria-label={`Remove ${g.name}`}
-                onClick={() => void api.libraryRemove(g.id).then(load)}
-              >
-                Remove
-              </button>
-            )}
-            <button
-              className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={Boolean(g.blocked) || playing !== null}
-              aria-label={`Play ${g.name}`}
-              onClick={() => void play(g)}
-            >
-              {g.pack ? "Play with cheats" : "Play and attach"}
-            </button>
           </li>
         ))}
       </ul>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-zinc-900 pt-3 text-xs">
         <span className="text-zinc-400">Game not listed?</span>
-        <button className="rounded-md bg-zinc-800 px-3 py-1 hover:bg-zinc-700" onClick={() => void browse()}>
+        <button className="rounded-lg bg-zinc-800 px-3 py-1 hover:bg-zinc-700" onClick={() => void browse()}>
           Browse for its .exe…
         </button>
         <span className="text-zinc-500">or paste the path:</span>
         <input
           aria-label="Game exe path"
-          className="min-w-72 flex-1 rounded-md bg-zinc-900 px-2 py-1 font-mono outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="min-w-72 flex-1 rounded-lg bg-zinc-900 px-2 py-1 font-mono outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="C:\Games\MyGame\MyGame.exe"
           value={addPath}
           onChange={(e) => setAddPath(e.target.value)}
         />
         <button
-          className="rounded-md bg-zinc-800 px-3 py-1 hover:bg-zinc-700 disabled:opacity-40"
+          className="rounded-lg bg-zinc-800 px-3 py-1 hover:bg-zinc-700 disabled:opacity-40"
           disabled={!addPath.trim()}
           onClick={() => void add()}
         >
@@ -197,5 +216,29 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
         </button>
       </div>
     </main>
+  );
+}
+
+/** A made-up cover for a game: a colour picked from its name, and its initials. No game art is used. */
+function Cover({ name, dim = false, children }: { name: string; dim?: boolean; children?: ReactNode }) {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  const initials = name
+    .replace(/[^\p{L}\p{N} ]/gu, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]!.toUpperCase())
+    .join("");
+  return (
+    <div
+      className={`relative flex h-28 items-center justify-center ${dim ? "grayscale" : ""}`}
+      style={{
+        backgroundImage: `radial-gradient(120% 90% at 85% 0%, hsl(${(h + 50) % 360} 85% 60% / 0.55), transparent 60%), linear-gradient(135deg, hsl(${h} 65% 32%), hsl(${(h + 40) % 360} 60% 14%))`,
+      }}
+    >
+      <span className="text-4xl font-black tracking-tight text-white/85 drop-shadow-[0_2px_8px_rgb(0_0_0/0.4)]">{initials || "?"}</span>
+      {children}
+    </div>
   );
 }

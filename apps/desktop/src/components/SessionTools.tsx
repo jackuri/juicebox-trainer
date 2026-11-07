@@ -49,17 +49,15 @@ export function SessionTools({ session, onSessionLost, onRefreshModules, onShowP
 
   return (
     <div className="flex flex-col gap-4">
-      <div role="tablist" aria-label="Tools" className="flex gap-1 border-b border-zinc-800">
+      <div role="tablist" aria-label="Tools" className="flex flex-wrap gap-1 self-start rounded-xl bg-zinc-900/80 p-1 ring-1 ring-zinc-800">
         {TABS.map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${
-              tab === t
-                ? "border-emerald-500 text-zinc-100"
-                : "border-transparent text-zinc-400 hover:text-zinc-200"
+            className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
+              tab === t ? "bg-zinc-800 text-white shadow ring-1 ring-zinc-700" : "text-zinc-400 hover:text-zinc-100"
             }`}
           >
             {t}

@@ -82,7 +82,7 @@ interface Props {
 /** What changed between two backups (or a backup and the saves now). */
 export function SaveDiffView({ diff, title, onClose, onExplain }: Props) {
   return (
-    <section className="flex flex-col gap-3 rounded-md border border-zinc-800 p-3" aria-label="Comparison">
+    <section className="flex flex-col gap-3 rounded-lg border border-zinc-800 p-3" aria-label="Comparison">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-medium">{title}</h3>
         {onExplain && diff.files.length > 0 && (

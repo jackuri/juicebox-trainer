@@ -60,14 +60,14 @@ export function MemoryPanel({ onSessionLost }: Props) {
       <h2 className="text-sm font-medium text-zinc-300">Read / write a value</h2>
       <div className="grid grid-cols-[1fr_auto] gap-2">
         <input
-          className="rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="0x1234ABCD or testbed_native.exe+0x1F0"
           aria-label="Address"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
         <select
-          className="rounded-md bg-zinc-900 px-2 py-1.5 text-sm ring-1 ring-zinc-800"
+          className="rounded-lg bg-zinc-900 px-2 py-1.5 text-sm ring-1 ring-zinc-800"
           aria-label="Value type"
           value={ty}
           onChange={(e) => setTy(e.target.value as ValueType)}
@@ -79,7 +79,7 @@ export function MemoryPanel({ onSessionLost }: Props) {
           ))}
         </select>
         <input
-          className="rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="Value"
           aria-label="Value"
           value={value}
@@ -87,14 +87,14 @@ export function MemoryPanel({ onSessionLost }: Props) {
         />
         <div className="flex gap-2">
           <button
-            className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-50"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-50"
             disabled={!canRun}
             onClick={() => void run("read")}
           >
             Read
           </button>
           <button
-            className="rounded-md bg-emerald-700 px-3 py-1.5 text-sm hover:bg-emerald-600 disabled:opacity-50"
+            className="rounded-lg btn-accent px-3 py-1.5 text-sm disabled:opacity-50"
             disabled={!canRun || value.trim().length === 0}
             onClick={() => void run("write")}
           >
@@ -108,7 +108,7 @@ export function MemoryPanel({ onSessionLost }: Props) {
         </p>
       )}
       {log.length > 0 && (
-        <ol className="max-h-40 overflow-y-auto rounded-md text-xs ring-1 ring-zinc-800" aria-label="Activity">
+        <ol className="max-h-40 overflow-y-auto rounded-xl bg-zinc-900/70 text-xs ring-1 ring-zinc-800" aria-label="Activity">
           {log.map((e) => (
             <li key={e.id} className="flex gap-3 border-t border-zinc-900 px-2 py-1 font-mono first:border-0">
               <span className={e.op === "write" ? "text-emerald-400" : "text-sky-400"}>{e.op}</span>

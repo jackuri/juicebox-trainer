@@ -23,7 +23,7 @@ const WISHES = [
 
 const button = "rounded bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-40";
 const big =
-  "rounded-md bg-emerald-700 px-5 py-2 text-base font-medium hover:bg-emerald-600 disabled:opacity-40";
+  "rounded-lg bg-emerald-700 px-5 py-2 text-base font-medium hover:bg-emerald-600 disabled:opacity-40";
 
 interface Props {
   processes: ProcessInfo[];
@@ -176,7 +176,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
   return (
     <div className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
       <div className="flex items-center gap-3">
-        <h2 className="text-lg font-medium">Make a trainer with AI</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Make a trainer with AI</h2>
         {cost?.type === "cost" && (
           <span className="text-xs text-zinc-500">Cost so far: about ${cost.usd.toFixed(2)}</span>
         )}
@@ -192,7 +192,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
         )}
       </div>
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -262,7 +262,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
               A free AI running on this PC (Ollama or LM Studio). Slower, and finds cheats less often
             </label>
             {backend === "local" && (
-              <div className="ml-6 flex flex-col gap-2 rounded-md bg-zinc-900 p-2 text-xs">
+              <div className="ml-6 flex flex-col gap-2 rounded-lg bg-zinc-900 p-2 text-xs">
                 <label className="flex items-center gap-2">
                   Address
                   <input
@@ -313,7 +313,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
             </div>
           </details>
           {backend === "subscription" && status?.signedIn === false && (
-            <div className="flex flex-col gap-2 rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="note">
+            <div className="flex flex-col gap-2 rounded-lg bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="note">
               <p>
                 The helper isn&apos;t signed in to Claude on this PC yet. Click <b>Sign in</b>: a
                 window opens and your browser asks you to log in to your Claude account. When it
@@ -361,7 +361,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
             switch (e.type) {
               case "say":
                 return (
-                  <li key={i} className="whitespace-pre-wrap rounded-md bg-zinc-900 px-3 py-2 text-sm">
+                  <li key={i} className="whitespace-pre-wrap rounded-lg bg-zinc-900 px-3 py-2 text-sm">
                     {e.text}
                   </li>
                 );
@@ -374,19 +374,19 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
                 );
               case "ask":
                 return (
-                  <li key={i} className="rounded-md border border-emerald-800 px-3 py-2 text-sm">
+                  <li key={i} className="rounded-lg border border-emerald-800 px-3 py-2 text-sm">
                     {e.text}
                   </li>
                 );
               case "answered":
                 return (
-                  <li key={i} className="self-end rounded-md bg-emerald-950/60 px-3 py-1 text-sm">
+                  <li key={i} className="self-end rounded-lg bg-emerald-950/60 px-3 py-1 text-sm">
                     {e.text}
                   </li>
                 );
               case "error":
                 return (
-                  <li key={i} className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300">
+                  <li key={i} className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300">
                     {e.message}
                   </li>
                 );
@@ -394,7 +394,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
                 return (
                   <li
                     key={i}
-                    className={`rounded-md px-3 py-2 text-sm ${
+                    className={`rounded-lg px-3 py-2 text-sm ${
                       e.ok ? "bg-emerald-950/50 text-emerald-200" : "bg-amber-950/40 text-amber-200"
                     }`}
                     role="status"
@@ -415,7 +415,7 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
       )}
 
       {ask && (
-        <div className="sticky bottom-0 flex max-w-3xl flex-col gap-3 rounded-md border border-emerald-700 bg-zinc-950 p-3" role="dialog" aria-label="Your turn">
+        <div className="sticky bottom-0 flex max-w-3xl flex-col gap-3 rounded-lg border border-emerald-700 bg-zinc-950 p-3" role="dialog" aria-label="Your turn">
           <p className="text-base">{ask.text}</p>
           {ask.kind === "done" && (
             <button className={`${big} self-start`} onClick={() => void answer("Done")}>
@@ -501,7 +501,7 @@ function AiSetup({ status, onReady }: { status: AiStatus; onReady: (s: AiStatus)
             everything else works without it.
           </p>
           <button
-            className="rounded-md bg-emerald-700 px-4 py-2 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+            className="rounded-lg btn-accent px-4 py-2 text-sm font-semibold disabled:opacity-40"
             disabled={installing}
             onClick={() => void download()}
           >
@@ -515,7 +515,7 @@ function AiSetup({ status, onReady }: { status: AiStatus; onReady: (s: AiStatus)
         </p>
       )}
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-red-300" role="alert">
           {error}
         </p>
       )}

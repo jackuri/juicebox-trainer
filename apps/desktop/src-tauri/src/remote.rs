@@ -310,7 +310,7 @@ struct Response {
 
 fn text(status: &'static str, body: &str) -> Response {
     let html = format!(
-        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>OpenTrainer</title><body style=\"font-family:system-ui;background:#09090b;color:#e4e4e7;padding:24px\"><p>{body}</p>"
+        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>OpenTrainer</title><body style=\"font-family:system-ui;background:#0e111a;color:#eceef6;padding:24px\"><p>{body}</p>"
     );
     Response {
         status,

@@ -85,7 +85,7 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
   return (
     <div className="grid min-h-0 grid-cols-[300px_1fr]">
       <aside className="flex min-h-0 flex-col gap-3 overflow-y-auto border-r border-zinc-800 p-3">
-        <h2 className="text-sm font-medium text-zinc-300">Games</h2>
+        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">Games</h2>
         {overview && overview.games.length === 0 && (
           <p className="text-xs text-zinc-500">
             No games yet. Add one below, or attach to a game: its saves are backed up automatically.
@@ -175,7 +175,7 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
 
       <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4">
         {error && (
-          <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+          <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
             {error}
           </p>
         )}
@@ -335,7 +335,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
     <div className="flex max-w-4xl flex-col gap-4">
       <div className="flex flex-wrap items-start gap-3">
         <div className="min-w-0">
-          <h2 className="font-medium">{game.name}</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">{game.name}</h2>
           <p className="truncate text-xs text-zinc-500">{game.exe}</p>
         </div>
         <div className="ml-auto flex gap-2">
@@ -352,7 +352,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
       </div>
 
       {removing && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md bg-zinc-900 px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg bg-zinc-900 px-3 py-2 text-sm">
           <span>Stop backing up {game.name}?</span>
           <label className="flex items-center gap-1 text-xs">
             <input
@@ -378,13 +378,13 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
       )}
 
       {game.running && (
-        <p className="rounded-md bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+        <p className="rounded-lg bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
           {game.name} is running. Its saves are backed up when it starts and when it closes. Close the
           game to restore a backup.
         </p>
       )}
       {game.cloudSynced && (
-        <p className="rounded-md bg-sky-950/40 px-3 py-2 text-sm text-sky-200" role="note">
+        <p className="rounded-lg bg-sky-950/40 px-3 py-2 text-sm text-sky-200" role="note">
           Steam Cloud syncs this game&apos;s saves. Restore only while the game is closed. If Steam
           says the cloud copy is different when you start the game, choose the files on this PC
           (local), or Steam may put the other save back.
@@ -392,13 +392,13 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
         </p>
       )}
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
       {message && <p className="text-sm text-emerald-300" role="status">{message}</p>}
       {report && (
-        <div className="rounded-md bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+        <div className="rounded-lg bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
           <p>
             Restored. {report.written} file{report.written === 1 ? "" : "s"} put back
             {report.unchanged > 0 && `, ${report.unchanged} already the same`}
@@ -542,7 +542,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
             onChange={(e) => setNote(e.target.value)}
           />
           <button
-            className="rounded bg-emerald-700 px-3 py-1 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+            className="rounded btn-accent px-3 py-1 text-sm font-semibold disabled:opacity-40"
             disabled={busy || game.folders.length === 0}
             onClick={() => void backupNow()}
           >
@@ -637,7 +637,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
                           </label>
                           <div className="flex gap-2">
                             <button
-                              className="rounded bg-emerald-700 px-2 py-1 hover:bg-emerald-600"
+                              className="rounded btn-accent px-2 py-1"
                               disabled={busy}
                               onClick={() => void restore(b)}
                             >

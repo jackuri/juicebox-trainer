@@ -123,7 +123,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
 
   const pct = progress && progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
   const input =
-    "rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
+    "rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
 
   return (
     <section className="flex flex-col gap-3" aria-label="Pointer scanner">
@@ -146,7 +146,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Levels
           <select
-            className="rounded-md bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
+            className="rounded-lg bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
             aria-label="Pointer levels"
             value={depth}
             onChange={(e) => setDepth(Number(e.target.value))}
@@ -168,7 +168,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
           />
         </label>
         <button
-          className="rounded-md bg-emerald-700 px-4 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+          className="rounded-lg btn-accent px-4 py-1.5 text-sm font-semibold disabled:opacity-40"
           disabled={running || !target.trim() || offset === null || offset === 0}
           onClick={() => void scan()}
         >
@@ -183,7 +183,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
           </div>
           <span className="w-10 text-right text-xs text-zinc-400">{pct}%</span>
           <button
-            className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
+            className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
             onClick={() => void api.scanCancel()}
           >
             Cancel
@@ -215,7 +215,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
             </button>
           </div>
 
-          <div className="flex flex-wrap items-end gap-2 rounded-md bg-zinc-900/60 p-2 text-xs text-zinc-400">
+          <div className="flex flex-wrap items-end gap-2 rounded-lg bg-zinc-900/60 p-2 text-xs text-zinc-400">
             <label className="flex flex-col gap-1">
               Restarted the game? Find the value again and enter its new address to keep only paths that still
               work.
@@ -229,7 +229,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
               />
             </label>
             <button
-              className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
+              className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
               disabled={!newTarget.trim()}
               onClick={() => void check()}
             >
@@ -238,7 +238,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
             <label className="ml-auto flex flex-col gap-1">
               Add as
               <select
-                className="rounded-md bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
+                className="rounded-lg bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
                 aria-label="Value type to add"
                 value={ty}
                 onChange={(e) => setTy(e.target.value as ValueType)}
@@ -253,7 +253,7 @@ export function PointerPanel({ onAddToList, onSessionLost, request = null }: Pro
           </div>
 
           {results.paths.length > 0 ? (
-            <div className="max-h-72 overflow-y-auto rounded-md ring-1 ring-zinc-800">
+            <div className="max-h-72 overflow-y-auto rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800">
               <table className="w-full text-xs" aria-label="Pointer paths">
                 <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                   <tr>

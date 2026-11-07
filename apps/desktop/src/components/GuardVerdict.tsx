@@ -5,7 +5,7 @@ export function GuardVerdict({ verdict }: { verdict: Verdict }) {
   if (verdict.allowed) {
     return (
       <div
-        className="rounded-md border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
+        className="rounded-lg border border-emerald-900 bg-emerald-950/40 px-3 py-2 text-sm text-emerald-300"
         role="status"
       >
         No anti-cheat found. You can attach.
@@ -14,7 +14,7 @@ export function GuardVerdict({ verdict }: { verdict: Verdict }) {
   }
   return (
     <div
-      className="rounded-md border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300"
+      className="rounded-lg border border-red-900 bg-red-950/40 px-3 py-2 text-sm text-red-300"
       role="alert"
     >
       <p className="font-medium">OpenTrainer will not attach to this process.</p>

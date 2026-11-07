@@ -123,7 +123,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Type
           <select
-            className="rounded-md bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800 disabled:opacity-50"
+            className="rounded-lg bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800 disabled:opacity-50"
             aria-label="Scan value type"
             value={ty}
             disabled={summary !== null || running}
@@ -139,7 +139,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Scan
           <select
-            className="rounded-md bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
+            className="rounded-lg bg-zinc-900 px-2 py-1.5 text-sm text-zinc-100 ring-1 ring-zinc-800"
             aria-label="Scan kind"
             value={kind}
             disabled={running}
@@ -158,7 +158,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
         </label>
         {needsValue(kind) && (
           <input
-            className="w-32 rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+            className="w-32 rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
             placeholder={kind === "between" ? "Min" : "Value"}
             aria-label={kind === "between" ? "Minimum" : "Scan value"}
             value={value}
@@ -168,7 +168,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
         )}
         {kind === "between" && (
           <input
-            className="w-32 rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+            className="w-32 rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
             placeholder="Max"
             aria-label="Maximum"
             value={max}
@@ -176,7 +176,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
           />
         )}
         <button
-          className="rounded-md bg-emerald-700 px-4 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+          className="rounded-lg btn-accent px-4 py-1.5 text-sm font-semibold disabled:opacity-40"
           disabled={!canScan}
           onClick={() => void runScan()}
         >
@@ -184,7 +184,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
         </button>
         {summary && (
           <button
-            className="rounded-md bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-40"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-40"
             disabled={running}
             onClick={() => void newScan()}
           >
@@ -225,7 +225,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
           </div>
           <span className="w-10 text-right text-xs text-zinc-400">{pct}%</span>
           <button
-            className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
+            className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
             onClick={() => void api.scanCancel()}
           >
             Cancel
@@ -253,7 +253,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
             </button>
           </div>
           {hits.length > 0 && (
-            <div className="max-h-64 overflow-y-auto rounded-md ring-1 ring-zinc-800">
+            <div className="max-h-64 overflow-y-auto rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800">
               <table className="w-full text-xs" aria-label="Scan results">
                 <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
                   <tr>

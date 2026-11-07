@@ -93,7 +93,7 @@ export function SaveEditor({ gameId, file, running, onSaved, onClose }: Props) {
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-md border border-zinc-800 p-3"
+      className="flex flex-col gap-3 rounded-lg border border-zinc-800 p-3"
       aria-label="Save editor"
     >
       <div className="flex flex-wrap items-center gap-2">
@@ -195,7 +195,7 @@ export function SaveEditor({ gameId, file, running, onSaved, onClose }: Props) {
 
       <div className="flex items-center gap-2">
         <button
-          className="rounded bg-emerald-700 px-3 py-1 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+          className="rounded btn-accent px-3 py-1 text-sm font-semibold disabled:opacity-40"
           disabled={busy || running || edits.length === 0}
           onClick={() => void save()}
         >

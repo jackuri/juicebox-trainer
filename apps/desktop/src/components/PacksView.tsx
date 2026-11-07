@@ -9,9 +9,9 @@ import {
   toCommandError,
 } from "../lib/ipc";
 
-const button = "rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
+const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary =
-  "rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Where the pack in the install dialog comes from. */
 type Incoming = { kind: "file"; path: string } | { kind: "community"; id: string };
@@ -144,9 +144,9 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   }, [community, filter]);
 
   return (
-    <main className="flex min-h-0 flex-col gap-4 overflow-y-auto p-4" aria-label="Packs">
+    <main className="flex min-h-0 flex-col gap-5 overflow-y-auto p-6" aria-label="Packs">
       {message && (
-        <div className="flex items-center gap-3 rounded-md bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+        <div className="flex items-center gap-3 rounded-lg bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
           <span className="flex-1">{message.text}</span>
           {message.path && (
             <button className={button} onClick={() => void api.packsShowFile(message.path ?? "")}>
@@ -161,7 +161,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         </div>
       )}
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -178,7 +178,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
 
       <section className="flex flex-col gap-2" aria-label="Your packs">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-medium">Your packs</h2>
+          <h2 className="text-2xl font-semibold tracking-tight">Your packs</h2>
           <button className={`${button} ml-auto`} disabled={busy} onClick={() => void pickFile()}>
             Open a pack file…
           </button>
@@ -194,7 +194,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         {packs === null && <p className="text-sm text-zinc-500">Loading…</p>}
         <ul className="flex flex-col gap-2">
           {(packs ?? []).map((p) => (
-            <li key={p.key} className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800" data-testid={`pack-${p.key}`}>
+            <li key={p.key} className="flex flex-wrap items-center gap-3 rounded-xl bg-zinc-900/70 px-3 py-2 ring-1 ring-zinc-800" data-testid={`pack-${p.key}`}>
               <div className="min-w-0 flex-1">
                 <p className="text-sm">
                   {p.name ?? p.key}{" "}
@@ -214,7 +214,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
                 (confirmRemove === p.key ? (
                   <span className="flex items-center gap-2 text-xs">
                     Remove it? (a copy is kept)
-                    <button className="rounded-md bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void remove(p)}>
+                    <button className="rounded-lg bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void remove(p)}>
                       Remove
                     </button>
                     <button className={button} onClick={() => setConfirmRemove(null)}>
@@ -233,11 +233,11 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
 
       <section className="flex flex-col gap-2 border-t border-zinc-900 pt-4" aria-label="Community packs">
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-medium">Community packs</h2>
+          <h2 className="text-lg font-semibold tracking-tight">Community packs</h2>
           {community?.updated && <span className="text-xs text-zinc-500">list from {community.updated}</span>}
           <input
             aria-label="Find a community pack"
-            className="ml-auto w-56 rounded-md bg-zinc-900 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+            className="ml-auto w-56 rounded-lg bg-zinc-900 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
             placeholder="Find a game…"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
@@ -262,7 +262,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         </p>
         {loadingCommunity && !community && <p className="text-sm text-zinc-500">Loading the list…</p>}
         {communityError && (
-          <p className="rounded-md bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
+          <p className="rounded-lg bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
             Couldn't load the community list: {communityError}
           </p>
         )}
@@ -287,7 +287,7 @@ const STATE_TEXT: Record<CommunityPack["installed"], string | null> = {
 function CommunityRow({ pack, busy, onPreview }: { pack: CommunityPack; busy: boolean; onPreview: () => void }) {
   const state = STATE_TEXT[pack.installed];
   return (
-    <li className="flex flex-wrap items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800" data-testid={`community-${pack.id}`}>
+    <li className="flex flex-wrap items-center gap-3 rounded-xl bg-zinc-900/70 px-3 py-2 ring-1 ring-zinc-800" data-testid={`community-${pack.id}`}>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
           {pack.name}{" "}
@@ -320,7 +320,7 @@ interface DialogProps {
 export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel }: DialogProps) {
   const replaces = p.existing && !p.existing.same ? p.existing : null;
   return (
-    <div className="flex flex-col gap-3 rounded-md border border-emerald-700 bg-zinc-950 p-4" role="dialog" aria-label="Install pack">
+    <div className="flex flex-col gap-3 rounded-lg border border-emerald-700 bg-zinc-950 p-4" role="dialog" aria-label="Install pack">
       <div>
         <p className="font-medium">
           Install the pack for {p.game}?

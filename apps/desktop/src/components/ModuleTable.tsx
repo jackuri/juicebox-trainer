@@ -19,20 +19,20 @@ export function ModuleTable({ modules, onRefresh }: Props) {
       <div className="flex items-center gap-2 pb-2">
         <h2 className="text-sm font-medium text-zinc-300">Modules ({modules.length})</h2>
         <input
-          className="ml-auto w-48 rounded-md bg-zinc-900 px-2 py-1 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="ml-auto w-48 rounded-lg bg-zinc-900 px-2 py-1 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="Filter modules"
           aria-label="Filter modules"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
         <button
-          className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
+          className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
           onClick={onRefresh}
         >
           Refresh
         </button>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto rounded-md ring-1 ring-zinc-800">
+      <div className="min-h-0 flex-1 overflow-y-auto rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
             <tr>

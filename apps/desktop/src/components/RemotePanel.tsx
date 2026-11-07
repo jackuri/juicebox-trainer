@@ -33,7 +33,7 @@ export function RemotePanel() {
   }
 
   return (
-    <section className="flex flex-col gap-2 rounded-md px-3 py-2 ring-1 ring-zinc-800" aria-label="Phone remote">
+    <section className="flex flex-col gap-2 rounded-xl bg-zinc-900/70 px-3 py-2 ring-1 ring-zinc-800" aria-label="Phone remote">
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-medium">Phone remote</h3>
         {status ? (
@@ -61,7 +61,7 @@ export function RemotePanel() {
             </>
           ) : (
             <button
-              className="rounded bg-emerald-700 px-2 py-1 text-xs hover:bg-emerald-600 disabled:opacity-40"
+              className="rounded btn-accent px-2 py-1 text-xs disabled:opacity-40"
               disabled={busy}
               onClick={() => void run(() => api.remoteStart())}
             >

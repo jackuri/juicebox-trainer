@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
 
-const button = "rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
+const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary =
-  "rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
+  "rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Version, updates, the user guide and what OpenTrainer never does. */
 export function AboutView() {
@@ -64,9 +64,9 @@ export function AboutView() {
   }
 
   return (
-    <main className="flex min-h-0 max-w-3xl flex-col gap-5 overflow-y-auto p-4 text-sm" aria-label="About">
+    <main className="flex min-h-0 max-w-3xl flex-col gap-5 overflow-y-auto p-6 text-sm" aria-label="About">
       <section>
-        <h2 className="text-lg font-medium">OpenTrainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">OpenTrainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
         <p className="text-zinc-400">
           Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for single-player PC games.
         </p>
@@ -81,7 +81,7 @@ export function AboutView() {
       </section>
 
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -98,7 +98,7 @@ export function AboutView() {
               {result === null && <span className="text-emerald-300">You have the newest version.</span>}
             </div>
             {result && (
-              <div className="flex flex-col gap-2 rounded-md bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
+              <div className="flex flex-col gap-2 rounded-lg bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
                 <p>
                   OpenTrainer {result.version} is available{result.date ? ` (${result.date})` : ""}.
                 </p>
@@ -125,7 +125,7 @@ export function AboutView() {
           {confirmAi ? (
             <div className="flex items-center gap-2 text-xs">
               Delete it? You can download it again later.
-              <button className="rounded-md bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void removeAi()}>
+              <button className="rounded-lg bg-red-800 px-2 py-1 hover:bg-red-700" onClick={() => void removeAi()}>
                 Delete
               </button>
               <button className={button} onClick={() => setConfirmAi(false)}>

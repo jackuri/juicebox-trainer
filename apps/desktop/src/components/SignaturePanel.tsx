@@ -51,7 +51,7 @@ export function SignaturePanel({ onSessionLost }: Props) {
         <label className="flex flex-col gap-1 text-xs text-zinc-400">
           Code address
           <input
-            className="w-72 rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+            className="w-72 rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
             placeholder="game.exe+0x1234"
             aria-label="Code address"
             value={address}
@@ -60,7 +60,7 @@ export function SignaturePanel({ onSessionLost }: Props) {
           />
         </label>
         <button
-          className="rounded-md bg-emerald-700 px-4 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-40"
+          className="rounded-lg btn-accent px-4 py-1.5 text-sm font-semibold disabled:opacity-40"
           disabled={!address.trim()}
           onClick={() => void make()}
         >
@@ -75,7 +75,7 @@ export function SignaturePanel({ onSessionLost }: Props) {
       )}
 
       {sig && (
-        <div className="flex flex-col gap-2 rounded-md bg-zinc-900/60 p-3">
+        <div className="flex flex-col gap-2 rounded-lg bg-zinc-900/60 p-3">
           <div className="flex items-start gap-2">
             <code className="flex-1 break-all font-mono text-sm text-emerald-300" data-testid="signature">
               {sig.pattern}

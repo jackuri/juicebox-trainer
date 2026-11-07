@@ -74,7 +74,7 @@ export function AddressList({ entries, onChange, onSessionLost }: Props) {
   return (
     <section className="flex flex-col gap-2" aria-label="Address list">
       <h2 className="text-sm font-medium text-zinc-300">Address list</h2>
-      <div className="max-h-72 overflow-y-auto rounded-md ring-1 ring-zinc-800">
+      <div className="max-h-72 overflow-y-auto rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800">
         <table className="w-full text-xs">
           <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-400">
             <tr>
@@ -156,14 +156,14 @@ export function AddressList({ entries, onChange, onSessionLost }: Props) {
       </div>
       <div className="flex gap-2">
         <input
-          className="min-w-0 flex-1 rounded-md bg-zinc-900 px-3 py-1.5 font-mono text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="min-w-0 flex-1 rounded-lg bg-zinc-900 px-3 py-1.5 font-mono text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="0x… or module.exe+0x…"
           aria-label="New address"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
         />
         <select
-          className="rounded-md bg-zinc-900 px-2 py-1.5 text-xs ring-1 ring-zinc-800"
+          className="rounded-lg bg-zinc-900 px-2 py-1.5 text-xs ring-1 ring-zinc-800"
           aria-label="New address type"
           value={ty}
           onChange={(e) => setTy(e.target.value as ValueType)}
@@ -175,14 +175,14 @@ export function AddressList({ entries, onChange, onSessionLost }: Props) {
           ))}
         </select>
         <input
-          className="w-32 rounded-md bg-zinc-900 px-3 py-1.5 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+          className="w-32 rounded-lg bg-zinc-900 px-3 py-1.5 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
           placeholder="Label"
           aria-label="New address label"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
         />
         <button
-          className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:opacity-40"
+          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:opacity-40"
           disabled={!address.trim()}
           onClick={add}
         >

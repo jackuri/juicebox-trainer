@@ -153,19 +153,19 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
         <div className="flex gap-2">
           {onShowPacks && (
             <button
-              className="rounded-md bg-emerald-800 px-3 py-1.5 text-xs hover:bg-emerald-700"
+              className="rounded-lg bg-emerald-800 px-3 py-1.5 text-xs hover:bg-emerald-700"
               onClick={onShowPacks}
             >
               Get a pack…
             </button>
           )}
           <button
-            className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700"
             onClick={() => void act(() => api.openPacksFolder())}
           >
             Open packs folder
           </button>
-          <button className="rounded-md bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700" onClick={loadPacks}>
+          <button className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700" onClick={loadPacks}>
             Refresh
           </button>
         </div>
@@ -212,14 +212,16 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
   return (
     <section className="flex flex-col gap-3" aria-label="Trainer">
       <div className="flex flex-wrap items-center gap-2">
-        <h2 className="font-medium">{pack.game.name}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{pack.game.name}</h2>
         <span className="text-xs text-zinc-500">
           v{pack.meta.packVersion} · by {pack.meta.author}
         </span>
         {pack.meta.author.trim().toLowerCase() === "ai" && <Badge tone="violet">AI-made</Badge>}
         <BuildBadge build={view.build} />
         <button
-          className="ml-auto rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
+          className={`ml-auto rounded-lg px-3 py-1.5 text-xs font-medium ring-1 ${
+            overlay ? "bg-emerald-950 text-emerald-200 ring-emerald-800" : "bg-zinc-800 ring-zinc-700 hover:bg-zinc-700"
+          }`}
           aria-pressed={overlay}
           title="A see-through list of cheats on top of the game (windowed or borderless games)"
           onClick={() => void act(async () => setOverlay(await api.overlaySet(!overlay)))}
@@ -227,7 +229,7 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
           {overlay ? "Hide overlay" : "Show overlay"}
         </button>
         <button
-          className="rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
+          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium ring-1 ring-zinc-700 hover:bg-zinc-700"
           onClick={() => void act(async () => {
             await api.trainerUnload();
             setView(null);
@@ -243,7 +245,7 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
         </p>
       )}
       {(anyFailed || repairNote) && (
-        <div className="flex flex-wrap items-center gap-2 rounded-md bg-zinc-900 px-3 py-2 text-xs" role="status">
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-zinc-900 px-3 py-2 text-xs" role="status">
           {repairNote ? (
             <span className="text-zinc-300">{repairNote}</span>
           ) : (
@@ -263,10 +265,10 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
         </div>
       )}
       {buildWarning(view.build) && (
-        <p className="rounded-md bg-amber-950/40 px-3 py-2 text-xs text-amber-300">{buildWarning(view.build)}</p>
+        <p className="rounded-lg bg-amber-950/40 px-3 py-2 text-xs text-amber-300">{buildWarning(view.build)}</p>
       )}
       {error && (
-        <p className="rounded-md bg-red-950/40 px-3 py-2 text-xs text-red-300" role="alert">
+        <p className="rounded-lg bg-red-950/40 px-3 py-2 text-xs text-red-300" role="alert">
           {error}
         </p>
       )}
@@ -274,9 +276,9 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
       <PresetBar view={view} act={act} />
 
       {groups.map(([category, cheats]) => (
-        <div key={category} className="flex flex-col gap-1">
-          <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">{category}</h3>
-          <ul className="divide-y divide-zinc-900 rounded-md ring-1 ring-zinc-800">
+        <div key={category} className="flex flex-col gap-2">
+          <h3 className="px-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-400">{category}</h3>
+          <ul className="divide-y divide-zinc-800/70 overflow-hidden rounded-2xl bg-zinc-900/80 ring-1 ring-zinc-800">
             {cheats.map((c) => {
               const st = stateOf(c.id);
               return st ? (
@@ -321,9 +323,9 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
 
 function PackRow({ pack, loading, onLoad }: { pack: PackSummary; loading: boolean; onLoad: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-md px-3 py-2 ring-1 ring-zinc-800">
+    <div className="flex items-center gap-3 rounded-2xl bg-zinc-900/80 px-4 py-3 ring-1 ring-zinc-800">
       <div className="min-w-0">
-        <p className="text-sm">
+        <p className="text-sm font-medium">
           {pack.name ?? pack.key}{" "}
           <span className="text-xs text-zinc-500">
             {pack.packVersion && `v${pack.packVersion} · `}
@@ -338,7 +340,7 @@ function PackRow({ pack, loading, onLoad }: { pack: PackSummary; loading: boolea
         {pack.error && <p className="text-xs text-red-400">{pack.error}</p>}
       </div>
       <button
-        className="ml-auto rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:opacity-40"
+        className="btn-accent ml-auto rounded-lg px-5 py-1.5 text-xs font-semibold disabled:opacity-40"
         disabled={Boolean(pack.error) || loading}
         aria-label={`Load ${pack.name ?? pack.key}`}
         onClick={onLoad}
@@ -368,7 +370,12 @@ function CheatRow(props: RowProps) {
   const { cheat, state, hotkeyError, pad, note, favourite, onFavourite, settings } = props;
   const failed = state.status === "failed";
   return (
-    <li className="flex flex-col gap-1 px-3 py-2" data-testid={`cheat-${cheat.id}`}>
+    <li
+      className={`flex flex-col gap-1 px-4 py-3 transition-colors hover:bg-zinc-800/40 ${
+        state.active ? "bg-emerald-950/25" : ""
+      }`}
+      data-testid={`cheat-${cheat.id}`}
+    >
       <div className="flex items-center gap-3">
         {onFavourite && (
           <button
@@ -381,7 +388,7 @@ function CheatRow(props: RowProps) {
           </button>
         )}
         <div className="min-w-0 flex-1">
-          <p className={`text-sm ${failed ? "text-zinc-500" : ""}`}>
+          <p className={`text-[15px] font-medium ${failed ? "text-zinc-500" : "text-zinc-100"}`}>
             {cheat.name}
             {state.active && cheat.ui !== "toggle" && (
               <span className="ml-2">
@@ -393,15 +400,13 @@ function CheatRow(props: RowProps) {
           {note && <p className="text-xs italic text-zinc-400">{note}</p>}
         </div>
         {pad && (
-          <kbd className="rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] text-zinc-300" title={`Controller: ${pad}`}>
+          <kbd className="keycap" title={`Controller: ${pad}`}>
             🎮 {pad}
           </kbd>
         )}
         {state.hotkey && (
           <kbd
-            className={`rounded bg-zinc-800 px-1.5 py-0.5 font-mono text-[11px] ${
-              hotkeyError ? "text-red-400 line-through" : "text-zinc-300"
-            }`}
+            className={`keycap ${hotkeyError ? "!text-red-400 line-through" : ""}`}
             title={hotkeyError ?? `Hotkey: ${state.hotkey}`}
           >
             {state.hotkey}
@@ -455,13 +460,16 @@ function Control({ cheat, state, onToggle, onSet, onRelease, onPress }: ControlP
           aria-label={cheat.name}
           disabled={disabled}
           onClick={() => onToggle(!state.active)}
-          className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:opacity-40 ${
-            state.active ? "bg-emerald-600" : "bg-zinc-700"
+          className={`relative h-7 w-[68px] shrink-0 rounded-full text-[10px] font-bold tracking-wider transition-all disabled:opacity-40 ${
+            state.active ? "btn-accent" : "bg-zinc-800 text-zinc-500 ring-1 ring-zinc-700"
           }`}
         >
+          <span className={`absolute top-1/2 -translate-y-1/2 ${state.active ? "left-3" : "right-3"}`} aria-hidden="true">
+            {state.active ? "ON" : "OFF"}
+          </span>
           <span
-            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${
-              state.active ? "left-[18px]" : "left-0.5"
+            className={`absolute top-1 h-5 w-5 rounded-full shadow transition-all ${
+              state.active ? "left-[44px] bg-white" : "left-1 bg-zinc-500"
             }`}
           />
         </button>
@@ -469,7 +477,7 @@ function Control({ cheat, state, onToggle, onSet, onRelease, onPress }: ControlP
     case "button":
       return (
         <button
-          className="rounded-md bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40"
+          className="min-w-[68px] rounded-full bg-emerald-950/60 px-4 py-1.5 text-xs font-semibold text-emerald-200 ring-1 ring-emerald-800 hover:bg-emerald-900/70 disabled:opacity-40"
           disabled={disabled}
           aria-label={cheat.name}
           onClick={onPress}
@@ -508,7 +516,7 @@ function NumberControl({ cheat, state, disabled, onSet, onRelease }: ValueContro
   return (
     <div className="flex items-center gap-1">
       <input
-        className="w-28 rounded-md bg-zinc-900 px-2 py-1 font-mono text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+        className="w-28 rounded-lg bg-zinc-900 px-2 py-1 font-mono text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
         aria-label={`${cheat.name} value`}
         placeholder={state.value ?? "??"}
         value={text}
@@ -517,14 +525,14 @@ function NumberControl({ cheat, state, disabled, onSet, onRelease }: ValueContro
         onKeyDown={(e) => e.key === "Enter" && submit()}
       />
       <button
-        className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40"
+        className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40"
         disabled={disabled || !text.trim()}
         onClick={submit}
       >
         Set
       </button>
       {state.active && (
-        <button className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700" onClick={onRelease}>
+        <button className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700" onClick={onRelease}>
           Release
         </button>
       )}
@@ -562,12 +570,12 @@ function SliderControl({ cheat, state, disabled, onSet, onRelease }: ValueContro
         value={Number.isFinite(shown) ? shown : cfg.min}
         disabled={disabled}
         onChange={(e) => change(Number(e.target.value))}
-        className="w-36 accent-emerald-500"
+        className="w-40 accent-emerald-500"
       />
-      <span className="w-10 text-right font-mono text-xs">{Number.isFinite(shown) ? formatStep(shown, cfg.step) : "??"}</span>
+      <span className="w-12 rounded-lg bg-zinc-950 px-1.5 py-0.5 text-center font-mono text-xs ring-1 ring-zinc-800">{Number.isFinite(shown) ? formatStep(shown, cfg.step) : "??"}</span>
       {cfg.default !== undefined && (
         <button
-          className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40"
+          className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40"
           disabled={disabled}
           onClick={() => onSet(String(cfg.default))}
           title="Reset to default"
@@ -576,7 +584,7 @@ function SliderControl({ cheat, state, disabled, onSet, onRelease }: ValueContro
         </button>
       )}
       {state.active && (
-        <button className="rounded-md bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700" onClick={onRelease}>
+        <button className="rounded-lg bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700" onClick={onRelease}>
           Release
         </button>
       )}
@@ -611,7 +619,7 @@ function BuildBadge({ build }: { build: BuildMatch }) {
 }
 
 const TONES = {
-  emerald: "bg-emerald-950 text-emerald-300",
+  emerald: "bg-green-950 text-green-300",
   sky: "bg-sky-950 text-sky-300",
   amber: "bg-amber-950 text-amber-300",
   violet: "bg-violet-950 text-violet-300",
@@ -619,5 +627,5 @@ const TONES = {
 } as const;
 
 function Badge({ tone, children }: { tone: keyof typeof TONES; children: ReactNode }) {
-  return <span className={`rounded px-1.5 py-0.5 text-[11px] ${TONES[tone]}`}>{children}</span>;
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${TONES[tone]}`}>{children}</span>;
 }

@@ -15,7 +15,7 @@ export function PresetBar({ view, act }: Props) {
   const nameOf = (id: string) => view.pack.cheats.find((c) => c.id === id)?.name ?? id;
 
   return (
-    <div className="flex flex-col gap-2 rounded-md bg-zinc-900/60 px-3 py-2" aria-label="Presets" role="group">
+    <div className="flex flex-col gap-2 rounded-lg bg-zinc-900/60 px-3 py-2" aria-label="Presets" role="group">
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className="font-medium text-zinc-300">Presets</span>
         {presets.length > 0 ? (
@@ -33,7 +33,7 @@ export function PresetBar({ view, act }: Props) {
               ))}
             </select>
             <button
-              className="rounded bg-emerald-700 px-2 py-1 hover:bg-emerald-600"
+              className="rounded btn-accent px-2 py-1"
               onClick={() => void act(() => api.presetApply(current))}
             >
               Apply
