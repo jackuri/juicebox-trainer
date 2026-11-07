@@ -281,3 +281,17 @@ fn reads_class_names_of_dotnet_games() {
         .unwrap_err();
     assert!(e.contains("Unity (Mono or IL2CPP) and .NET"), "{e}");
 }
+
+#[test]
+fn unreal_find_refuses_other_games() {
+    let _s = serial();
+    let tmp = TempDir::new("mcp-unreal");
+    let game = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let mut t = tools(&tmp);
+    call(&mut t, "attach", json!({ "pid": game.pid() }));
+    let e = t
+        .call("unreal_find", &json!({ "query": "Health" }))
+        .unwrap_err();
+    assert!(e.contains("for Unreal Engine games"), "{e}");
+    call(&mut t, "detach", json!({}));
+}

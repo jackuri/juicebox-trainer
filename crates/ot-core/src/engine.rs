@@ -53,6 +53,7 @@ impl Engine {
                 "Values are often float (health, speed) or int (money).",
             ],
             Engine::Unreal => &[
+                "Call unreal_find (e.g. query \"Health\") to see the game's classes and properties, then with class and only to read a live object's values and addresses.",
                 "Pointer paths usually start in the game's exe (the engine's GWorld / GEngine globals).",
                 "Health and stamina are usually float; money usually int.",
             ],

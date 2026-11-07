@@ -75,6 +75,8 @@ struct Live {
     pointers: Vec<PointerPath>,
     /// A running "find what writes" watch.
     watch: Option<WriteWatch>,
+    /// The Unreal reader, kept after the first (possibly slow) connect.
+    unreal: Option<ot_core::unreal::Reader<Arc<AttachedProcess>>>,
 }
 
 impl Live {
@@ -240,6 +242,7 @@ impl Tools {
             "pack_write" => self.pack_write(args),
             "game_recon" => self.game_recon(),
             "game_classes" => self.game_classes(args),
+            "unreal_find" => self.unreal_find(args),
             "watch_writes_start" => self.watch_start(args),
             "watch_writes_stop" => self.watch_stop(),
             "pack_heal" => self.pack_heal(args),
@@ -299,6 +302,7 @@ impl Tools {
             trainer: None,
             pointers: Vec::new(),
             watch: None,
+            unreal: None,
         });
         let mut info = self.game_info()?;
         info["saveBackup"] = json!(backup);
@@ -761,6 +765,59 @@ impl Tools {
         }))
     }
 
+    fn unreal_find(&mut self, args: &Value) -> Res {
+        let live = self.live()?;
+        let exe = live.process.info().exe_path.clone().unwrap_or_default();
+        if ot_core::engine::detect(Path::new(&exe)).engine != ot_core::engine::Engine::Unreal {
+            return Err("unreal_find is for Unreal Engine games".into());
+        }
+        if live.unreal.is_none() {
+            live.unreal =
+                Some(ot_core::unreal::Reader::connect(Arc::clone(&live.process)).map_err(err)?);
+        }
+        let reader = live.unreal.as_ref().expect("connected above");
+        let limit = args
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map_or(15, |n| n.min(50) as usize);
+        if let Some(class) = args.get("class").and_then(Value::as_str) {
+            let only = args.get("only").and_then(Value::as_str);
+            let found = reader.instances(class, only, limit.min(5)).map_err(err)?;
+            let list: Vec<Value> = found
+                .iter()
+                .map(|i| {
+                    json!({
+                        "object": hex(i.address),
+                        "class": i.class,
+                        "values": i.values.iter().take(40).map(|(n, t, a, v)| format!("{n} ({t}) at {} = {v}", hex(*a))).collect::<Vec<_>>(),
+                    })
+                })
+                .collect();
+            return Ok(json!({
+                "instances": list,
+                "tip": "Objects move when they're recreated (new level, respawn). Test with write_test, then make it stable with pointer_scan or find what writes.",
+            }));
+        }
+        let query = arg_str(args, "query")?;
+        let classes: Vec<Value> = reader
+            .search(query, limit)
+            .into_iter()
+            .map(|c| {
+                json!({
+                    "class": c.name,
+                    "path": c.path,
+                    "game": c.game,
+                    "properties": c.properties.iter().take(20).map(|p| format!("{}: {} at +{:#X}", p.name, p.ty, p.offset)).collect::<Vec<_>>(),
+                })
+            })
+            .collect();
+        Ok(json!({
+            "classes": classes,
+            "slowSearch": reader.scan_mode(),
+            "next": "call unreal_find again with class (and only, e.g. \"Health\") to find live objects and their values",
+        }))
+    }
+
     fn watch_start(&mut self, args: &Value) -> Res {
         let len = args
             .get("size")
@@ -1103,6 +1160,14 @@ pub fn definitions() -> Vec<Value> {
             "Unity (Mono or IL2CPP) and .NET games: the game's class fields whose names match 'query' (e.g. health, gold), with their types (IL2CPP: names only); without a query, fields with common cheat names.",
             schema(
                 json!({ "query": { "type": "string" }, "limit": { "type": "integer" }, "exe": { "type": "string" } }),
+                &[],
+            ),
+        ),
+        tool(
+            "unreal_find",
+            "Unreal Engine games: with 'query' (e.g. Health), the game's classes whose names or properties match, with property types and offsets. With 'class' (e.g. BP_PlayerCharacter_C) and optional 'only' (e.g. Health), live objects of that class with their values and addresses. The first call can take a few minutes on some games.",
+            schema(
+                json!({ "query": { "type": "string" }, "class": { "type": "string" }, "only": { "type": "string" }, "limit": { "type": "integer" } }),
                 &[],
             ),
         ),
