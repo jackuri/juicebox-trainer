@@ -247,6 +247,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 0.9.3 | AI V | Unreal object/property reader (GNames / GObjects) in a running game, with a memory-search fallback; tested on a real single-player UE 5.7 game with the user's OK |
 | 0.10.0 | Extras | Overlay window, phone remote, controller hotkeys, presets (+ favourites, notes, own keys), library auto-detect (Steam / Epic / GOG / Xbox / own) + "Play with cheats". `um scan --list` not used yet |
 | 1.0.0 | Release | Installer (NSIS, per-user, `.otpack` file association), signing-ready release workflow (unsigned until a certificate exists), auto-update (off until the repo is public), user / developer / release docs, `.otpack` import/export, community pack list (GitHub repo index), AI engine downloaded on first use. The repo stays private for now (user's choice) |
+| 1.1.0 | Polish | "Browse…" pickers for games and save folders, plain `pack.json` import, auto-load the only pack on attach, "Find pointers" from scanner results, "Copy as pack cheat" for pointer paths. Added after 1.0.0 from STATUS follow-ups (no new dependencies) |
 
 ---
 

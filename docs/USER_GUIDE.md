@@ -44,7 +44,8 @@ Or do it yourself:
 1. Start the game.
 2. In **Cheats**, pick the game in the list on the left. OpenTrainer checks it for anti-cheat.
 3. Click **Attach**. Your saves are backed up first.
-4. The game's packs are listed. Click **Load**.
+4. If there is one pack for the game, it is loaded for you (nothing is turned on yet). If there are
+   several, click **Load** on the one you want. No pack yet? Click **Get a pack…**.
 5. Turn cheats on and off with their switches or keys (shown next to each cheat, like `F1`).
 
 When you close the game, unload the pack, detach or close OpenTrainer, every change goes back to how
@@ -73,7 +74,8 @@ In the **Packs** tab:
 
 - **Share a pack:** click **Export** and save the `.otpack` file. Send it to a friend.
 - **Open a pack someone sent you:** double-click the `.otpack` file, drop it on the OpenTrainer
-  window, or click **Open a pack file…**. You see what's inside before anything is installed. If you
+  window, or click **Open a pack file…**. A plain `pack.json` (from a forum or the community
+  repository) works too. You see what's inside before anything is installed. If you
   already have a pack for that game, OpenTrainer asks before replacing it and keeps the old one as a
   backup.
 - **Community packs:** packs other players shared. Click **See what's inside**, then **Install**.
@@ -90,6 +92,8 @@ You can also click **Back up now**.
 
 - **Compare with now** shows what changed since a backup. **Explain with AI** says what the values
   probably are, like "this is your gold".
+- **Add a game or a save folder** OpenTrainer didn't find: click **Browse…** and pick the game's
+  `.exe` or the folder.
 - **Restore** puts a backup back. The game must be closed. Your current saves are backed up first,
   so a restore can be undone.
 - **Edit saves:** open a save file, change a value and click **Save changes**. The game must be closed,

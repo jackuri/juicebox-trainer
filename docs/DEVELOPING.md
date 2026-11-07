@@ -82,12 +82,15 @@ cargo run -p ot-packs --bin otpack -- schema        # the JSON Schema
 
 ## Find a pointer path that survives a restart
 
-1. Attach to the testbed and find gold with the **Scanner** (see above). Copy its address.
-2. Open **Pointers**, paste the address, keep 4 levels and offset `1000`, click **Find pointers**.
+1. Attach to the testbed and find gold with the **Scanner** (see above). Click **Find pointers** on
+   its row: the **Pointers** tab opens with the address filled in.
+2. Keep 4 levels and offset `1000`, click **Find pointers**.
 3. Close the testbed and start it again, attach again, find gold again with the scanner, and enter the
    new address under "Restarted the game?". Click **Check paths**. The path
    `[[[testbed_native.exe+0x…]+0x10]+0x10]+0xC` is still there.
-4. Click **Add** on it: the address list follows that path from now on.
+4. Click **Add** on it: the address list follows that path from now on. **Copy as pack cheat** puts
+   a `value` cheat for that path on the clipboard (type from "Add as"), ready to paste into a pack's
+   `cheats` list; change its `id` and `name`.
 
 ## Make a signature for a piece of code
 
