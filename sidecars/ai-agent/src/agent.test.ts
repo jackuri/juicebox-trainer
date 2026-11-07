@@ -97,6 +97,46 @@ function fakeQuery(messages: unknown[]): QueryFn {
   };
 }
 
+describe("local models and analysis tools", () => {
+  it("points the engine at a local server with the chosen model", () => {
+    const o = buildOptions(
+      { ...start, backend: "local", model: "qwen3-coder", localUrl: "http://localhost:1234" },
+      mcp,
+      io(),
+      new AbortController(),
+      "0.9.1",
+    );
+    expect(o.model).toBe("qwen3-coder");
+    expect(o.env?.ANTHROPIC_BASE_URL).toBe("http://localhost:1234");
+    expect(o.env?.ANTHROPIC_AUTH_TOKEN).toBe("local");
+    expect(o.env?.ANTHROPIC_API_KEY).toBe("");
+    expect(o.effort).toBeUndefined();
+    const dflt = buildOptions({ ...start, backend: "local", model: "m" }, mcp, io(), new AbortController(), "0.9.1");
+    expect(dflt.env?.ANTHROPIC_BASE_URL).toBe("http://localhost:11434");
+  });
+
+  it("needs a model name for local models", async () => {
+    const x = io();
+    await runSession({ ...start, backend: "local" }, x, fakeQuery([]), mcp, new AbortController(), "0.9.1");
+    expect((x.sent[0] as { summary: string }).summary).toContain("local model");
+  });
+
+  it("adds the player's analysis server and allows only its tools", () => {
+    const analysis = { command: "C:\\Tools\\rea.exe", args: ["--stdio"] };
+    const o = buildOptions({ ...start, analysis }, mcp, io(), new AbortController(), "0.9.1");
+    expect(o.mcpServers?.rea).toEqual({ type: "stdio", command: analysis.command, args: ["--stdio"] });
+    expect(o.allowedTools).toContain("mcp__rea");
+    expect(String(o.systemPrompt)).toContain("mcp__rea__");
+    // Not for explaining saves, and not without one.
+    const e = buildOptions({ ...start, analysis, task: "explainSave" }, mcp, io(), new AbortController(), "0.9.1");
+    expect(e.mcpServers?.rea).toBeUndefined();
+    expect(buildOptions(start, mcp, io(), new AbortController(), "0.9.1").allowedTools).not.toContain("mcp__rea");
+    expect(
+      parseInbound(JSON.stringify({ type: "start", game: { pid: 1, name: "g" }, analysis: { command: " " } })),
+    ).toMatchObject({ analysis: undefined });
+  });
+});
+
 describe("explain a save", () => {
   it("gets only the read-only save tools and its own prompt", () => {
     const o = buildOptions(

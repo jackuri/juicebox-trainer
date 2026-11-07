@@ -2,7 +2,13 @@
 // line on stdin (app -> sidecar) and stdout (sidecar -> app). Logs go to
 // stderr.
 
-export type Backend = "subscription" | "apiKey";
+export type Backend = "subscription" | "apiKey" | "local";
+
+/** An extra MCP server for static analysis (e.g. REA), chosen by the player. */
+export interface AnalysisServer {
+  command: string;
+  args: string[];
+}
 
 export interface GameRef {
   pid: number;
@@ -26,6 +32,10 @@ export interface StartMessage {
   model?: string;
   /** Stop when the estimated cost passes this (USD). */
   maxBudgetUsd?: number;
+  /** For the "local" backend: Ollama / LM Studio address. */
+  localUrl?: string;
+  /** Optional static-analysis tool server. */
+  analysis?: AnalysisServer;
 }
 
 export type Inbound =
@@ -66,11 +76,13 @@ export function parseInbound(line: string): Inbound | null {
         game: { pid: g.pid, name: g.name, exe: typeof g.exe === "string" ? g.exe : null },
         wishes,
         notes: typeof m.notes === "string" ? m.notes : undefined,
-        backend: m.backend === "apiKey" ? "apiKey" : "subscription",
+        backend: m.backend === "apiKey" ? "apiKey" : m.backend === "local" ? "local" : "subscription",
         model: typeof m.model === "string" ? m.model : undefined,
         maxBudgetUsd: typeof m.maxBudgetUsd === "number" ? m.maxBudgetUsd : undefined,
         task: m.task === "explainSave" ? "explainSave" : "trainer",
         backup: typeof m.backup === "string" ? m.backup : undefined,
+        localUrl: typeof m.localUrl === "string" ? m.localUrl : undefined,
+        analysis: parseAnalysis(m.analysis),
       };
     }
     case "answer":
@@ -82,6 +94,14 @@ export function parseInbound(line: string): Inbound | null {
     default:
       return null;
   }
+}
+
+function parseAnalysis(v: unknown): AnalysisServer | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const a = v as Record<string, unknown>;
+  if (typeof a.command !== "string" || !a.command.trim()) return undefined;
+  const args = Array.isArray(a.args) ? a.args.filter((x): x is string => typeof x === "string") : [];
+  return { command: a.command.trim(), args };
 }
 
 export function encode(m: Outbound): string {

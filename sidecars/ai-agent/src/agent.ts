@@ -5,7 +5,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT } from "./prompt.js";
+import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools ot-mcp offers (crates/ot-mcp/src/tools.rs). */
@@ -31,6 +31,7 @@ export const OT_TOOLS = [
   "save_diff",
   "save_read",
   "game_recon",
+  "game_classes",
   "watch_writes_start",
   "watch_writes_stop",
   "pack_heal",
@@ -40,6 +41,8 @@ export const OT_TOOLS = [
 export const EXPLAIN_TOOLS = ["save_diff", "save_read"] as const;
 
 export const DEFAULT_MODEL = "claude-opus-5-5";
+/** Ollama's default address; LM Studio uses http://localhost:1234. */
+export const DEFAULT_LOCAL_URL = "http://localhost:11434";
 export const DEFAULT_BUDGET_USD = 5;
 
 export interface Io {
@@ -87,24 +90,43 @@ export function buildOptions(
     if (/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK_)/i.test(key)) delete env[key];
   }
   env.CLAUDE_AGENT_SDK_CLIENT_APP = `opentrainer/${appVersion}`;
-  if (start.backend !== "apiKey") {
+  if (start.backend === "local") {
+    // Ollama and LM Studio speak the same Messages API; any token works.
+    env.ANTHROPIC_BASE_URL = start.localUrl?.trim() || DEFAULT_LOCAL_URL;
+    env.ANTHROPIC_AUTH_TOKEN = "local";
+    env.ANTHROPIC_API_KEY = "";
+    env.CLAUDE_CODE_ATTRIBUTION_HEADER = "0";
+  } else if (start.backend !== "apiKey") {
     // Use the player's Claude login, not a key or gateway that happens to be set.
     delete env.ANTHROPIC_API_KEY;
     delete env.ANTHROPIC_BASE_URL;
   }
+  const local = start.backend === "local";
+  const analysis = !explain && start.analysis ? start.analysis : undefined;
 
   return {
     model: start.model ?? DEFAULT_MODEL,
-    effort: "high",
-    systemPrompt: explain ? EXPLAIN_SAVE_PROMPT : SYSTEM_PROMPT,
+    // Local servers may not know the effort setting.
+    effort: local ? undefined : "high",
+    systemPrompt: explain
+      ? EXPLAIN_SAVE_PROMPT
+      : analysis
+        ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}`
+        : SYSTEM_PROMPT,
     tools: [],
     mcpServers: {
       ot: { type: "stdio", command: mcp.command, args: mcp.args },
       ui,
+      ...(analysis ? { rea: { type: "stdio" as const, command: analysis.command, args: analysis.args } } : {}),
     },
     allowedTools: explain
       ? EXPLAIN_TOOLS.map((t) => `mcp__ot__${t}`)
-      : [...OT_TOOLS.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"],
+      : [
+          ...OT_TOOLS.map((t) => `mcp__ot__${t}`),
+          "mcp__ui__ask_player",
+          // Every tool of the player's analysis server (server-level rule).
+          ...(analysis ? ["mcp__rea"] : []),
+        ],
     permissionMode: "dontAsk",
     settingSources: [],
     persistSession: false,
@@ -137,6 +159,7 @@ const ACTIVITY: Record<string, string> = {
   save_diff: "Comparing saves",
   save_read: "Reading saves",
   game_recon: "Checking the game engine",
+  game_classes: "Reading the game's value names",
   watch_writes_start: "Watching what changes the value",
   watch_writes_stop: "Finding the game code",
   pack_heal: "Repairing the cheat pack",
@@ -170,6 +193,14 @@ export async function runSession(
   abort: AbortController,
   appVersion: string,
 ): Promise<void> {
+  if (start.backend === "local" && !start.model?.trim()) {
+    io.send({
+      type: "finished",
+      ok: false,
+      summary: "Pick which local model to use (its name in Ollama or LM Studio, e.g. qwen3-coder).",
+    });
+    return;
+  }
   if (start.backend === "apiKey" && !process.env.ANTHROPIC_API_KEY) {
     io.send({
       type: "finished",
