@@ -9,13 +9,17 @@
 pub mod heal;
 pub mod hotkey;
 pub mod numbers;
+pub mod pad;
 pub mod schema;
+pub mod settings;
 pub mod store;
 pub mod trainer;
 pub mod validate;
 
 pub use hotkey::Hotkey;
+pub use pad::PadChord;
 pub use schema::{Cheat, Impl, Pack, Ui};
+pub use settings::{GameSettings, Preset, PresetCheat};
 pub use trainer::{BuildMatch, CheatState, Trainer};
 pub use validate::{Issue, LoadError, Severity, parse, validate};
 

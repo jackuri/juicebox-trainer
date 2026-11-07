@@ -353,3 +353,34 @@ fn heals_a_pack_after_a_game_update() {
     assert_eq!(state(&mut tb)["health"], 777);
     t.restore_all().unwrap();
 }
+
+#[test]
+fn presets_capture_and_apply_on_the_testbed() {
+    use ot_packs::settings::{apply, capture};
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let mut t = Trainer::load(attach(&tb), example(Flavor::X64)).unwrap();
+    t.set_active("inf_health", true).unwrap();
+    t.set_value("speed", "2.5").unwrap();
+    t.set_active("inf_ammo", true).unwrap();
+    let pack = t.pack().clone();
+    let mut saved = capture(&pack, &t.states().unwrap());
+    let ids: Vec<&str> = saved.iter().map(|e| e.id.as_str()).collect();
+    assert_eq!(ids, ["inf_health", "inf_ammo", "speed"]);
+    assert_eq!(saved[2].value.as_deref(), Some("2.5"));
+    // The preset without ammo: applying it turns ammo off.
+    saved.retain(|e| e.id != "inf_ammo");
+    t.set_active("inf_health", false).unwrap();
+    t.release("speed").unwrap();
+    assert!(apply(&mut t, &saved, true).is_empty());
+    let on: Vec<String> = t
+        .states()
+        .unwrap()
+        .into_iter()
+        .filter(|s| s.active)
+        .map(|s| s.id)
+        .collect();
+    assert_eq!(on, ["inf_health", "speed"]);
+    assert_eq!(tb.send("hit 10")["health"], 100);
+    assert_eq!(tb.send("fire 3")["ammo"], 27);
+}
