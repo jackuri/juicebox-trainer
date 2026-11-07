@@ -239,6 +239,7 @@ impl Tools {
             }
             "pack_write" => self.pack_write(args),
             "game_recon" => self.game_recon(),
+            "game_classes" => self.game_classes(args),
             "watch_writes_start" => self.watch_start(args),
             "watch_writes_stop" => self.watch_stop(),
             "pack_heal" => self.pack_heal(args),
@@ -671,6 +672,71 @@ impl Tools {
         Ok(out)
     }
 
+    fn game_classes(&mut self, args: &Value) -> Res {
+        let exe = match args.get("exe").and_then(Value::as_str) {
+            Some(e) => e.to_string(),
+            None => self
+                .live()?
+                .process
+                .info()
+                .exe_path
+                .clone()
+                .ok_or("can't get the game's file path")?,
+        };
+        let engine = ot_core::engine::detect(Path::new(&exe));
+        if !matches!(
+            engine.engine,
+            ot_core::engine::Engine::UnityMono | ot_core::engine::Engine::Xna
+        ) {
+            return Err(format!(
+                "class names can be read for Unity (Mono) and .NET games; this game is {}",
+                engine.name
+            ));
+        }
+        let limit = args
+            .get("limit")
+            .and_then(Value::as_u64)
+            .map_or(60, |n| n.min(300) as usize);
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .filter(|q| !q.trim().is_empty());
+        let mut classes = Vec::new();
+        let mut read = Vec::new();
+        for path in ot_core::dotnet::game_assemblies(Path::new(&exe)) {
+            if let Ok(mut c) = ot_core::dotnet::read_assembly(&path) {
+                read.push(
+                    path.file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                );
+                classes.append(&mut c);
+            }
+        }
+        if read.is_empty() {
+            return Err("found no readable game assemblies".into());
+        }
+        let hits = ot_core::dotnet::search(&classes, query, limit);
+        let list: Vec<String> = hits
+            .iter()
+            .map(|h| {
+                format!(
+                    "{}.{}: {}{}",
+                    h.class,
+                    h.field,
+                    h.ty,
+                    if h.is_static { " (static)" } else { "" }
+                )
+            })
+            .collect();
+        Ok(json!({
+            "assemblies": read,
+            "classes": classes.len(),
+            "fields": list,
+            "tip": "These are the game's own names and types. Scan with the matching type (float, int, double...). Values live on the heap and move between runs, so prefer code patches found with watch_writes_start.",
+        }))
+    }
+
     fn watch_start(&mut self, args: &Value) -> Res {
         let len = args
             .get("size")
@@ -1007,6 +1073,14 @@ pub fn definitions() -> Vec<Value> {
             "game_recon",
             "Which engine the attached game uses (Unity, Unreal, Godot, ...) with tips for finding cheats in it.",
             schema(json!({}), &[]),
+        ),
+        tool(
+            "game_classes",
+            "Unity (Mono) and .NET games only: the game's class fields whose names match 'query' (e.g. health, gold), with their types; without a query, fields with common cheat names.",
+            schema(
+                json!({ "query": { "type": "string" }, "limit": { "type": "integer" }, "exe": { "type": "string" } }),
+                &[],
+            ),
         ),
         tool(
             "watch_writes_start",

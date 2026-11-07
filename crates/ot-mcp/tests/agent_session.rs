@@ -241,3 +241,43 @@ fn agent_makes_a_code_cheat_with_find_what_writes() {
     let before = game.send("state")["health"].as_i64().unwrap();
     assert_eq!(game.send("hit 1")["health"].as_i64().unwrap(), before - 1);
 }
+
+#[test]
+fn reads_class_names_of_dotnet_games() {
+    let system =
+        std::path::Path::new(r"C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.dll");
+    if !system.is_file() {
+        return;
+    }
+    let tmp = TempDir::new("mcp-classes");
+    // A pretend XNA-style game: a .NET exe next to FNA.dll.
+    let game = tmp.0.join("Game");
+    std::fs::create_dir_all(&game).unwrap();
+    std::fs::copy(system, game.join("game.exe")).unwrap();
+    std::fs::write(game.join("FNA.dll"), b"not real").unwrap();
+    let mut t = tools(&tmp);
+    let exe = game.join("game.exe").to_string_lossy().into_owned();
+    let out = call(
+        &mut t,
+        "game_classes",
+        json!({ "exe": exe, "query": "m_String" }),
+    );
+    let fields: Vec<&str> = out["fields"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(Value::as_str)
+        .collect();
+    assert!(
+        fields.contains(&"System.Uri.m_String: string"),
+        "{fields:?}"
+    );
+    assert!(out["classes"].as_u64().unwrap() > 1000);
+
+    // Not a .NET game: a clear refusal.
+    let native = tmp.copy_testbed(r"Native\testbed_native.exe");
+    let e = t
+        .call("game_classes", &json!({ "exe": native.to_string_lossy() }))
+        .unwrap_err();
+    assert!(e.contains("Unity (Mono) and .NET"), "{e}");
+}
