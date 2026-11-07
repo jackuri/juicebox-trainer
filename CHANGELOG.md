@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [0.9.1] - 2026-11-07
+
+### Added
+- **Unity (Mono) and .NET game names** (`ot_core::dotnet`, AI tool `game_classes`): reads the class
+  and field names and types from the game's own assemblies (`Assembly-CSharp.dll`, or an
+  XNA / FNA / MonoGame game's exe and DLLs) by parsing their metadata tables. No code is decompiled,
+  loaded or run, and nothing is saved. The helper uses it to learn, for example, that health is a
+  `float` before it scans.
+- **Free AI on your own PC**: a third AI option, "A free AI running on this PC", for Ollama
+  (`http://localhost:11434`) or LM Studio (`http://localhost:1234`) with the model you choose. It uses
+  their Claude-compatible Messages API. Expect it to be slower and to find cheats less often.
+- **Optional code-analysis tool** (Advanced, in the AI view): an MCP server you install yourself (for
+  example REA) for reading game files. The helper may use its tools only to understand code it found;
+  saves explanations never get it. OpenTrainer doesn't ship or require it.
+- The AI view remembers its settings on this PC.
+
+### Changed
+- The roadmap moves the IL2CPP and Unreal readers to 0.9.2.
+
 ## [0.9.0] - 2026-11-07
 
 ### Added

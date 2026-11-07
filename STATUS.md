@@ -1,9 +1,10 @@
 # Status
 
-_Last updated: 2026-11-07 — v0.9.0_
+_Last updated: 2026-11-07 — v0.9.1_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.9.0 (pushed and tagged).
+- CI green on GitHub (private repo jackuri/opentrainer) through v0.9.0 (pushed and tagged). v0.9.1
+  is committed locally and not pushed yet.
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
@@ -29,15 +30,18 @@ _Last updated: 2026-11-07 — v0.9.0_
 - v0.9.0 AI II: find what writes (hardware breakpoints, x64 + WOW64, live-tested), AI code-patch
   cheats (watch tools + prompt), pack repair (heal, Trainer "Try to repair", `pack_heal`), engine
   detection (`game_recon`, optional `um scan`), "Explain with AI" for save comparisons.
+- v0.9.1 AI III: .NET metadata reader for Unity Mono / XNA games (`game_classes`, tested on Windows'
+  System.dll), local AI backend (Ollama / LM Studio via ANTHROPIC_BASE_URL), optional REA-style
+  analysis MCP server, AI settings remembered.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
 ## In progress
-- Nothing. Stopped after v0.9.0 as planned.
+- Nothing. Stopped after v0.9.1 as planned.
 
 ## Next
-- v0.9.1 AI III (PLAN §6): engine fast paths (Unity Mono / IL2CPP / Unreal object readers), REA as an
-  optional analysis backend, local models (Ollama / LM Studio).
+- v0.9.2 AI IV (PLAN §6): Unity IL2CPP metadata names (global-metadata.dat), Unreal object and
+  property reader (GNames / GObjects). Then 0.10.0 Extras.
 - Pack sharing via a GitHub-repo index (decided; build with `.otpack` import/export).
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
@@ -46,6 +50,11 @@ _Last updated: 2026-11-07 — v0.9.0_
   dialog for save folders (needs the Tauri dialog plugin).
 
 ## Known issues
+- Local AI (Ollama / LM Studio) and the analysis server are wired and unit-tested but not run for
+  real here (neither is installed on this PC). Ollama's Claude-compatible API doesn't support
+  tool_choice or prompt caching; the helper doesn't need them.
+- `game_classes` gives names and types, not field offsets (Mono lays out objects at run time), and
+  has not been tried on a real Unity game here (tested on Windows' own .NET Framework assemblies).
 - Real AI run of the v0.9.0 code-cheat path (user approved): "Infinite health" on the testbed, found
   with find-what-writes, working patch saved in one session, no restarts, about $0.19; the pack
   works on a fresh testbed. Repair and "explain a save" have no real Claude run yet. The run also

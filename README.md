@@ -166,6 +166,12 @@ The helper can only use OpenTrainer's guarded tools: it can't run programs or re
 refuses games with anti-cheat, and its test changes are undone when it stops. Every step it takes is
 logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
 
+Other AI options: an Anthropic API key, or **a free AI running on this PC** with
+[Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai): start it, pick "A free AI running
+on this PC" and type the model's name (one that can use tools, with a large context). It's free but
+slower and less reliable. Under **Advanced** you can add a code-analysis MCP server you installed
+yourself (for example REA); OpenTrainer works without it, and if you use REA its own license applies.
+
 For "infinite" cheats the helper finds the game code that changes the value (it briefly attaches as
 a debugger while you, say, take some damage) and turns that code off, so it rarely needs a restart.
 
