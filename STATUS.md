@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v1.1.0_
+_Last updated: 2026-11-07 — v1.2.0_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,11 @@ _Last updated: 2026-11-07 — v1.1.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.2.0 Look: new look like modern trainer apps (user's request): sidebar with icons, navy +
+  blue-violet theme (one place: `apps/desktop/src/index.css`), cheat cards with big ON / OFF
+  switches and key caps, game cards with covers made from the game's name, new icon colours, phone
+  remote recoloured. Checked by eye in a browser with sample data (Cheats, Games, Packs, Save
+  backups, AI). All checks pass.
 - v1.1.0 Polish: "Browse…" pickers (game exe in Games and Save backups, save folders), plain
   `pack.json` import (picker and drop), the only pack for a game loads by itself on attach (not
   again after Unload), "Get a pack…" from an empty Trainer tab, "Find pointers" on scanner results,
@@ -63,7 +68,7 @@ _Last updated: 2026-11-07 — v1.1.0_
   works.
 
 ## In progress
-- v1.1.0 is committed locally, waiting for the user's test and "push and tag".
+- v1.1.0 and v1.2.0 are committed locally, waiting for the user's test and "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
@@ -80,7 +85,7 @@ _Last updated: 2026-11-07 — v1.1.0_
   between your own Steam accounts (PLAN §2.3), a memory viewer (PLAN §2.2).
 
 ## Known issues
-- v1.0.0 / v1.1.0 haven't been installed and clicked through by hand yet: the installer,
+- v1.0.0 – v1.2.0 haven't been installed and clicked through by hand yet: the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI
   engine download button, the Browse pickers and auto-load.
 - In-app updates can't be tried for real until the repository is public and the updater key is a

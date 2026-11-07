@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-11-07
+
+A new look, in the style of modern game-trainer apps (the user asked for something like Wand /
+WeMod). Our own colours, icon and drawings; no other app's logo, name or artwork.
+
+### Changed
+- **Sidebar** on the left with icons for every tab, OpenTrainer's logo and version at the top and
+  whether a game is attached at the bottom.
+- **Deep navy colours** with one blue-violet accent (instead of grey and green), soft background
+  glow, rounder corners, thin dark scrollbars. Main buttons use the accent as a gradient.
+- **Cheats:** a large "Attached" header for the game; cheats in rounded cards by category, with
+  bigger ON / OFF switches, hotkeys drawn as keyboard keys and one-shot cheats as pill buttons.
+  Tool tabs (Trainer, Scanner, …) are pills. The game list is cleaner and shows the chosen game.
+- **Games:** a grid of game cards. Each card has a cover made from the game's name (a colour and
+  its initials; no game art is downloaded), the store, a "Cheats" tag when a pack exists and a big
+  Play button. Games with anti-cheat are greyed out.
+- Bigger page titles in Packs, Save backups, Make a trainer (AI) and About.
+- **App icon** and the phone remote page use the new colours.
+
 ## [1.1.0] - 2026-11-07
 
 Polish: fewer pasted paths, fewer clicks.
