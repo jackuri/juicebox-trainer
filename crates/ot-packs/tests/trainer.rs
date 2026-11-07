@@ -305,3 +305,51 @@ fn shown_state_follows_the_bytes_in_the_game() {
     t.set_active("inf_health", true).unwrap();
     assert_eq!(tb.send("hit 5")["health"], 95);
 }
+
+#[test]
+fn heals_a_pack_after_a_game_update() {
+    let _s = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let p = attach(&tb);
+    // As if the game was updated: one byte of each signature no longer
+    // matches the code.
+    let mut cheats = vec![
+        patch_cheat(
+            "inf_health",
+            "0F 1F 80 54 4F 99 01 8B 01 ?? ?? 89 01",
+            "29 D0",
+        ),
+        patch_cheat("lost", "AA BB CC DD EE FF 11 22 33 ?? ?? 44 55", "29 D0"),
+    ];
+    cheats.push(json!({ "id": "health_lock", "name": "Health lock", "ui": "toggle", "toggle": { "value": 777 },
+        "impl": { "kind": "value", "type": "i32", "address": {
+            "aob": "0F 1F 80 54 4F 54 77 48 8B 0D ?? ?? ?? ??", "offset": 10, "operand": "rip32", "next": 14,
+            "offsets": ["0x10", "0x10", "0x0"] } } }));
+    let pack = custom_pack(&tb, Json::Array(cheats), json!([]));
+    // Before the repair the broken cheats fail.
+    let mut before = Trainer::load(Arc::clone(&p), pack.clone()).unwrap();
+    assert_eq!(status(&mut before, "inf_health").0, "failed");
+    assert_eq!(status(&mut before, "health_lock").0, "failed");
+    drop(before);
+
+    let report = ot_packs::heal::heal(&p, &pack).unwrap();
+    let fixed: Vec<&str> = report.fixed.iter().map(|f| f.cheat.as_str()).collect();
+    assert_eq!(fixed, vec!["inf_health", "health_lock"], "{report:?}");
+    assert_eq!(report.broken.len(), 1);
+    assert_eq!(report.broken[0].0, "lost");
+    assert_eq!(report.pack.meta.pack_version, "0.1.1");
+    assert_eq!(report.pack.game.builds.len(), 1);
+
+    // The repaired pack works: health no longer goes down, and the lock holds.
+    let mut healed = report.pack.clone();
+    healed.cheats.retain(|c| c.id != "lost");
+    let mut t = Trainer::load(Arc::clone(&p), healed).unwrap();
+    t.set_active("inf_health", true).unwrap();
+    let hp = state(&mut tb)["health"].as_i64().unwrap();
+    assert_eq!(tb.send("hit 10")["health"].as_i64().unwrap(), hp);
+    t.set_active("inf_health", false).unwrap();
+    t.set_active("health_lock", true).unwrap();
+    sleep(Duration::from_millis(200));
+    assert_eq!(state(&mut tb)["health"], 777);
+    t.restore_all().unwrap();
+}

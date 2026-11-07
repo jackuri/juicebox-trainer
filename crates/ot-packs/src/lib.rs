@@ -6,6 +6,7 @@
 //! at an AOB-located site with instructions from a safe allowlist). Everything
 //! goes through `ot-core`, so the anti-cheat guard applies.
 
+pub mod heal;
 pub mod hotkey;
 pub mod numbers;
 pub mod schema;
