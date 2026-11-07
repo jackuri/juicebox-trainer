@@ -27,9 +27,9 @@ _Last updated: 2026-11-06 — v0.5.0_
   "Find pointers" button on scanner results, "copy as pack JSON" for pointer paths.
 
 ## Known issues
-- Nobody has clicked through the app by hand since v0.4.0. The new screens are covered by frontend
-  tests, and the core by live tests against the testbed. Use `Try OpenTrainer.cmd` and the README
-  steps.
+- Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
+  works. The Pointers and Signatures tabs haven't been clicked through by hand yet (covered by
+  frontend tests and live core tests).
 - The user isn't a developer: test instructions should be double-click-first (see
   `Try OpenTrainer.cmd`), not terminal-first.
 - Crash recovery covers code patches. Frozen values need no recovery (they just stop).
