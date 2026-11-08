@@ -57,8 +57,8 @@ _Last updated: 2026-11-08 — v1.4.0_
   CredWriteW/CredReadW, fork → merge-upstream → branch from upstream main → contents PUT → PR;
   owner shares from a branch), ShareDialog in Packs. Tested against a fake GitHub on localhost.
   Community repo commit a295e09 (local, not pushed): PR check = pack files only, index rebuilt on
-  main. **Needs the OAuth app's client ID** in `github.rs` `CLIENT_ID` (docs/RELEASING.md) before
-  sharing works; until then the dialog says sharing isn't set up.
+  main. OAuth app registered under jackuri (client ID in `github.rs`, device flow on, tokens
+  don't expire); GitHub hands out sign-in codes for it. A real share hasn't been run yet.
 - v1.3.0 Cheat Engine tables: the user asked for a ready library of cheats (importing Wand/WeMod's
   was declined: their cheats are proprietary and locked). `ot_packs::ct` converts `.CT` tables'
   value entries into packs (roxmltree, DTDs off, 16 MiB / 20k entries / depth 32 / 500 cheats);
@@ -99,7 +99,7 @@ _Last updated: 2026-11-08 — v1.4.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.3.0 are pushed and tagged (v1.3.0 is Latest). v1.4.0 is committed locally, waiting for the OAuth app and "push and tag".
+- v1.1.0 – v1.3.0 are pushed and tagged (v1.3.0 is Latest). v1.4.0 is committed locally, waiting for "push and tag" (also push the community repo commit).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

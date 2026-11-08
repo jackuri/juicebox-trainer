@@ -25,9 +25,10 @@ use crate::commands::{CmdResult, CommandError};
 /// The community repository (`owner/name`).
 pub const COMMUNITY_REPO: &str = "jackuri/opentrainer-packs";
 const COMMUNITY_OWNER: &str = "jackuri";
-/// OpenTrainer's GitHub OAuth app (public, not a secret). Empty until the app
-/// is registered; `OT_GITHUB_CLIENT_ID` overrides it for testing.
-const CLIENT_ID: &str = "";
+/// OpenTrainer's GitHub OAuth app (public, not a secret; owned by jackuri,
+/// device flow on, tokens don't expire). `OT_GITHUB_CLIENT_ID` overrides it
+/// for testing.
+const CLIENT_ID: &str = "Ov23liChvIJtZaXBnMC4";
 /// Where the player types the code. Only this page is opened.
 pub const DEVICE_PAGE: &str = "https://github.com/login/device";
 /// Pull requests the app may open in the browser start with this.

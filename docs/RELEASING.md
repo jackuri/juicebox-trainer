@@ -105,13 +105,14 @@ request; after a merge, a job on `main` rebuilds and commits `index.json`.
 
 ### GitHub sign-in (OAuth app)
 
-Sharing needs OpenTrainer's GitHub OAuth app. Its client ID is public and goes in
-`CLIENT_ID` in `github.rs` (empty = the app says sharing isn't set up; `OT_GITHUB_CLIENT_ID`
-overrides it for testing). To create it, on the account that owns the community repository:
+Sharing uses OpenTrainer's GitHub OAuth app, registered on 2026-11-08 under `jackuri` (app 4002628,
+client ID `Ov23liChvIJtZaXBnMC4`, in `CLIENT_ID` in `github.rs`; `OT_GITHUB_CLIENT_ID` overrides it
+for testing). To make a new one, on the account that owns the community repository:
 
 1. GitHub → Settings → Developer settings → OAuth Apps → **New OAuth App**.
 2. Name `OpenTrainer`, homepage and callback URL `https://github.com/jackuri/opentrainer-packs`.
-3. Register, then tick **Enable Device Flow** and save. No client secret is needed: don't create one.
+3. Tick **Enable Device Flow**, untick **Expire user access tokens** (the app doesn't refresh
+   tokens), and register. No client secret is needed: don't create one.
 4. Copy the **Client ID** into `CLIENT_ID`.
 
 The token asks for the `public_repo` scope (needed to fork and open the pull request). The app keeps
