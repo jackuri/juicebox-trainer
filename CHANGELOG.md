@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.2] - 2026-11-07
+
+Fixes found by testing the real app end to end and by a code review.
+
+### Fixed
+- **Cover art didn't show in the installed app** (1.2.1): the app's security policy didn't allow
+  in-memory pictures, and the bytes arrive as a plain number list that the Games tab didn't accept.
+  Both fixed; on the test PC all 30 games now show a picture.
+- **Auto-load came back after "Unload pack"** when you went to another tab and back. The choice is
+  now remembered for that game until it closes.
+- **Xbox logo paths** like `\Users\…` or `D:file` in a game's `appxmanifest.xml` could point
+  outside the game folder. Only plain names inside the folder are used now.
+- A game whose cover changes (e.g. Steam downloads its art later) shows the new picture after
+  **Refresh** instead of the old one.
+
 ## [1.2.1] - 2026-11-07
 
 ### Changed

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v1.2.1_
+_Last updated: 2026-11-07 — v1.2.2_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,13 @@ _Last updated: 2026-11-07 — v1.2.1_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.2.2 Fixes, found by an end-to-end test of the real built app (driven through WebView2's
+  DevTools port on this PC: covers, community list, auto-load and Unload on the x86 testbed,
+  Infinite Health checked against the game's real health, scanner → Find pointers → pointer scan →
+  Copy as pack cheat on the x64 testbed; 16 of 16 pass) and a code review: covers didn't show in
+  the installed app (CSP had no `blob:`, and Tauri hands raw bytes over as a number list), auto-load
+  came back after Unload + tab switch, Xbox logo paths could leave the game folder, cover cache
+  didn't refresh. All checks pass.
 - v1.2.1 Covers: game cards show cover art from files already on this PC (Steam's library cache,
   GOG's icon, an Xbox game's logo, else the exe's icon via Windows; nothing downloaded, copied or
   saved). On this PC 29 of 30 games have a store picture (Steam headers, GOG icon); the 30th (a
@@ -72,7 +79,7 @@ _Last updated: 2026-11-07 — v1.2.1_
   works.
 
 ## In progress
-- v1.1.0, v1.2.0 and v1.2.1 are committed locally, waiting for the user's test and "push and tag".
+- v1.1.0 – v1.2.1 are pushed and tagged. v1.2.2 is committed locally, waiting for "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
