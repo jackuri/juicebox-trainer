@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.1] - 2026-11-07
+
+### Changed
+- **Games** cards show the game's real cover art instead of a colour and initials. It comes only
+  from files already on this PC; nothing is downloaded, copied or saved:
+  - Steam games: the artwork Steam caches for its own library (`appcache\librarycache`), the wide
+    header picture first.
+  - GOG games: the icon GOG puts in the game folder. Xbox games: the logo named in the game's
+    `appxmanifest.xml`.
+  - Any other game: its `.exe` icon (drawn by Windows), shown large on a coloured background.
+  - No picture at all: the colour and initials as before.
+  The app only reads the pictures it found itself, never a path the screen asks for.
+
 ## [1.2.0] - 2026-11-07
 
 A new look, in the style of modern game-trainer apps (the user asked for something like Wand /

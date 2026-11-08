@@ -30,7 +30,7 @@ attached to, if any.
 
 | Tab | What it's for |
 |---|---|
-| **Games** | Your installed games (Steam, Epic, GOG, Xbox) and "Play with cheats" |
+| **Games** | Your installed games (Steam, Epic, GOG, Xbox) with their cover art, and "Play with cheats" |
 | **Cheats** | Attach to a running game, load its cheats and use them |
 | **Packs** | Your cheat packs, sharing them, and packs from other players |
 | **Save backups** | Back up, compare, restore and edit saves |
