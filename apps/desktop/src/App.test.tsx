@@ -156,16 +156,21 @@ describe("App", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
     await screen.findByText(/Attached to/);
 
-    invoke.mockImplementationOnce(() =>
-      Promise.reject({
-        kind: "blocked",
-        message: "blocked",
-        verdict: {
-          ...allowed,
-          allowed: false,
-          findings: [{ kind: "process", product: "Easy Anti-Cheat", detail: "EasyAntiCheat.exe" }],
-        },
-      }),
+    // Only the read is blocked: background calls (trainer polling) must not
+    // take the rejection first.
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "read_value"
+        ? Promise.reject({
+            kind: "blocked",
+            message: "blocked",
+            verdict: {
+              ...allowed,
+              allowed: false,
+              findings: [{ kind: "process", product: "Easy Anti-Cheat", detail: "EasyAntiCheat.exe" }],
+            },
+          })
+        : base(cmd, args),
     );
     fireEvent.click(screen.getByRole("tab", { name: "Read / write" }));
     fireEvent.change(screen.getByLabelText("Address"), { target: { value: "0x10" } });
