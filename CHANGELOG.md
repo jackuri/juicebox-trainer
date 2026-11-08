@@ -18,6 +18,9 @@ Fixes found by testing the real app end to end and by a code review.
   outside the game folder. Only plain names inside the folder are used now.
 - A game whose cover changes (e.g. Steam downloads its art later) shows the new picture after
   **Refresh** instead of the old one.
+- **Release workflow:** when several version tags were released at once, GitHub marked the one
+  that finished last as "Latest" (1.1.0 instead of 1.2.1; corrected by hand). The workflow now
+  marks a release as latest only if no higher version exists.
 
 ## [1.2.1] - 2026-11-07
 
