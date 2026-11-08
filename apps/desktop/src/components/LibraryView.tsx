@@ -129,7 +129,7 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
             }`}
             data-testid={`game-${g.id}`}
           >
-            <Cover name={g.name} dim={Boolean(g.blocked)}>
+            <Cover game={g} dim={Boolean(g.blocked)}>
               <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
                 {STORE[g.store]}
               </span>
@@ -219,25 +219,86 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
   );
 }
 
-/** A made-up cover for a game: a colour picked from its name, and its initials. No game art is used. */
-function Cover({ name, dim = false, children }: { name: string; dim?: boolean; children?: ReactNode }) {
+/** Picture URLs by game id, kept while the app runs (covers rarely change). */
+const coverUrls = new Map<string, Promise<string | null>>();
+
+function coverUrl(id: string): Promise<string | null> {
+  let url = coverUrls.get(id);
+  if (!url) {
+    url = api.libraryCover(id).then(
+      (bytes) =>
+        bytes instanceof ArrayBuffer && bytes.byteLength > 0 ? URL.createObjectURL(new Blob([bytes])) : null,
+      () => null,
+    );
+    coverUrls.set(id, url);
+  }
+  return url;
+}
+
+/**
+ * A game's cover: its artwork from the store's files on this PC, or its icon on a coloured
+ * background. Until the picture is there (or if there is none): a colour from its name and its
+ * initials.
+ */
+function Cover({ game, dim = false, children }: { game: LibraryGame; dim?: boolean; children?: ReactNode }) {
+  const [loaded, setLoaded] = useState<{ id: string; url: string | null } | null>(null);
+  useEffect(() => {
+    if (!game.cover) return;
+    let live = true;
+    void coverUrl(game.id).then((url) => live && setLoaded({ id: game.id, url }));
+    return () => {
+      live = false;
+    };
+  }, [game.id, game.cover]);
+  const url = game.cover && loaded?.id === game.id ? loaded.url : null;
+  const [failed, setFailed] = useState<string | null>(null);
+  const picture = url && failed !== url ? url : null;
+
   let h = 0;
-  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 360;
-  const initials = name
+  for (const ch of game.name) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  const initials = game.name
     .replace(/[^\p{L}\p{N} ]/gu, " ")
     .split(/\s+/)
     .filter(Boolean)
     .slice(0, 2)
     .map((w) => w[0]!.toUpperCase())
     .join("");
+  const art = picture && game.cover === "art";
   return (
     <div
-      className={`relative flex h-28 items-center justify-center ${dim ? "grayscale" : ""}`}
-      style={{
-        backgroundImage: `radial-gradient(120% 90% at 85% 0%, hsl(${(h + 50) % 360} 85% 60% / 0.55), transparent 60%), linear-gradient(135deg, hsl(${h} 65% 32%), hsl(${(h + 40) % 360} 60% 14%))`,
-      }}
+      className={`relative flex aspect-[460/215] items-center justify-center overflow-hidden ${dim ? "grayscale" : ""}`}
+      style={
+        art
+          ? undefined
+          : {
+              backgroundImage: `radial-gradient(120% 90% at 85% 0%, hsl(${(h + 50) % 360} 85% 60% / 0.55), transparent 60%), linear-gradient(135deg, hsl(${h} 65% 32%), hsl(${(h + 40) % 360} 60% 14%))`,
+            }
+      }
     >
-      <span className="text-4xl font-black tracking-tight text-white/85 drop-shadow-[0_2px_8px_rgb(0_0_0/0.4)]">{initials || "?"}</span>
+      {art ? (
+        <>
+          <img
+            src={picture}
+            alt=""
+            draggable={false}
+            onError={() => setFailed(picture)}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-zinc-900/70 via-transparent to-black/25" />
+        </>
+      ) : picture ? (
+        <img
+          src={picture}
+          alt=""
+          draggable={false}
+          onError={() => setFailed(picture)}
+          className="h-[58%] w-auto max-w-[45%] object-contain drop-shadow-[0_6px_16px_rgb(0_0_0/0.5)]"
+        />
+      ) : (
+        <span className="text-4xl font-black tracking-tight text-white/85 drop-shadow-[0_2px_8px_rgb(0_0_0/0.4)]">
+          {initials || "?"}
+        </span>
+      )}
       {children}
     </div>
   );

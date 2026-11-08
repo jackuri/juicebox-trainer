@@ -23,6 +23,7 @@ function game(over: Partial<LibraryGame>): LibraryGame {
     presets: [],
     autoPreset: null,
     blocked: null,
+    cover: null,
     ...over,
   };
 }
@@ -103,6 +104,36 @@ describe("LibraryView", () => {
     fireEvent.change(screen.getByLabelText("Game exe path"), { target: { value: "C:\\x.txt" } });
     fireEvent.click(screen.getByRole("button", { name: "Add game" }));
     expect(await screen.findByText(/is not an \.exe file/)).toBeInTheDocument();
+  });
+
+  it("shows store artwork, icons, and initials when there is no picture", async () => {
+    const created = vi.fn(() => "blob:cover-1");
+    Object.defineProperty(URL, "createObjectURL", { value: created, configurable: true });
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "library_list")
+        return Promise.resolve([
+          game({ id: "steam:art", name: "Art Game", cover: "art" }),
+          game({ id: "gog:icon", name: "Icon Game", store: "gog", cover: "icon" }),
+          game({ id: "epic:none", name: "No Picture", store: "epic", cover: null }),
+          game({ id: "steam:empty", name: "Empty Answer", cover: "art" }),
+        ]);
+      if (cmd === "library_cover")
+        return Promise.resolve(args?.id === "steam:empty" ? new ArrayBuffer(0) : new Uint8Array([1, 2, 3]).buffer);
+      return Promise.resolve();
+    });
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    const art = await screen.findByTestId("game-steam:art");
+    await vi.waitFor(() => expect(art.querySelector("img")).toHaveAttribute("src", "blob:cover-1"));
+    expect(art.querySelector("img")).toHaveClass("object-cover");
+    const icon = screen.getByTestId("game-gog:icon");
+    await vi.waitFor(() => expect(icon.querySelector("img")).toHaveClass("object-contain"));
+    // No picture on this PC: initials, and nothing is asked for.
+    expect(within(screen.getByTestId("game-epic:none")).getByText("NP")).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith("library_cover", { id: "epic:none" });
+    // An empty answer also falls back to initials.
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_cover", { id: "steam:empty" }));
+    expect(within(screen.getByTestId("game-steam:empty")).getByText("EA")).toBeInTheDocument();
+    expect(created).toHaveBeenCalledTimes(2);
   });
 
   it("adds a game picked with Browse, and does nothing when cancelled", async () => {

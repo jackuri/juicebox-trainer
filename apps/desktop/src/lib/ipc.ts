@@ -262,6 +262,8 @@ export interface LibraryGame {
   autoPreset: string | null;
   /** Why the anti-cheat guard blocks it. */
   blocked: string | null;
+  /** A cover picture is on this PC (`libraryCover`): wide artwork, or an icon / logo. */
+  cover: "art" | "icon" | null;
 }
 
 export interface PlayResult {
@@ -857,6 +859,8 @@ export const api = {
   cheatPad: (id: string, chord: string | null) => invoke<TrainerView>("cheat_pad", { id, chord }),
 
   libraryList: () => invoke<LibraryGame[]>("library_list"),
+  /** The cover picture's bytes (empty if there is none). */
+  libraryCover: (id: string) => invoke<ArrayBuffer>("library_cover", { id }),
   libraryAdd: (exe: string) => invoke<void>("library_add", { exe }),
   libraryRemove: (id: string) => invoke<void>("library_remove", { id }),
   libraryOpenFolder: (id: string) => invoke<void>("library_open_folder", { id }),
