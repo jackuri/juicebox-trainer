@@ -1,4 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { coverBytes } from "../lib/format";
 import {
   api,
   type LibraryGame,
@@ -220,18 +221,17 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
 }
 
 /** Picture URLs by game id, kept while the app runs (covers rarely change). */
-const coverUrls = new Map<string, Promise<string | null>>();
+const coverUrls = new Map<string, string>();
 
-function coverUrl(id: string): Promise<string | null> {
-  let url = coverUrls.get(id);
-  if (!url) {
-    url = api.libraryCover(id).then(
-      (bytes) =>
-        bytes instanceof ArrayBuffer && bytes.byteLength > 0 ? URL.createObjectURL(new Blob([bytes])) : null,
-      () => null,
-    );
-    coverUrls.set(id, url);
-  }
+/** A picture URL for a game's cover. Kept per game and kind while the app runs; misses are asked again. */
+async function coverUrl(id: string, kind: string): Promise<string | null> {
+  const key = `${kind}|${id}`;
+  const known = coverUrls.get(key);
+  if (known) return known;
+  const bytes = coverBytes(await api.libraryCover(id).catch(() => null));
+  if (!bytes) return null;
+  const url = URL.createObjectURL(new Blob([bytes]));
+  coverUrls.set(key, url);
   return url;
 }
 
@@ -245,12 +245,13 @@ function Cover({ game, dim = false, children }: { game: LibraryGame; dim?: boole
   useEffect(() => {
     if (!game.cover) return;
     let live = true;
-    void coverUrl(game.id).then((url) => live && setLoaded({ id: game.id, url }));
+    const key = `${game.cover}|${game.id}`;
+    void coverUrl(game.id, game.cover).then((url) => live && setLoaded({ id: key, url }));
     return () => {
       live = false;
     };
   }, [game.id, game.cover]);
-  const url = game.cover && loaded?.id === game.id ? loaded.url : null;
+  const url = game.cover && loaded?.id === `${game.cover}|${game.id}` ? loaded.url : null;
   const [failed, setFailed] = useState<string | null>(null);
   const picture = url && failed !== url ? url : null;
 

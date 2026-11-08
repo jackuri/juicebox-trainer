@@ -93,3 +93,12 @@ export function inspect(bytes: number[]): { label: string; value: string }[] {
   }
   return out;
 }
+
+/** The bytes as Tauri hands them over: an ArrayBuffer, a typed array or (often) a plain number list. */
+export function coverBytes(data: unknown): Uint8Array<ArrayBuffer> | null {
+  let bytes: Uint8Array<ArrayBuffer> | null = null;
+  if (data instanceof ArrayBuffer) bytes = new Uint8Array(data);
+  else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+  else if (Array.isArray(data) && data.every((n) => typeof n === "number")) bytes = Uint8Array.from(data as number[]);
+  return bytes && bytes.byteLength > 0 ? bytes : null;
+}

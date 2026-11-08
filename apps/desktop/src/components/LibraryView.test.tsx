@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { LibraryGame } from "../lib/ipc";
+import { coverBytes } from "../lib/format";
 import { LibraryView } from "./LibraryView";
 
 const invoke = vi.fn();
@@ -118,7 +119,10 @@ describe("LibraryView", () => {
           game({ id: "steam:empty", name: "Empty Answer", cover: "art" }),
         ]);
       if (cmd === "library_cover")
-        return Promise.resolve(args?.id === "steam:empty" ? new ArrayBuffer(0) : new Uint8Array([1, 2, 3]).buffer);
+        // The real app hands bytes over as a plain number list; tests also cover an ArrayBuffer.
+        return Promise.resolve(
+          args?.id === "steam:empty" ? [] : args?.id === "gog:icon" ? new Uint8Array([4, 5]).buffer : [255, 216, 255],
+        );
       return Promise.resolve();
     });
     render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
@@ -134,6 +138,16 @@ describe("LibraryView", () => {
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_cover", { id: "steam:empty" }));
     expect(within(screen.getByTestId("game-steam:empty")).getByText("EA")).toBeInTheDocument();
     expect(created).toHaveBeenCalledTimes(2);
+  });
+
+  it("reads cover bytes in every form the app bridge uses", () => {
+    expect(coverBytes([1, 2, 3])).toEqual(new Uint8Array([1, 2, 3]));
+    expect(coverBytes(new Uint8Array([1, 2]).buffer)).toEqual(new Uint8Array([1, 2]));
+    expect(coverBytes(new Uint8Array([9, 1, 2, 9]).subarray(1, 3))).toEqual(new Uint8Array([1, 2]));
+    expect(coverBytes([])).toBeNull();
+    expect(coverBytes(new ArrayBuffer(0))).toBeNull();
+    expect(coverBytes(null)).toBeNull();
+    expect(coverBytes(["x"])).toBeNull();
   });
 
   it("adds a game picked with Browse, and does nothing when cancelled", async () => {

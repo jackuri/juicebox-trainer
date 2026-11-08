@@ -860,7 +860,7 @@ export const api = {
 
   libraryList: () => invoke<LibraryGame[]>("library_list"),
   /** The cover picture's bytes (empty if there is none). */
-  libraryCover: (id: string) => invoke<ArrayBuffer>("library_cover", { id }),
+  libraryCover: (id: string) => invoke<unknown>("library_cover", { id }),
   libraryAdd: (exe: string) => invoke<void>("library_add", { exe }),
   libraryRemove: (id: string) => invoke<void>("library_remove", { id }),
   libraryOpenFolder: (id: string) => invoke<void>("library_open_folder", { id }),
