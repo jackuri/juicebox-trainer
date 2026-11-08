@@ -106,8 +106,9 @@ fn xbox_logo(folder: &Path) -> Option<PathBuf> {
     ];
     names.into_iter().flatten().find_map(|rel| {
         let rel = rel.replace('/', "\\");
-        // Only a picture inside the game's own folder.
-        if rel.contains("..") || Path::new(&rel).is_absolute() {
+        // Only a picture inside the game's own folder: plain folder and file
+        // names, no `..`, no drive (`D:x`), no root (`\Users\…`).
+        if !inside(Path::new(&rel)) {
             return None;
         }
         let p = folder.join(&rel);
@@ -116,6 +117,15 @@ fn xbox_logo(folder: &Path) -> Option<PathBuf> {
         }
         scaled(&p)
     })
+}
+
+/// A relative path made only of normal names (so joining it can't leave the folder).
+fn inside(rel: &Path) -> bool {
+    use std::path::Component;
+    rel.components().next().is_some()
+        && rel
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
 }
 
 /// `Logo.scale-400.png` … for `Logo.png`: the biggest scale that exists.
@@ -277,6 +287,26 @@ mod tests {
             find(&install("xbox:x", StoreKind::Xbox, &game_dir), None),
             None
         );
+        // Root-relative (`\Users\…`) and drive-relative (`C:x`) paths aren't "absolute" on
+        // Windows but would still leave the folder.
+        let outside = dir.join("outside.png").to_string_lossy().into_owned();
+        let (drive, rest) = outside.split_at(2); // "C:", "\Users\…\outside.png"
+        for logo in [rest.to_string(), format!("{drive}outside.png")] {
+            std::fs::write(
+                game_dir.join("appxmanifest.xml"),
+                format!("<Logo>{logo}</Logo>"),
+            )
+            .unwrap();
+            assert_eq!(
+                find(&install("xbox:x", StoreKind::Xbox, &game_dir), None),
+                None,
+                "{logo}"
+            );
+        }
+        assert!(inside(Path::new(r"Assets\Logo.png")));
+        assert!(!inside(Path::new(r"\Assets\Logo.png")));
+        assert!(!inside(Path::new("C:Logo.png")));
+        assert!(!inside(Path::new("")));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
