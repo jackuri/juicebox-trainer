@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows
   reason. Scripts (Auto Assembler, Lua), fixed addresses, names only a table script defines, and
   text or byte values are left out and never run.
 - A table that doesn't name the game's exe asks you to choose it.
+- **Talk to the AI helper in your own words.** Every question now has a box for your own answer
+  (e.g. "Yes, but fire damage still hurts" instead of Yes), and while the helper works a message box
+  at the bottom passes your note to it after its current step (or before it finishes), so it can fix
+  a cheat that only partly works.
 
 ### Fixed
 - A test of engine detection could fail now and then on Windows (test cases shared a temporary

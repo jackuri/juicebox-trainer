@@ -716,6 +716,8 @@ export type AiEvent =
   | { type: "say"; text: string }
   | { type: "ask"; id: string; text: string; kind: AskKind }
   | { type: "answered"; id: string; text: string }
+  /** A message the player typed while the helper worked. */
+  | { type: "note"; text: string }
   | { type: "activity"; tool: string; summary: string }
   | { type: "cost"; usd: number }
   | { type: "finished"; ok: boolean; summary: string }
@@ -938,6 +940,8 @@ export const api = {
   aiStatus: () => invoke<AiStatus>("ai_status"),
   aiStart: (request: AiStartRequest) => invoke<void>("ai_start", { request }),
   aiAnswer: (id: string, text: string) => invoke<void>("ai_answer", { id, text }),
+  /** A message for the helper while it works; it reads it after its current step. */
+  aiNote: (text: string) => invoke<void>("ai_note", { text }),
   aiCancel: () => invoke<void>("ai_cancel"),
   aiSignIn: () => invoke<void>("ai_sign_in"),
   aiInstall: () => invoke<void>("ai_install"),

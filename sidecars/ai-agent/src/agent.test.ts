@@ -1,9 +1,9 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildOptions, OT_TOOLS, type QueryFn, runSession, shortName } from "./agent.js";
-import { AskBridge } from "./bridge.js";
+import { AskBridge, NoteBox } from "./bridge.js";
 import { kickoff, SYSTEM_PROMPT } from "./prompt.js";
-import { encode, type Outbound, parseInbound, type StartMessage } from "./protocol.js";
+import { encode, MAX_NOTE, type Outbound, parseInbound, type StartMessage } from "./protocol.js";
 
 const start: StartMessage = {
   type: "start",
@@ -15,7 +15,14 @@ const mcp = { command: "C:\\OpenTrainer\\opentrainer-desktop.exe", args: ["--mcp
 
 function io() {
   const sent: Outbound[] = [];
-  return { sent, send: (m: Outbound) => sent.push(m), ask: vi.fn().mockResolvedValue("Done") };
+  const notes = new NoteBox();
+  return {
+    sent,
+    notes,
+    send: (m: Outbound) => sent.push(m),
+    ask: vi.fn().mockResolvedValue("Done"),
+    takeNotes: () => notes.take(),
+  };
 }
 
 afterEach(() => {
@@ -245,5 +252,49 @@ describe("AskBridge", () => {
     b.cancelAll();
     expect(await c).toBe("The player cancelled.");
     expect(b.waiting).toBe(0);
+  });
+});
+
+describe("player messages", () => {
+  it("parses notes, trimmed and capped", () => {
+    expect(parseInbound(JSON.stringify({ type: "note", text: "  only the pistol  " }))).toEqual({
+      type: "note",
+      text: "only the pistol",
+    });
+    expect(parseInbound(JSON.stringify({ type: "note", text: "   " }))).toBeNull();
+    expect(parseInbound(JSON.stringify({ type: "note", text: 3 }))).toBeNull();
+    const long = parseInbound(JSON.stringify({ type: "note", text: "x".repeat(MAX_NOTE + 50) }));
+    expect(long?.type === "note" && long.text.length).toBe(MAX_NOTE);
+  });
+
+  it("hands what the player typed to the helper after a tool call, once", async () => {
+    const x = io();
+    const o = buildOptions(start, mcp, x, new AbortController(), "1.3.0");
+    const post = o.hooks?.PostToolUse?.[0]?.hooks[0];
+    const stop = o.hooks?.Stop?.[0]?.hooks[0];
+    expect(post && stop).toBeTruthy();
+    const signal = new AbortController().signal;
+    const input = { hook_event_name: "PostToolUse" } as never;
+    expect(await post!(input, "t1", { signal })).toEqual({});
+    x.notes.push("Yes, but fire damage still hurts");
+    x.notes.push("ammo works with one gun only");
+    const out = (await post!(input, "t2", { signal })) as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(out.hookSpecificOutput.hookEventName).toBe("PostToolUse");
+    expect(out.hookSpecificOutput.additionalContext).toContain('"Yes, but fire damage still hurts"');
+    expect(out.hookSpecificOutput.additionalContext).toContain('"ammo works with one gun only"');
+    expect(await post!(input, "t3", { signal })).toEqual({});
+    // A message sent just as the helper is finishing keeps it going.
+    x.notes.push("wait, gold doesn't save");
+    const s = (await stop!({ hook_event_name: "Stop" } as never, undefined, { signal })) as {
+      hookSpecificOutput: { hookEventName: string; additionalContext: string };
+    };
+    expect(s.hookSpecificOutput).toMatchObject({ hookEventName: "Stop" });
+    expect(s.hookSpecificOutput.additionalContext).toContain("gold doesn't save");
+  });
+
+  it("tells the helper about typed answers and messages", () => {
+    expect(SYSTEM_PROMPT).toContain("The player sent you a message");
   });
 });

@@ -59,7 +59,9 @@ _Last updated: 2026-11-08 — v1.3.0_
   scripts, fixed addresses, script symbols, text/AoB values are listed as skipped. Opened through the
   normal pack preview (`share::open_path(path, exe)`), with "Choose the game's exe" when the table
   names only DLLs. Integration test writes a CE-style table for the live testbed (x64 + x86) and
-  checks set / hold / release on its real values. All checks pass.
+  checks set / hold / release on its real values. Also in 1.3.0 (user's request): typed answers to
+  every AI question and messages while the helper works (`ai_note` → sidecar `note` → NoteBox,
+  delivered via PostToolUse / Stop hook `additionalContext`). All checks pass.
 - v1.2.3 Game lists: the user found the program dropdowns confusing (every running program,
   no games). New `running_games` command matches running exes to installed games' folders
   (deepest folder wins, no drive roots, no crash reporters / Windows programs) or to a pack's exe

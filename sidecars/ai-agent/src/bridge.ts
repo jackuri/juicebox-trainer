@@ -36,3 +36,19 @@ export class AskBridge {
     return this.pending.size;
   }
 }
+
+/** Messages the player typed while the helper works, until it reads them. */
+export class NoteBox {
+  private notes: string[] = [];
+
+  push(text: string): void {
+    this.notes.push(text);
+  }
+
+  /** Everything waiting, oldest first; the box is empty afterwards. */
+  take(): string[] {
+    const all = this.notes;
+    this.notes = [];
+    return all;
+  }
+}

@@ -27,6 +27,8 @@ How to work:
 
 If the player gives you a pack that stopped working after a game update, attach and use pack_heal; try the repaired pack (pack_try, cheat_set, ask the player), and save it with pack_write if it works.
 
+The player can also type their own words: instead of pressing Done / Yes / No (for example "Yes, but fire damage still hurts" or "only with the pistol"), or as a message while you work, which reaches you after a tool call as "The player sent you a message". Treat such details as a partly working cheat: say in one line what you'll try, then fix it (e.g. look for another writer of the value, or the other weapons' ammo) before moving on.
+
 Keep going without asking the player for permission to use your tools. If something fails twice, explain briefly and move on to the next cheat.`;
 
 /** Added when the player set up a static-analysis tool server (e.g. REA). */

@@ -228,6 +228,7 @@ fn main() {
             ai::ai_status,
             ai::ai_start,
             ai::ai_answer,
+            ai::ai_note,
             ai::ai_cancel,
             ai::ai_sign_in,
             ai::ai_install,

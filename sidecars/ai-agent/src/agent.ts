@@ -1,5 +1,6 @@
 import {
   createSdkMcpServer,
+  type HookCallback,
   type Options,
   type SDKMessage,
   tool,
@@ -50,6 +51,18 @@ export interface Io {
   send(m: Outbound): void;
   /** Shows a step to the player and waits for the answer. */
   ask(text: string, kind: AskKind): Promise<string>;
+  /** Messages the player typed since the last call (oldest first). */
+  takeNotes(): string[];
+}
+
+/** How the player's messages reach the model. */
+export function notesText(notes: string[]): string {
+  const quoted = notes.map((n) => `"${n}"`).join("\n");
+  return (
+    `The player sent you ${notes.length === 1 ? "a message" : "messages"} while you worked ` +
+    `(their own words about what they see in the game):\n${quoted}\n` +
+    "Take it into account now: say briefly in your next text what you'll do about it, then go on."
+  );
 }
 
 /** How to start the guarded tool server. */
@@ -103,6 +116,16 @@ export function buildOptions(
     delete env.ANTHROPIC_BASE_URL;
   }
   const local = start.backend === "local";
+  // After every tool call, and when the helper is about to stop, hand over
+  // what the player typed meanwhile.
+  const deliver =
+    (event: "PostToolUse" | "Stop"): HookCallback =>
+    async () => {
+      const notes = io.takeNotes();
+      return notes.length === 0
+        ? {}
+        : { hookSpecificOutput: { hookEventName: event, additionalContext: notesText(notes) } };
+    };
   const analysis = !explain && start.analysis ? start.analysis : undefined;
 
   return {
@@ -135,6 +158,10 @@ export function buildOptions(
     maxBudgetUsd: start.maxBudgetUsd ?? DEFAULT_BUDGET_USD,
     abortController: abort,
     env,
+    hooks: {
+      PostToolUse: [{ hooks: [deliver("PostToolUse")] }],
+      Stop: [{ hooks: [deliver("Stop")] }],
+    },
   };
 }
 

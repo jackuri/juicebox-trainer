@@ -89,6 +89,7 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
   const setBackend = (b: Backend) => update({ backend: b });
   const setBudget = (v: string) => update({ budget: v });
   const [reply, setReply] = useState("");
+  const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
 
@@ -152,6 +153,16 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
     try {
       const s = await api.aiStatus();
       setStatus((old) => (old ? { ...old, signedIn: s.signedIn } : s));
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
+  async function sendNote(text: string) {
+    try {
+      await api.aiNote(text);
+      setEvents((list) => [...list, { type: "note", text }]);
+      setNote("");
     } catch (e) {
       setError(toCommandError(e).message);
     }
@@ -380,6 +391,13 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
                     {e.text}
                   </li>
                 );
+              case "note":
+                return (
+                  <li key={i} className="self-end whitespace-pre-wrap rounded-lg bg-emerald-950/60 px-3 py-1 text-sm">
+                    <span className="block text-[10px] uppercase tracking-wide text-emerald-400">Your message</span>
+                    {e.text}
+                  </li>
+                );
               case "error":
                 return (
                   <li key={i} className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300">
@@ -428,32 +446,62 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
               </button>
             </div>
           )}
-          {ask.kind === "text" && (
-            <form
-              className="flex gap-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (reply.trim()) void answer(reply.trim());
-              }}
-            >
-              <input
-                aria-label="Your answer"
-                className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
-                value={reply}
-                onChange={(e) => setReply(e.target.value)}
-                autoFocus
-              />
-              <button className={big} type="submit" disabled={!reply.trim()}>
-                Send
-              </button>
-            </form>
-          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (reply.trim()) void answer(reply.trim());
+            }}
+          >
+            <input
+              aria-label={ask.kind === "text" ? "Your answer" : "Your own answer"}
+              className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm placeholder:text-zinc-500"
+              placeholder={
+                ask.kind === "text"
+                  ? undefined
+                  : ask.kind === "yesno"
+                    ? "Or write your own answer, e.g. “Yes, but fire damage still hurts”"
+                    : "Or write your own answer"
+              }
+              value={reply}
+              onChange={(e) => setReply(e.target.value)}
+              autoFocus={ask.kind === "text"}
+            />
+            <button className={ask.kind === "text" ? big : button} type="submit" disabled={!reply.trim()}>
+              Send
+            </button>
+          </form>
           <button className="self-start text-xs text-zinc-500 underline" onClick={() => void answer("I can't do that or I don't see it.")}>
             I can't do this
           </button>
         </div>
       )}
-      {running && !ask && !finished && <p className="text-xs text-zinc-500">Working…</p>}
+      {running && !ask && !finished && (
+        <form
+          className="sticky bottom-0 flex max-w-3xl flex-col gap-1 rounded-lg border border-zinc-800 bg-zinc-950 p-3"
+          aria-label="Message the helper"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (note.trim()) void sendNote(note.trim());
+          }}
+        >
+          <p className="text-xs text-zinc-500">Working… You can still tell the helper something.</p>
+          <div className="flex gap-2">
+            <input
+              aria-label="Message the helper"
+              className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm placeholder:text-zinc-500"
+              placeholder="e.g. “Infinite ammo only works with the pistol”"
+              maxLength={2000}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
+            <button className={button} type="submit" disabled={!note.trim()}>
+              Send
+            </button>
+          </div>
+          <p className="text-[11px] text-zinc-600">It reads your message after its current step.</p>
+        </form>
+      )}
     </div>
   );
 }

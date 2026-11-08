@@ -7,7 +7,7 @@
 import { createInterface } from "node:readline";
 import { query } from "@anthropic-ai/claude-agent-sdk";
 import { type McpCommand, runSession } from "./agent.js";
-import { AskBridge } from "./bridge.js";
+import { AskBridge, NoteBox } from "./bridge.js";
 import { encode, type Outbound, parseInbound } from "./protocol.js";
 
 function send(m: Outbound): void {
@@ -29,6 +29,7 @@ function mcpCommand(): McpCommand | null {
 
 const version = process.env.OT_APP_VERSION ?? "dev";
 const bridge = new AskBridge(send);
+const notes = new NoteBox();
 const abort = new AbortController();
 let running = false;
 
@@ -40,6 +41,8 @@ lines.on("line", (line) => {
   if (!m) return;
   if (m.type === "answer") {
     bridge.answer(m.id, m.text);
+  } else if (m.type === "note") {
+    notes.push(m.text);
   } else if (m.type === "cancel") {
     abort.abort();
     bridge.cancelAll();
@@ -50,7 +53,7 @@ lines.on("line", (line) => {
       return;
     }
     running = true;
-    void runSession(m, { send, ask: (t, k) => bridge.ask(t, k) }, query, mcp, abort, version).finally(() =>
+    void runSession(m, { send, ask: (t, k) => bridge.ask(t, k), takeNotes: () => notes.take() }, query, mcp, abort, version).finally(() =>
       process.exit(0),
     );
   }

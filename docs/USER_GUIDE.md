@@ -126,6 +126,13 @@ The AI helper finds cheats for a game together with you. It asks you to do thing
 "take some damage" or "spend some gold", then press **Done** or answer **Yes / No**. When it's done,
 the new pack appears in Cheats, marked "AI-made".
 
+You can also talk to it in your own words:
+
+- **Instead of Done / Yes / No**, type your answer in the box under the question and click
+  **Send**, for example "Yes, but fire damage still hurts".
+- **While it works**, type in the box at the bottom, for example "Infinite ammo only works with the
+  pistol". It reads your message after its current step and says what it will do about it.
+
 What it needs:
 
 1. **Node.js** (free): install the LTS version from [nodejs.org](https://nodejs.org).

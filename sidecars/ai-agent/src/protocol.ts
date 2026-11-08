@@ -41,7 +41,12 @@ export interface StartMessage {
 export type Inbound =
   | StartMessage
   | { type: "answer"; id: string; text: string }
+  /** A message the player typed while the helper works (not an answer). */
+  | { type: "note"; text: string }
   | { type: "cancel" };
+
+/** Longest player message passed on, in characters. */
+export const MAX_NOTE = 2000;
 
 export type AskKind = "done" | "yesno" | "text";
 
@@ -89,6 +94,11 @@ export function parseInbound(line: string): Inbound | null {
       return typeof m.id === "string" && typeof m.text === "string"
         ? { type: "answer", id: m.id, text: m.text }
         : null;
+    case "note": {
+      if (typeof m.text !== "string") return null;
+      const text = m.text.trim().slice(0, MAX_NOTE);
+      return text ? { type: "note", text } : null;
+    }
     case "cancel":
       return { type: "cancel" };
     default:

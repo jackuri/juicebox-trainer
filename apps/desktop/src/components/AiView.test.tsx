@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pendingAsk } from "../lib/ai";
 import type { AiEvent, ProcessInfo } from "../lib/ipc";
@@ -142,6 +142,42 @@ describe("AiView", () => {
     render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     expect(invoke).toHaveBeenCalledWith("ai_cancel", undefined);
+  });
+
+  it("takes the player's own words instead of Yes / No, and messages while it works", async () => {
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "ai_status"
+        ? Promise.resolve(status({ running: true, transcript: [{ type: "say", text: "Testing your cheats." }] }))
+        : Promise.resolve(undefined),
+    );
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
+    await screen.findByText("Testing your cheats.");
+
+    // While it works: a message box, no question.
+    const box = screen.getByLabelText("Message the helper", { selector: "input" });
+    fireEvent.change(box, { target: { value: "  Infinite ammo only works with the pistol " } });
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_note", { text: "Infinite ammo only works with the pistol" }),
+    );
+    expect(await screen.findByText("Infinite ammo only works with the pistol")).toBeInTheDocument();
+    expect(screen.getByLabelText("Message the helper", { selector: "input" })).toHaveValue("");
+
+    // A yes/no question: the player writes what really happens instead.
+    act(() => {
+      emit?.({ type: "ask", id: "q3", text: "Does Infinite Health work?", kind: "yesno" });
+    });
+    expect(screen.queryByLabelText("Message the helper", { selector: "input" })).not.toBeInTheDocument();
+    const dialog = screen.getByRole("dialog", { name: "Your turn" });
+    expect(within(dialog).getByRole("button", { name: "Yes" })).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("Your own answer"), {
+      target: { value: "Yes, but fire damage still hurts" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_answer", { id: "q3", text: "Yes, but fire damage still hurts" }),
+    );
+    expect(screen.queryByRole("dialog", { name: "Your turn" })).not.toBeInTheDocument();
   });
 });
 

@@ -586,6 +586,22 @@ pub async fn ai_answer(id: String, text: String, state: State<'_, AiState>) -> C
     Ok(())
 }
 
+/// Longest player message passed to the helper (matches the sidecar's limit).
+const MAX_NOTE: usize = 2000;
+
+/// The player's own message while the helper works: it reads it after its
+/// current step.
+#[tauri::command]
+pub async fn ai_note(text: String, state: State<'_, AiState>) -> CmdResult<()> {
+    let text: String = text.trim().chars().take(MAX_NOTE).collect();
+    if text.is_empty() {
+        return Err(CommandError::new("invalid", "the message is empty"));
+    }
+    state.send(&json!({ "type": "note", "text": text }))?;
+    lock(&state.transcript).push(json!({ "type": "note", "text": text }));
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn ai_cancel(state: State<'_, AiState>) -> CmdResult<()> {
     state.send(&json!({ "type": "cancel" }))?;
