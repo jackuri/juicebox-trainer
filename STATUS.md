@@ -58,7 +58,10 @@ _Last updated: 2026-11-08 — v1.4.0_
   owner shares from a branch), ShareDialog in Packs. Tested against a fake GitHub on localhost.
   Community repo commit a295e09 (local, not pushed): PR check = pack files only, index rebuilt on
   main. OAuth app registered under jackuri (client ID in `github.rs`, device flow on, tokens
-  don't expire); GitHub hands out sign-in codes for it. A real share hasn't been run yet.
+  don't expire). Real share tested 2026-11-08 as jackuri (owner path: branch in the list repo):
+  PR jackuri/opentrainer-packs#1 had only the pack file and the right text, its check passed; closed.
+  The fork path (other players) is tested against a fake GitHub only. `github::tests::live_share`
+  (ignored) repeats the real test.
 - v1.3.0 Cheat Engine tables: the user asked for a ready library of cheats (importing Wand/WeMod's
   was declined: their cheats are proprietary and locked). `ot_packs::ct` converts `.CT` tables'
   value entries into packs (roxmltree, DTDs off, 16 MiB / 20k entries / depth 32 / 500 cheats);

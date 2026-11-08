@@ -1007,4 +1007,37 @@ mod tests {
         vault::delete(&target);
         assert_eq!(vault::load(&target), None);
     }
+
+    /// Runs the real sign-in and share against GitHub. A person approves the
+    /// code (written to `OT_LIVE_CODE_FILE`); shares the pack at `OT_LIVE_PACK`.
+    #[test]
+    #[ignore = "talks to the real GitHub and needs a person to approve the code"]
+    fn live_share() {
+        let pack = std::path::PathBuf::from(std::env::var("OT_LIVE_PACK").unwrap());
+        let code_file = std::env::var("OT_LIVE_CODE_FILE").unwrap();
+        let text = ot_packs::share::open_path(&pack, None).unwrap().text;
+        let hub = Hub::github().unwrap();
+        let client = client_id().unwrap();
+        let (code, device, interval) = run(start_device(&hub, &client)).unwrap();
+        std::fs::write(&code_file, &code.user_code).unwrap();
+        let cancel = AtomicBool::new(false);
+        let token = run(wait_for_token(
+            &hub, &client, &device, interval, &cancel, 120,
+        ))
+        .unwrap();
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let note = ShareRequest {
+            note: "Test of the app's sharing by OpenTrainer's developer; will be closed.".into(),
+            table_ok: true,
+        };
+        let done = run(share(&hub, &token, &text, &note, stamp)).unwrap();
+        std::fs::write(
+            format!("{code_file}.done"),
+            serde_json::to_string(&done).unwrap(),
+        )
+        .unwrap();
+    }
 }
