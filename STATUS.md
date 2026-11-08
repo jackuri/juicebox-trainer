@@ -58,7 +58,7 @@ _Last updated: 2026-11-08 — v1.4.2_
   minimatch, dev-only, fix needs a major eslint can't take yet; Rust via OSV: zip 4.6.1 removed by
   turning off the updater's zip feature; glib/zbus are Linux-only; proc-macro-error is build-time),
   and an independent security review (0 high, 3 medium, 6 low, all fixed). Community repo PR check
-  also drops persisted credentials (commit not yet pushed).
+  also drops persisted credentials (pushed).
 - v1.4.1 Update button: About has one **Update** button (check → install → restart; builds
   without updates open releases/latest). The user chose to make `jackuri/opentrainer` **public**
   (done 2026-11-08 after a scan for secrets / binaries found none). The user added the
@@ -114,7 +114,7 @@ _Last updated: 2026-11-08 — v1.4.2_
   works.
 
 ## In progress
-- v1.1.0 – v1.4.1 are pushed and tagged (v1.4.1 is Latest, in-app updates on). v1.4.2 is committed locally.
+- v1.1.0 – v1.4.2 are pushed and tagged (v1.4.2 is Latest, in-app updates on; its latest.json is served). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
