@@ -2599,8 +2599,9 @@ checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
 name = "opentrainer-desktop"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
+ "flate2",
  "ot-core",
  "ot-mcp",
  "ot-packs",
@@ -2652,7 +2653,7 @@ dependencies = [
 
 [[package]]
 name = "ot-core"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "iced-x86",
  "serde",
@@ -2666,7 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "ot-mcp"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "ot-core",
  "ot-packs",
@@ -2679,7 +2680,7 @@ dependencies = [
 
 [[package]]
 name = "ot-packs"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "flate2",
  "ot-core",
@@ -2693,7 +2694,7 @@ dependencies = [
 
 [[package]]
 name = "ot-saves"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "base64 0.23.1",
  "crc32fast",
@@ -4288,7 +4289,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-harness"
-version = "1.2.0"
+version = "1.2.1"
 dependencies = [
  "ot-core",
  "serde_json",
@@ -4296,7 +4297,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-native"
-version = "1.2.0"
+version = "1.2.1"
 
 [[package]]
 name = "thiserror"

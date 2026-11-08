@@ -13,6 +13,8 @@ default-run = "opentrainer-desktop"
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
+# Same version ot-packs uses; makes the PNG of an exe icon (Games tab).
+flate2 = "1.1.11"
 ot-core.workspace = true
 ot-mcp.workspace = true
 ot-packs.workspace = true
@@ -30,7 +32,9 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 windows = { version = "0.62.2", features = [
     "Win32_Foundation",
+    "Win32_Graphics_Gdi",
     "Win32_Security_Cryptography",
+    "Win32_System_Com",
     "Win32_System_Threading",
     "Win32_UI_Input_KeyboardAndMouse",
     "Win32_UI_Input_XboxController",

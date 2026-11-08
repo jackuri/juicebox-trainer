@@ -3,6 +3,7 @@
 
 mod ai;
 mod commands;
+mod covers;
 mod dialogs;
 mod gamepad;
 mod hotkeys;
@@ -185,6 +186,7 @@ fn main() {
             commands::cheat_key,
             commands::cheat_pad,
             library::library_list,
+            library::library_cover,
             library::library_add,
             library::library_remove,
             library::library_open_folder,

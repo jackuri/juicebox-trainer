@@ -7,9 +7,11 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
+use ot_saves::covers::{self, CoverKind, MAX_COVER_BYTES};
 use ot_saves::installs::{self, Install, Launch, OwnGame};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -24,6 +26,18 @@ use crate::saves::SavesState;
 pub struct LibraryState {
     busy: AtomicBool,
     cancel: AtomicBool,
+    /// Where each listed game's cover comes from (filled by `library_list`).
+    /// `library_cover` only reads these files, never a path from the UI.
+    covers: Mutex<HashMap<String, CoverSource>>,
+}
+
+/// Where a game's cover picture comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum CoverSource {
+    /// A picture file on this PC (Steam's cache, GOG's icon, Xbox's logo).
+    File(PathBuf),
+    /// The icon of the game's exe.
+    ExeIcon(PathBuf),
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -45,6 +59,10 @@ pub struct LibraryGame {
     pub auto_preset: Option<String>,
     /// Why the anti-cheat guard blocks this game, if it does.
     pub blocked: Option<String>,
+    /// A cover picture is available (`library_cover`), and how to draw it.
+    pub cover: Option<CoverKind>,
+    #[serde(skip)]
+    cover_source: Option<CoverSource>,
 }
 
 /// `%APPDATA%\OpenTrainer` (the player's own games list lives here).
@@ -81,6 +99,7 @@ fn describe(
     install: Install,
     packs: &HashMap<String, (PackRef, String)>,
     settings_dir: Option<&Path>,
+    steam: Option<&Path>,
 ) -> LibraryGame {
     let mut exes: Vec<PathBuf> = installs::exes_in(Path::new(&install.folder))
         .into_iter()
@@ -120,12 +139,21 @@ fn describe(
             format!("anti-cheat found: {}", names.join(", "))
         }
     });
+    let cover_source = match covers::find(&install, steam) {
+        Some(c) => Some((c.kind, CoverSource::File(c.path))),
+        None => exes
+            .first()
+            .filter(|e| e.is_file())
+            .map(|e| (CoverKind::Icon, CoverSource::ExeIcon(e.clone()))),
+    };
     LibraryGame {
         install,
         pack: found.map(|(p, _)| p.clone()),
         presets,
         auto_preset,
         blocked,
+        cover: cover_source.as_ref().map(|(k, _)| *k),
+        cover_source: cover_source.map(|(_, s)| s),
     }
 }
 
@@ -139,9 +167,10 @@ fn all_installs() -> Vec<Install> {
 
 fn list(settings_dir: Option<&Path>) -> Vec<LibraryGame> {
     let packs = packs_by_exe();
+    let steam = ot_saves::steam::steam_dir();
     let mut games: Vec<LibraryGame> = all_installs()
         .into_iter()
-        .map(|i| describe(i, &packs, settings_dir))
+        .map(|i| describe(i, &packs, settings_dir, steam.as_deref()))
         .collect();
     // Games with a pack first, then by name.
     games.sort_by_key(|g| (g.pack.is_none(), g.install.name.to_lowercase()));
@@ -153,11 +182,51 @@ fn blocking_err(e: impl std::fmt::Display) -> CommandError {
 }
 
 #[tauri::command]
-pub async fn library_list(state: State<'_, AppState>) -> CmdResult<Vec<LibraryGame>> {
+pub async fn library_list(
+    state: State<'_, AppState>,
+    lib: State<'_, LibraryState>,
+) -> CmdResult<Vec<LibraryGame>> {
     let dir = state.settings_dir.get().cloned();
-    tauri::async_runtime::spawn_blocking(move || list(dir.as_deref()))
+    let games = tauri::async_runtime::spawn_blocking(move || list(dir.as_deref()))
         .await
-        .map_err(blocking_err)
+        .map_err(blocking_err)?;
+    *lib.covers.lock().unwrap_or_else(|e| e.into_inner()) = games
+        .iter()
+        .filter_map(|g| Some((g.install.id.clone(), g.cover_source.clone()?)))
+        .collect();
+    Ok(games)
+}
+
+/// The cover picture of a listed game (JPEG / PNG / ICO bytes), or nothing.
+/// Only files found by `library_list` are read.
+#[tauri::command]
+pub async fn library_cover(
+    id: String,
+    lib: State<'_, LibraryState>,
+) -> CmdResult<tauri::ipc::Response> {
+    let source = lib
+        .covers
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(&id)
+        .cloned();
+    let bytes = match source {
+        None => None,
+        Some(source) => tauri::async_runtime::spawn_blocking(move || cover_bytes(&source))
+            .await
+            .map_err(blocking_err)?,
+    };
+    Ok(tauri::ipc::Response::new(bytes.unwrap_or_default()))
+}
+
+fn cover_bytes(source: &CoverSource) -> Option<Vec<u8>> {
+    match source {
+        CoverSource::File(p) => {
+            let len = std::fs::metadata(p).ok()?.len();
+            (len <= MAX_COVER_BYTES).then(|| std::fs::read(p).ok())?
+        }
+        CoverSource::ExeIcon(exe) => crate::covers::exe_icon_png(exe),
+    }
 }
 
 /// Adds a game by its exe path.
@@ -307,6 +376,7 @@ fn play(app: &AppHandle, id: &str) -> CmdResult<PlayResult> {
         install,
         &packs_by_exe(),
         state.settings_dir.get().map(PathBuf::as_path),
+        None, // no cover needed to play
     );
     if let Some(why) = &game.blocked {
         return Err(CommandError::new(
