@@ -10,6 +10,7 @@
 //! first (see [`restore`] and [`editor`]).
 
 pub mod codec;
+pub mod covers;
 pub mod diff;
 pub mod editor;
 pub mod error;
