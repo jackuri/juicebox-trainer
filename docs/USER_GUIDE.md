@@ -97,6 +97,13 @@ In the **Packs** tab:
     Cheat Engine) until you click **Release**.
   - A table is made for one version of a game. If a value shows `??` after a game update, look for
     a newer table.
+- **Share a pack with everyone:** click **Share with everyone** next to one of your packs.
+  OpenTrainer puts it on the community list for you. You need a free GitHub account: the first time,
+  click **Sign in with GitHub**, then **Copy the code and open GitHub**, paste the code on GitHub's
+  page and click **Authorize**. Tick that every cheat works, optionally say which game version you
+  tested, and click **Share**. A maintainer checks each pack before it shows up in the list. A pack
+  made from someone's Cheat Engine table can only be shared if you made the table or its author
+  allows it. **Sign out** (in the same window) removes the sign-in from this PC.
 - **Community packs:** packs other players shared. Click **See what's inside**, then **Install**.
   To add yours to the list, click **Share your pack**.
 - **Remove** moves a pack out of the way. A copy is kept in `%APPDATA%\OpenTrainer\packs-removed`.

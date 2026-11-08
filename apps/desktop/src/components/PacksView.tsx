@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ShareDialog } from "./ShareDialog";
 import {
   api,
   type CommunityList,
@@ -34,8 +35,9 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   const [filter, setFilter] = useState("");
   const [incoming, setIncoming] = useState<{ from: Incoming; preview: PackPreview } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<PackSummary | null>(null);
   const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<{ text: string; path?: string } | null>(null);
+  const [message, setMessage] = useState<{ text: string; path?: string; cheats?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadPacks = useCallback(() => {
@@ -116,7 +118,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       if (from.kind === "file") await api.packsImport(from.path, replace, from.exe);
       else await api.communityInstall(from.id, replace);
       setIncoming(null);
-      setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.` });
+      setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.`, cheats: true });
       loadPacks();
       if (from.kind === "community") loadCommunity(false);
     } catch (e) {
@@ -166,7 +168,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
               Show in folder
             </button>
           )}
-          {!message.path && (
+          {message.cheats && (
             <button className={button} onClick={onShowCheats}>
               Go to Cheats
             </button>
@@ -178,6 +180,8 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           {error}
         </p>
       )}
+
+      {sharing && <ShareDialog pack={sharing} onClose={() => setSharing(null)} />}
 
       {incoming && (
         <InstallDialog
@@ -226,6 +230,19 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
                 </p>
                 {p.error && <p className="text-xs text-red-400">{p.error}</p>}
               </div>
+              {(p.source === "user" || p.source === "imported") && (
+                <button
+                  className={primary}
+                  disabled={Boolean(p.error)}
+                  aria-label={`Share ${p.name ?? p.key} with everyone`}
+                  onClick={() => {
+                    setMessage(null);
+                    setSharing(p);
+                  }}
+                >
+                  Share with everyone
+                </button>
+              )}
               <button className={button} disabled={Boolean(p.error)} aria-label={`Export ${p.name ?? p.key}`} onClick={() => void exportPack(p)}>
                 Export
               </button>
@@ -271,7 +288,16 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           >
             Refresh
           </button>
-          <button className={button} onClick={() => void api.openLink("contribute").catch(() => undefined)}>
+          <button
+            className={button}
+            onClick={() =>
+              setMessage({
+                text: (packs ?? []).some((p) => p.source === "user" || p.source === "imported")
+                  ? "Click “Share with everyone” next to one of your packs above. OpenTrainer does the rest."
+                  : "Make a pack first (with the AI helper, or open a Cheat Engine table), then click “Share with everyone” next to it.",
+              })
+            }
+          >
             Share your pack
           </button>
         </div>

@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0] - 2026-11-08
+
+### Added
+- **Share with everyone.** Next to each of your packs in **Packs**, one click puts it on the
+  community list: OpenTrainer signs in to GitHub (once, with a code you paste on GitHub's page, so
+  it never sees your password), makes your copy of the list, adds the pack and sends it to the
+  maintainers as a pull request. You see a link to it on GitHub.
+- Before sharing, you confirm every cheat works; a pack converted from a Cheat Engine table needs
+  your word that you made the table or its author allows sharing it. Built-in examples and packs
+  from the community list aren't offered.
+
+### Security
+- The GitHub sign-in (scope `public_repo`) is kept in Windows Credential Manager, sent only to
+  GitHub, and removed with **Sign out**. The app only opens GitHub's code page and the community
+  list's pull requests in the browser.
+- The community repository now accepts only `packs/<id>/pack.json` changes in pull requests and
+  rebuilds `index.json` itself after a merge.
+
 ## [1.3.0] - 2026-11-08
 
 ### Added

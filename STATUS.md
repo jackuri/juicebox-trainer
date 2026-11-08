@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-08 — v1.3.0_
+_Last updated: 2026-11-08 — v1.4.0_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,12 @@ _Last updated: 2026-11-08 — v1.3.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.4.0 Share with everyone: `github.rs` (device flow, token in Credential Manager via
+  CredWriteW/CredReadW, fork → merge-upstream → branch from upstream main → contents PUT → PR;
+  owner shares from a branch), ShareDialog in Packs. Tested against a fake GitHub on localhost.
+  Community repo commit a295e09 (local, not pushed): PR check = pack files only, index rebuilt on
+  main. **Needs the OAuth app's client ID** in `github.rs` `CLIENT_ID` (docs/RELEASING.md) before
+  sharing works; until then the dialog says sharing isn't set up.
 - v1.3.0 Cheat Engine tables: the user asked for a ready library of cheats (importing Wand/WeMod's
   was declined: their cheats are proprietary and locked). `ot_packs::ct` converts `.CT` tables'
   value entries into packs (roxmltree, DTDs off, 16 MiB / 20k entries / depth 32 / 500 cheats);
@@ -93,7 +99,7 @@ _Last updated: 2026-11-08 — v1.3.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.2.3 are pushed and tagged (v1.2.3 is Latest). v1.3.0 is committed locally, waiting for "push and tag".
+- v1.1.0 – v1.3.0 are pushed and tagged (v1.3.0 is Latest). v1.4.0 is committed locally, waiting for the OAuth app and "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

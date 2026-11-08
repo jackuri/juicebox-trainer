@@ -325,6 +325,31 @@ export interface PackPreview {
   needsExe?: boolean;
 }
 
+/** GitHub sign-in for sharing packs with the community list. */
+export interface GithubStatus {
+  /** This version knows OpenTrainer's GitHub app. */
+  configured: boolean;
+  signedIn: boolean;
+  login: string | null;
+}
+
+export interface DeviceCode {
+  /** What the player types on GitHub's page, e.g. ABCD-1234. */
+  userCode: string;
+  expiresIn: number;
+}
+
+/** A pack sent to the community list (a pull request a maintainer checks). */
+export interface SharedPack {
+  url: string;
+  number: number;
+  /** The list already had a pack for this game. */
+  update: boolean;
+}
+
+/** Author text of packs converted from a Cheat Engine table. */
+export const TABLE_AUTHOR = "Cheat Engine table (imported)";
+
 export interface ImportResult {
   key: string;
   installed: "new" | "same" | "replaced";
@@ -851,6 +876,16 @@ export const api = {
   packsImport: (path: string, replace: boolean, exe?: string) =>
     invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null }),
   packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
+  githubStatus: () => invoke<GithubStatus>("github_status"),
+  githubSignIn: () => invoke<DeviceCode>("github_sign_in"),
+  /** Resolves with the account name once the player approved on GitHub. */
+  githubSignInWait: () => invoke<string>("github_sign_in_wait"),
+  githubSignInCancel: () => invoke<void>("github_sign_in_cancel"),
+  githubSignOut: () => invoke<void>("github_sign_out"),
+  githubOpenDevicePage: () => invoke<void>("github_open_device_page"),
+  githubOpenPr: (url: string) => invoke<void>("github_open_pr", { url }),
+  communityShare: (key: string, note: string, tableOk: boolean) =>
+    invoke<SharedPack>("community_share", { key, note, tableOk }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
   communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),
   communityInstall: (id: string, replace: boolean) =>

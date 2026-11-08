@@ -97,3 +97,22 @@ The app downloads `index.json` (at most 2 MB), then a pack's `pack.json` (at mos
 the file against the SHA-256 in the index and validates it like any other pack before showing or
 installing it. The rules for accepting packs are in that repository's README. Single-player games
 only, no game files, and the pack must pass `otpack validate`.
+
+Players share packs from the app (**Packs → Share with everyone**, `src-tauri/src/github.rs`). The
+app signs in with GitHub's device flow, forks the repository, adds `packs/<id>/pack.json` on a new
+branch and opens a pull request. The repository's check job only allows pack files in a pull
+request; after a merge, a job on `main` rebuilds and commits `index.json`.
+
+### GitHub sign-in (OAuth app)
+
+Sharing needs OpenTrainer's GitHub OAuth app. Its client ID is public and goes in
+`CLIENT_ID` in `github.rs` (empty = the app says sharing isn't set up; `OT_GITHUB_CLIENT_ID`
+overrides it for testing). To create it, on the account that owns the community repository:
+
+1. GitHub → Settings → Developer settings → OAuth Apps → **New OAuth App**.
+2. Name `OpenTrainer`, homepage and callback URL `https://github.com/jackuri/opentrainer-packs`.
+3. Register, then tick **Enable Device Flow** and save. No client secret is needed: don't create one.
+4. Copy the **Client ID** into `CLIENT_ID`.
+
+The token asks for the `public_repo` scope (needed to fork and open the pull request). The app keeps
+it in Windows Credential Manager (`OpenTrainer/github`); **Sign out** deletes it.

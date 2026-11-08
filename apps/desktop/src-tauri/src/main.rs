@@ -6,6 +6,7 @@ mod commands;
 mod covers;
 mod dialogs;
 mod gamepad;
+mod github;
 mod hotkeys;
 mod library;
 mod overlay;
@@ -75,6 +76,7 @@ fn main() {
         .manage(library::LibraryState::default())
         .manage(remote::RemoteState::default())
         .manage(sharing::SharingState::default())
+        .manage(github::GithubState::default())
         .manage(updates::UpdateState::default())
         .on_window_event(|window, event| {
             // Closing the main window closes OpenTrainer (and the overlay).
@@ -161,6 +163,14 @@ fn main() {
             dialogs::pick_exe,
             sharing::packs_preview,
             sharing::packs_import,
+            github::github_status,
+            github::github_sign_in,
+            github::github_sign_in_wait,
+            github::github_sign_in_cancel,
+            github::github_sign_out,
+            github::github_open_device_page,
+            github::github_open_pr,
+            github::community_share,
             sharing::packs_remove,
             sharing::community_list,
             sharing::community_preview,
