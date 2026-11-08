@@ -6,13 +6,15 @@
 //! nothing in it is run. The pack goes through the same validator as every
 //! other pack, so an imported pack can't do more than a hand-written one.
 //!
-//! A plain `pack.json` can be opened the same way ([`open_path`]).
+//! A plain `pack.json` can be opened the same way ([`open_path`]), and so can
+//! a Cheat Engine table (`.CT`, converted by [`crate::ct`]).
 
 use std::io::{Cursor, Read, Write};
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 
+use crate::ct::{self, Skipped};
 use crate::schema::Pack;
 use crate::store::MAX_PACK_BYTES;
 use crate::validate::{Issue, LoadError, parse};
@@ -55,6 +57,8 @@ pub enum ShareError {
     Newer(u32),
     #[error("the pack inside isn't valid: {0}")]
     Invalid(#[from] LoadError),
+    #[error("{0}")]
+    Table(#[from] ct::CtError),
 }
 
 /// An opened `.otpack`: the pack, its exact text and its warnings.
@@ -64,6 +68,11 @@ pub struct Opened {
     pub text: String,
     pub pack: Pack,
     pub warnings: Vec<Issue>,
+    /// Cheat Engine table entries that didn't come over, and why.
+    pub skipped: Vec<Skipped>,
+    /// A converted table that doesn't say which exe it's for: the player has
+    /// to name it before installing.
+    pub needs_exe: bool,
 }
 
 /// Builds an `.otpack` from pack text. Only valid packs are exported.
@@ -149,6 +158,8 @@ pub fn open(bytes: &[u8]) -> Result<Opened, ShareError> {
         text,
         pack,
         warnings,
+        skipped: Vec::new(),
+        needs_exe: false,
     })
 }
 
@@ -186,11 +197,39 @@ pub fn open_pack_json(bytes: &[u8]) -> Result<Opened, ShareError> {
         text,
         pack,
         warnings,
+        skipped: Vec::new(),
+        needs_exe: false,
     })
 }
 
-/// Opens an `.otpack` or a plain `.json` pack file, by extension.
-pub fn open_path(path: &Path) -> Result<Opened, ShareError> {
+/// Converts a Cheat Engine table into a pack (see [`crate::ct`]). `exe` is
+/// the game's exe file name when the player chose it.
+pub fn open_table(bytes: &[u8], file_stem: &str, exe: Option<&str>) -> Result<Opened, ShareError> {
+    let converted = ct::convert(bytes, file_stem, exe, &today())?;
+    let text = serde_json::to_string_pretty(&converted.pack)
+        .map_err(|e| ShareError::Io(e.to_string()))?
+        + "\n";
+    let (pack, warnings) = parse(&text)?;
+    let manifest = Manifest {
+        format: FORMAT,
+        pack_id: pack.game.id.clone(),
+        pack_version: pack.meta.pack_version.clone(),
+        exported: None,
+        app: None,
+    };
+    Ok(Opened {
+        manifest,
+        text,
+        pack,
+        warnings,
+        skipped: converted.skipped,
+        needs_exe: !converted.exe_known,
+    })
+}
+
+/// Opens an `.otpack`, a plain `.json` pack or a Cheat Engine `.ct` table, by
+/// extension. `exe` names the game's exe for a table that doesn't say.
+pub fn open_path(path: &Path, exe: Option<&str>) -> Result<Opened, ShareError> {
     let ext = path
         .extension()
         .map(|e| e.to_string_lossy().to_ascii_lowercase());
@@ -204,8 +243,20 @@ pub fn open_path(path: &Path) -> Result<Opened, ShareError> {
             }
             open_pack_json(&std::fs::read(path).map_err(io)?)
         }
+        Some(ct::EXTENSION) => {
+            let io = |e: std::io::Error| ShareError::Io(format!("{}: {e}", path.display()));
+            let len = std::fs::metadata(path).map_err(io)?.len();
+            if len > ct::MAX_TABLE_BYTES {
+                return Err(ShareError::TooBig(len));
+            }
+            let stem = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            open_table(&std::fs::read(path).map_err(io)?, &stem, exe)
+        }
         _ => Err(ShareError::NotOtpack(format!(
-            "{} isn't an .otpack or pack.json file",
+            "{} isn't an .otpack, pack.json or Cheat Engine .CT file",
             path.display()
         ))),
     }
@@ -312,12 +363,44 @@ mod tests {
         let other = dir.join("x.txt");
         std::fs::write(&other, sample()).unwrap();
 
-        assert_eq!(open_path(&json).unwrap().text, sample());
-        assert_eq!(open_path(&otpack).unwrap().text, sample());
-        assert!(matches!(open_path(&other), Err(ShareError::NotOtpack(_))));
+        assert_eq!(open_path(&json, None).unwrap().text, sample());
+        assert_eq!(open_path(&otpack, None).unwrap().text, sample());
+        assert!(matches!(
+            open_path(&other, None),
+            Err(ShareError::NotOtpack(_))
+        ));
         // A pack.json renamed to .otpack is still refused (it isn't a zip).
         std::fs::write(&otpack, sample()).unwrap();
-        assert!(matches!(open_path(&otpack), Err(ShareError::NotOtpack(_))));
+        assert!(matches!(
+            open_path(&otpack, None),
+            Err(ShareError::NotOtpack(_))
+        ));
+
+        // A Cheat Engine table becomes a pack; the exe comes from its addresses
+        // or from the player.
+        let table = dir.join("Coin_Quest.CT");
+        let entry = |addr: &str| {
+            format!(
+                "<CheatTable><CheatEntries><CheatEntry><Description>\"Coins\"</Description><VariableType>4 Bytes</VariableType><Address>{addr}</Address></CheatEntry><CheatEntry><Description>\"God mode\"</Description><VariableType>Auto Assembler Script</VariableType></CheatEntry></CheatEntries></CheatTable>"
+            )
+        };
+        std::fs::write(&table, entry("coins.exe+10")).unwrap();
+        let o = open_path(&table, None).unwrap();
+        assert_eq!(
+            (o.pack.game.name.as_str(), o.pack.game.exe.as_str()),
+            ("Coin Quest", "coins.exe")
+        );
+        assert_eq!(o.pack.cheats.len(), 1);
+        assert_eq!(o.skipped.len(), 1);
+        assert!(!o.needs_exe);
+        assert_eq!(parse(&o.text).unwrap().0, o.pack);
+        std::fs::write(&table, entry("GameAssembly.dll+10")).unwrap();
+        assert!(open_path(&table, None).unwrap().needs_exe);
+        let o = open_path(&table, Some("CoinQuest.exe")).unwrap();
+        assert!(!o.needs_exe);
+        assert_eq!(o.pack.game.exe, "CoinQuest.exe");
+        std::fs::write(&table, sample()).unwrap();
+        assert!(matches!(open_path(&table, None), Err(ShareError::Table(_))));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

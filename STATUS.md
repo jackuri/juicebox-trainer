@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v1.2.3_
+_Last updated: 2026-11-08 — v1.3.0_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,13 @@ _Last updated: 2026-11-07 — v1.2.3_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.3.0 Cheat Engine tables: the user asked for a ready library of cheats (importing Wand/WeMod's
+  was declined: their cheats are proprietary and locked). `ot_packs::ct` converts `.CT` tables'
+  value entries into packs (roxmltree, DTDs off, 16 MiB / 20k entries / depth 32 / 500 cheats);
+  scripts, fixed addresses, script symbols, text/AoB values are listed as skipped. Opened through the
+  normal pack preview (`share::open_path(path, exe)`), with "Choose the game's exe" when the table
+  names only DLLs. Integration test writes a CE-style table for the live testbed (x64 + x86) and
+  checks set / hold / release on its real values. All checks pass.
 - v1.2.3 Game lists: the user found the program dropdowns confusing (every running program,
   no games). New `running_games` command matches running exes to installed games' folders
   (deepest folder wins, no drive roots, no crash reporters / Windows programs) or to a pack's exe
@@ -84,7 +91,7 @@ _Last updated: 2026-11-07 — v1.2.3_
   works.
 
 ## In progress
-- v1.1.0 – v1.2.2 are pushed and tagged (v1.2.2 is Latest). v1.2.3 is committed locally, waiting for "push and tag".
+- v1.1.0 – v1.2.3 are pushed and tagged (v1.2.3 is Latest). v1.3.0 is committed locally, waiting for "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

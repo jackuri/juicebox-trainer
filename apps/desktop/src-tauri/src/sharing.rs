@@ -127,7 +127,10 @@ pub async fn packs_pick_otpack(app: AppHandle) -> CmdResult<Option<String>> {
         .dialog()
         .file()
         .set_title("Open a pack")
-        .add_filter("OpenTrainer pack", &[share::EXTENSION, "json"])
+        .add_filter(
+            "OpenTrainer pack or Cheat Engine table",
+            &[share::EXTENSION, "json", ot_packs::ct::EXTENSION, "CT"],
+        )
         .blocking_pick_file();
     picked
         .map(|p| p.into_path().map(|p| p.display().to_string()).map_err(io))
@@ -170,9 +173,28 @@ pub struct PackPreview {
     pub warnings: Vec<Issue>,
     /// The pack this would replace.
     pub existing: Option<Existing>,
+    /// Cheat Engine table entries that didn't come over, and why.
+    pub skipped: Vec<ot_packs::ct::Skipped>,
+    /// A converted table that doesn't say which exe it's for.
+    pub needs_exe: bool,
 }
 
-fn preview(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
+fn preview(o: share::Opened) -> PackPreview {
+    let share::Opened {
+        pack,
+        text,
+        warnings,
+        skipped,
+        needs_exe,
+        ..
+    } = o;
+    let mut p = preview_pack(&pack, &text, warnings);
+    p.skipped = skipped;
+    p.needs_exe = needs_exe;
+    p
+}
+
+fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
     let existing = store::user_dir().and_then(|dir| {
         let path = dir.join(&pack.game.id).join("pack.json");
         let old = std::fs::read_to_string(&path).ok()?;
@@ -210,19 +232,23 @@ fn preview(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
             .collect(),
         warnings,
         existing,
+        skipped: Vec::new(),
+        needs_exe: false,
     }
 }
 
-/// Opens an `.otpack` or a plain `pack.json`.
-fn open_otpack(path: &str) -> CmdResult<share::Opened> {
-    share::open_path(Path::new(path)).map_err(|e| CommandError::new("notOtpack", e.to_string()))
+/// Opens an `.otpack`, a plain `pack.json` or a Cheat Engine table. `exe`
+/// names the game's exe for a table that doesn't say.
+fn open_otpack(path: &str, exe: Option<&str>) -> CmdResult<share::Opened> {
+    share::open_path(Path::new(path), exe)
+        .map_err(|e| CommandError::new("notOtpack", e.to_string()))
 }
 
-/// What an `.otpack` or `pack.json` file contains.
+/// What an `.otpack`, `pack.json` or Cheat Engine table contains.
 #[tauri::command]
-pub async fn packs_preview(path: String) -> CmdResult<PackPreview> {
-    let o = open_otpack(&path)?;
-    Ok(preview(&o.pack, &o.text, o.warnings))
+pub async fn packs_preview(path: String, exe: Option<String>) -> CmdResult<PackPreview> {
+    let o = open_otpack(&path, exe.as_deref())?;
+    Ok(preview(o))
 }
 
 #[derive(Debug, Serialize)]
@@ -253,11 +279,27 @@ fn install(
     }
 }
 
-/// Installs an `.otpack` or `pack.json`. A different pack for the same game is only
-/// replaced with `replace`.
+/// Installs an `.otpack`, `pack.json` or Cheat Engine table. A different pack
+/// for the same game is only replaced with `replace`.
 #[tauri::command]
-pub async fn packs_import(path: String, replace: bool) -> CmdResult<ImportResult> {
-    let o = open_otpack(&path)?;
+pub async fn packs_import(
+    path: String,
+    replace: bool,
+    exe: Option<String>,
+) -> CmdResult<ImportResult> {
+    let o = open_otpack(&path, exe.as_deref())?;
+    if o.needs_exe {
+        return Err(CommandError::new(
+            "needsExe",
+            "choose the game's exe first: the table doesn't say which game it's for",
+        ));
+    }
+    if o.pack.cheats.is_empty() {
+        return Err(CommandError::new(
+            "invalidPack",
+            "nothing in this table could be imported",
+        ));
+    }
     let name = Path::new(&path)
         .file_name()
         .map(|n| n.to_string_lossy().into_owned());
@@ -442,7 +484,7 @@ pub async fn community_preview(
     state: State<'_, SharingState>,
 ) -> CmdResult<PackPreview> {
     let (_, pack, text, warnings) = download(&state, &id).await?;
-    Ok(preview(&pack, &text, warnings))
+    Ok(preview_pack(&pack, &text, warnings))
 }
 
 /// Downloads and installs a community pack.
@@ -476,7 +518,7 @@ mod tests {
     fn previews_say_what_a_pack_does() {
         let text = store::BUNDLED[0].1;
         let (pack, warnings) = ot_packs::parse(text).unwrap();
-        let p = preview(&pack, text, warnings);
+        let p = preview_pack(&pack, text, warnings);
         assert_eq!(p.id, "testbed-native");
         assert!(p.cheats.iter().any(|c| c.name == "Infinite Health"));
     }

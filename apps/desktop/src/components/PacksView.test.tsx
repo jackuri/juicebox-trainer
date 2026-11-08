@@ -179,7 +179,7 @@ describe("PacksView", () => {
     expect(within(dialog).getByText(/Install the pack for New Game/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Install" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("packs_import", { path: "C:\\Downloads\\new-game-1.0.0.otpack", replace: false }),
+      expect(invoke).toHaveBeenCalledWith("packs_import", { path: "C:\\Downloads\\new-game-1.0.0.otpack", replace: false, exe: null }),
     );
   });
 
@@ -195,11 +195,71 @@ describe("PacksView", () => {
     });
     view();
     expect(await screen.findByText(/Couldn't load the community list: the pack list isn't online yet/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Open a pack file…" }));
+    fireEvent.click(screen.getByRole("button", { name: "Open a pack or table…" }));
     const dialog = await screen.findByRole("dialog", { name: "Install pack" });
     expect(within(dialog).getByText("You already have this exact pack.")).toBeInTheDocument();
     expect(within(dialog).queryByRole("button", { name: "Install" })).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("opens a Cheat Engine table, asks for the game's exe and says what was left out", async () => {
+    const table = preview({
+      id: "coin-quest",
+      game: "Coin Quest",
+      exe: "unknown.exe",
+      author: "Cheat Engine table (imported)",
+      cheats: [{ name: "Coins", ui: "number", description: null, patch: false }],
+      skipped: [{ name: "God mode", why: "runs its own code (a script); OpenTrainer never runs code from a table" }],
+      needsExe: true,
+    });
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "packs_list") return Promise.resolve([]);
+      if (cmd === "community_list") return Promise.resolve(list);
+      if (cmd === "packs_preview")
+        return Promise.resolve(args?.exe ? { ...table, exe: args.exe, needsExe: false } : table);
+      if (cmd === "pick_exe") return Promise.resolve("D:\\Games\\Coin Quest\\CoinQuest.exe");
+      if (cmd === "packs_import") return Promise.resolve({ key: "k", installed: "new" });
+      return Promise.resolve(null);
+    });
+    view("C:\\Downloads\\Coin_Quest.CT");
+    const dialog = await screen.findByRole("dialog", { name: "Install pack" });
+    expect(within(dialog).getByText(/doesn't say which game/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Install" })).toBeDisabled();
+    expect(within(dialog).getByText("1 entry not imported")).toBeInTheDocument();
+    expect(within(dialog).getByText(/God mode: runs its own code/)).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Choose the game's exe…" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("packs_preview", { path: "C:\\Downloads\\Coin_Quest.CT", exe: "CoinQuest.exe" }),
+    );
+    const again = await screen.findByRole("dialog", { name: "Install pack" });
+    await waitFor(() => expect(within(again).getByRole("button", { name: "Install" })).toBeEnabled());
+    expect(within(again).getByText("CoinQuest.exe")).toBeInTheDocument();
+    fireEvent.click(within(again).getByRole("button", { name: "Install" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("packs_import", {
+        path: "C:\\Downloads\\Coin_Quest.CT",
+        replace: false,
+        exe: "CoinQuest.exe",
+      }),
+    );
+  });
+
+  it("can't install a table with nothing usable in it", async () => {
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "packs_list") return Promise.resolve([]);
+      if (cmd === "community_list") return Promise.resolve(list);
+      if (cmd === "packs_preview")
+        return Promise.resolve(
+          preview({ cheats: [], skipped: [{ name: "God mode", why: "runs its own code" }], needsExe: true }),
+        );
+      return Promise.resolve(null);
+    });
+    view("C:\\Downloads\\scripts.CT");
+    const dialog = await screen.findByRole("dialog", { name: "Install pack" });
+    expect(within(dialog).getByText(/Nothing in this table can be used/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/doesn't say which game/)).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Install" })).toBeDisabled();
   });
 });

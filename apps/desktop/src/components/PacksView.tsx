@@ -3,6 +3,7 @@ import {
   api,
   type CommunityList,
   type CommunityPack,
+  isTable,
   PACK_SOURCE_LABEL,
   type PackPreview,
   type PackSummary,
@@ -14,7 +15,7 @@ const primary =
   "rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Where the pack in the install dialog comes from. */
-type Incoming = { kind: "file"; path: string } | { kind: "community"; id: string };
+type Incoming = { kind: "file"; path: string; exe?: string } | { kind: "community"; id: string };
 
 interface Props {
   /** An .otpack opened from Explorer or dropped on the window. */
@@ -65,7 +66,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     setMessage(null);
     setBusy(true);
     try {
-      const p = from.kind === "file" ? await api.packsPreview(from.path) : await api.communityPreview(from.id);
+      const p = from.kind === "file" ? await api.packsPreview(from.path, from.exe) : await api.communityPreview(from.id);
       setIncoming({ from, preview: p });
     } catch (e) {
       setError(toCommandError(e).message);
@@ -93,6 +94,18 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     }
   }
 
+  /** For a Cheat Engine table: the player names the game's exe. */
+  async function chooseExe(path: string) {
+    setError(null);
+    try {
+      const exe = await api.pickExe("Choose the game's exe");
+      const name = exe?.split(/[\\/]/).pop();
+      if (name) await preview({ kind: "file", path, exe: name });
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
+
   async function install() {
     if (!incoming) return;
     const { from, preview: p } = incoming;
@@ -100,7 +113,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     setBusy(true);
     setError(null);
     try {
-      if (from.kind === "file") await api.packsImport(from.path, replace);
+      if (from.kind === "file") await api.packsImport(from.path, replace, from.exe);
       else await api.communityInstall(from.id, replace);
       setIncoming(null);
       setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.` });
@@ -171,6 +184,11 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           preview={incoming.preview}
           fromCommunity={incoming.from.kind === "community"}
           busy={busy}
+          onChooseExe={
+            incoming.from.kind === "file" && isTable(incoming.from.path)
+              ? () => incoming.from.kind === "file" && void chooseExe(incoming.from.path)
+              : undefined
+          }
           onInstall={() => void install()}
           onCancel={() => setIncoming(null)}
         />
@@ -180,7 +198,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-2xl font-semibold tracking-tight">Your packs</h2>
           <button className={`${button} ml-auto`} disabled={busy} onClick={() => void pickFile()}>
-            Open a pack file…
+            Open a pack or table…
           </button>
           <button className={button} onClick={() => void api.openPacksFolder().catch(() => undefined)}>
             Pack folder
@@ -188,8 +206,9 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         </div>
         <p className="text-xs text-zinc-500">
           Share a pack by sending its <code>.otpack</code> file. To open one, double-click it, drop it on this window or use
-          “Open a pack file…”. A plain <code>pack.json</code> (e.g. from a forum or the community repository) opens the
-          same way.
+          “Open a pack or table…”. A plain <code>pack.json</code> (e.g. from a forum or the community repository) opens the
+          same way. So does a Cheat Engine table (<code>.CT</code>): its number values (health, money…) become a pack;
+          its scripts are left out, because OpenTrainer never runs code from a file.
         </p>
         {packs === null && <p className="text-sm text-zinc-500">Loading…</p>}
         <ul className="flex flex-col gap-2">
@@ -314,11 +333,16 @@ interface DialogProps {
   busy: boolean;
   onInstall: () => void;
   onCancel: () => void;
+  /** Set for a Cheat Engine table: lets the player name the game's exe. */
+  onChooseExe?: () => void;
 }
 
 /** What a pack does, before it's installed. */
-export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel }: DialogProps) {
+export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel, onChooseExe }: DialogProps) {
   const replaces = p.existing && !p.existing.same ? p.existing : null;
+  const skipped = p.skipped ?? [];
+  const empty = p.cheats.length === 0;
+  const canInstall = !p.needsExe && !empty;
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-emerald-700 bg-zinc-950 p-4" role="dialog" aria-label="Install pack">
       <div>
@@ -327,20 +351,58 @@ export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCa
           {p.ai && <span className="ml-2 rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] text-violet-200">AI-made</span>}
         </p>
         <p className="text-xs text-zinc-400">
-          For <code>{p.exe}</code> · version {p.version} · by {p.author}
+          For <code>{p.needsExe ? "?" : p.exe}</code> · version {p.version} · by {p.author}
           {fromCommunity ? " · from the community list" : ""}
         </p>
         {p.notes && <p className="mt-1 text-xs text-zinc-400">{p.notes}</p>}
       </div>
-      <ul className="flex flex-col gap-1 text-sm">
-        {p.cheats.map((c) => (
-          <li key={c.name}>
+      {p.needsExe && !empty && (
+        <div className="flex flex-wrap items-center gap-2 rounded bg-amber-950/40 px-2 py-1.5 text-xs text-amber-200" role="status">
+          <span className="flex-1">This table doesn&apos;t say which game it&apos;s for. Choose the game&apos;s exe to install it.</span>
+          {onChooseExe && (
+            <button className={primary} onClick={onChooseExe}>
+              Choose the game&apos;s exe…
+            </button>
+          )}
+        </div>
+      )}
+      {!p.needsExe && onChooseExe && !empty && (
+        <p className="text-xs text-zinc-500">
+          Wrong game?{" "}
+          <button className="text-emerald-300 underline hover:text-emerald-200" onClick={onChooseExe}>
+            Choose its exe
+          </button>
+        </p>
+      )}
+      {empty && (
+        <p className="rounded bg-amber-950/40 px-2 py-1.5 text-xs text-amber-200" role="status">
+          Nothing in this table can be used by OpenTrainer: everything in it is a script or something only Cheat Engine
+          understands (see below).
+        </p>
+      )}
+      <ul className="flex max-h-72 flex-col gap-1 overflow-y-auto text-sm">
+        {p.cheats.map((c, i) => (
+          <li key={`${i}-${c.name}`}>
             {c.name}
             {c.patch && <span className="ml-2 text-[10px] text-amber-300">changes game code (put back when turned off)</span>}
             {c.description && <span className="block text-xs text-zinc-500">{c.description}</span>}
           </li>
         ))}
       </ul>
+      {skipped.length > 0 && (
+        <details className="text-xs text-zinc-400" open={empty}>
+          <summary>
+            {skipped.length} {skipped.length === 1 ? "entry" : "entries"} not imported
+          </summary>
+          <ul className="mt-1 max-h-48 list-disc overflow-y-auto pl-5">
+            {skipped.map((s, i) => (
+              <li key={`${i}-${s.name}`}>
+                {s.name}: {s.why}
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
       {p.warnings.length > 0 && (
         <details className="text-xs text-amber-300">
           <summary>{p.warnings.length} warning{p.warnings.length === 1 ? "" : "s"}</summary>
@@ -360,7 +422,7 @@ export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCa
       {p.existing?.same && <p className="text-xs text-emerald-300">You already have this exact pack.</p>}
       <div className="flex gap-2">
         {!p.existing?.same && (
-          <button className={primary} disabled={busy} onClick={onInstall}>
+          <button className={primary} disabled={busy || !canInstall} onClick={onInstall}>
             {replaces ? "Replace and install" : "Install"}
           </button>
         )}

@@ -328,14 +328,12 @@ fn find_release(b: &[u8]) -> Option<String> {
 mod tests {
     use super::*;
 
-    fn game(files: &[&str], exe: &str) -> (PathBuf, EngineInfo) {
+    /// A fake game folder per case: cases never share one, because on
+    /// Windows a folder can't always be deleted at once (indexers, AV).
+    fn game(case: usize, files: &[&str], exe: &str) -> (PathBuf, EngineInfo) {
         let base = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../target/tmp")
-            .join(format!(
-                "ot-engine-{}-{}",
-                std::process::id(),
-                exe.replace(['\\', '/'], "_")
-            ));
+            .join(format!("ot-engine-{}-{case}", std::process::id()));
         let _ = std::fs::remove_dir_all(&base);
         for f in files {
             let p = base.join(f);
@@ -387,8 +385,8 @@ mod tests {
             (&["FNA.dll"], "game.exe", Engine::Xna),
             (&["readme.txt"], "game.exe", Engine::Native),
         ];
-        for (files, exe, want) in cases {
-            let (base, info) = game(files, exe);
+        for (case, (files, exe, want)) in cases.iter().enumerate() {
+            let (base, info) = game(case, files, exe);
             assert_eq!(info.engine, *want, "{exe}: {info:?}");
             assert!(!info.hints.is_empty());
             let _ = std::fs::remove_dir_all(base);
@@ -409,6 +407,7 @@ mod tests {
         assert_eq!(find_release(b"nothing here"), None);
 
         let (base, _) = game(
+            100,
             &["Engine/Binaries/x", "Space/Binaries/Win64/x"],
             "Space/Binaries/Win64/Space-Win64-Shipping.exe",
         );
@@ -423,14 +422,14 @@ mod tests {
     #[test]
     fn a_data_folder_alone_is_not_unity() {
         // The testbed writes <exe>_Data/app.info for its saves.
-        let (base, info) = game(&["testbed_native_Data/app.info"], "testbed_native.exe");
+        let (base, info) = game(101, &["testbed_native_Data/app.info"], "testbed_native.exe");
         assert_eq!(info.engine, Engine::Native);
         let _ = std::fs::remove_dir_all(base);
     }
 
     #[test]
     fn reads_the_unity_version() {
-        let (base, _) = game(&["UnityPlayer.dll"], "u.exe");
+        let (base, _) = game(102, &["UnityPlayer.dll"], "u.exe");
         let data = base.join("u_Data");
         std::fs::create_dir_all(&data).unwrap();
         let mut bytes = vec![0u8; 20];

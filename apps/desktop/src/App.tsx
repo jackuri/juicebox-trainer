@@ -60,7 +60,7 @@ export default function App() {
         setDropError(null);
         openOtpack(pack);
       } else if (paths.length > 0) {
-        setDropError("Only pack files (.otpack or pack.json) can be dropped here.");
+        setDropError("Only pack files (.otpack or pack.json) and Cheat Engine tables (.CT) can be dropped here.");
       }
     });
     return () => {

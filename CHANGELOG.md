@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-11-08
+
+### Added
+- **Use Cheat Engine tables.** Open a `.CT` file (Packs → **Open a pack or table…**, or drop it on
+  the window) and its number values become a pack: 1, 2, 4 and 8-byte numbers and decimals, at
+  `game.exe+offset` addresses, pointer paths (`<Offsets>` and the `[[game.exe+10]+20]+8` form) and
+  entries relative to their parent. Groups become categories. Each value can be set and held, like
+  Cheat Engine's freeze, until released.
+- Before installing you see every cheat that came over and every entry that didn't, with the
+  reason. Scripts (Auto Assembler, Lua), fixed addresses, names only a table script defines, and
+  text or byte values are left out and never run.
+- A table that doesn't name the game's exe asks you to choose it.
+
+### Fixed
+- A test of engine detection could fail now and then on Windows (test cases shared a temporary
+  folder that Windows doesn't always delete at once).
+
+### Security
+- Tables are read as data with a size limit (16 MB), no DTDs, depth and entry limits, and the
+  result goes through the normal pack validator. New dependency: `roxmltree` (MIT/Apache-2.0,
+  read-only XML parser, no dependencies of its own).
+
 ## [1.2.3] - 2026-11-07
 
 ### Changed

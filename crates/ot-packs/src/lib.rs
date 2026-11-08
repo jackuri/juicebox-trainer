@@ -7,6 +7,7 @@
 //! goes through `ot-core`, so the anti-cheat guard applies.
 
 pub mod community;
+pub mod ct;
 pub mod heal;
 pub mod hotkey;
 pub mod numbers;

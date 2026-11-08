@@ -319,6 +319,10 @@ export interface PackPreview {
   cheats: CheatLine[];
   warnings: Issue[];
   existing: { key: string; name: string; version: string; ai: boolean; same: boolean } | null;
+  /** Cheat Engine table entries that didn't come over, and why. */
+  skipped?: { name: string; why: string }[];
+  /** A converted table that doesn't say which exe it's for: choose it before installing. */
+  needsExe?: boolean;
 }
 
 export interface ImportResult {
@@ -352,7 +356,12 @@ export interface CommunityList {
 /** Files dropped on the window (their paths). */
 /** Files OpenTrainer opens as packs: `.otpack`, or a plain pack `.json`. */
 export function isPackFile(path: string): boolean {
-  return /\.(otpack|json)$/i.test(path.trim());
+  return /\.(otpack|json|ct)$/i.test(path.trim());
+}
+
+/** A Cheat Engine table (converted into a pack when opened). */
+export function isTable(path: string): boolean {
+  return /\.ct$/i.test(path.trim());
 }
 
 export function onFileDrop(cb: (paths: string[]) => void): () => void {
@@ -835,9 +844,10 @@ export const api = {
   /** Windows file picker for a program (.exe); `null` if cancelled. */
   pickExe: (titleText: string, start?: string) =>
     invoke<string | null>("pick_exe", { titleText, start: start ?? null }),
-  packsPreview: (path: string) => invoke<PackPreview>("packs_preview", { path }),
-  packsImport: (path: string, replace: boolean) =>
-    invoke<ImportResult>("packs_import", { path, replace }),
+  /** `exe`: the game's exe file name, for a Cheat Engine table that doesn't say. */
+  packsPreview: (path: string, exe?: string) => invoke<PackPreview>("packs_preview", { path, exe: exe ?? null }),
+  packsImport: (path: string, replace: boolean, exe?: string) =>
+    invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null }),
   packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
   communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),

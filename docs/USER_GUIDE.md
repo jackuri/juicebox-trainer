@@ -80,10 +80,23 @@ In the **Packs** tab:
 
 - **Share a pack:** click **Export** and save the `.otpack` file. Send it to a friend.
 - **Open a pack someone sent you:** double-click the `.otpack` file, drop it on the OpenTrainer
-  window, or click **Open a pack file…**. A plain `pack.json` (from a forum or the community
+  window, or click **Open a pack or table…**. A plain `pack.json` (from a forum or the community
   repository) works too. You see what's inside before anything is installed. If you
   already have a pack for that game, OpenTrainer asks before replacing it and keeps the old one as a
   backup.
+- **Use a Cheat Engine table:** many games have free cheat tables (`.CT` files) shared on forums
+  such as FearLessRevolution. Download one, then drop it on the window or click **Open a pack or
+  table…**. OpenTrainer turns its number values (health, money, ammo…, also ones found through
+  pointers) into a pack. You see which cheats came over and which entries were left out, and why.
+  - **Scripts are always left out.** Most "infinite health"-style switches in a table are scripts
+    (code). OpenTrainer never runs code from a file, so only the plain values come over. A table
+    with only scripts gives nothing to install.
+  - If the table doesn't say which game it's for, click **Choose the game's exe…** and pick the
+    game's `.exe` (in its install folder).
+  - In Cheats, type a value and click **Set**: it stays at that value (like ticking the box in
+    Cheat Engine) until you click **Release**.
+  - A table is made for one version of a game. If a value shows `??` after a game update, look for
+    a newer table.
 - **Community packs:** packs other players shared. Click **See what's inside**, then **Install**.
   To add yours to the list, click **Share your pack**.
 - **Remove** moves a pack out of the way. A copy is kept in `%APPDATA%\OpenTrainer\packs-removed`.

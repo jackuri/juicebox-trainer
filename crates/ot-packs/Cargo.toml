@@ -21,6 +21,7 @@ thiserror.workspace = true
 flate2 = "1.1.11"
 tracing.workspace = true
 zip = { version = "9.4.1", default-features = false, features = ["deflate-flate2"] }
+roxmltree = "0.21.2"
 
 [dev-dependencies]
 testbed-harness.workspace = true
