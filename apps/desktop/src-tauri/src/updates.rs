@@ -1,10 +1,10 @@
 //! Automatic updates (Tauri's updater: the download is checked against our
 //! own signing key before it is installed).
 //!
-//! Updates are read from the GitHub releases of the project, so they only
-//! work once the project is public. Release builds made by the release
-//! workflow on a public repository set `OT_UPDATES=1`; every other build has
-//! updates switched off and says so. For testing, a debug build also turns
+//! Updates are read from the project's public GitHub releases. Release builds
+//! made by the release workflow (public repository, updater key set) get
+//! `OT_UPDATES=1`; every other build can't update itself, and its Update
+//! button opens the newest release to download instead. For testing, a debug build also turns
 //! them on when `OT_UPDATE_URL` names a local `latest.json`.
 
 use std::sync::Mutex;
@@ -17,6 +17,8 @@ use crate::commands::{CmdResult, CommandError};
 
 /// Where releases are listed.
 pub const RELEASES_URL: &str = "https://github.com/jackuri/opentrainer/releases";
+/// The newest release, with its installer.
+const LATEST_RELEASE_URL: &str = "https://github.com/jackuri/opentrainer/releases/latest";
 const LATEST_JSON: &str =
     "https://github.com/jackuri/opentrainer/releases/latest/download/latest.json";
 
@@ -68,8 +70,8 @@ pub fn update_status() -> UpdateStatus {
         version: env!("CARGO_PKG_VERSION"),
         enabled,
         off_reason: (!enabled).then_some(
-            "Automatic updates are off in this copy. They switch on once OpenTrainer is published \
-             publicly; until then, new versions are on the releases page.",
+            "This copy can't update itself (it wasn't made by OpenTrainer's release build). Update \
+             opens the download page: download the newest OpenTrainer setup file and run it.",
         ),
         releases_url: RELEASES_URL,
     }
@@ -81,6 +83,7 @@ pub fn update_status() -> UpdateStatus {
 pub async fn open_link(which: String) -> CmdResult<()> {
     let url = match which.as_str() {
         "releases" => RELEASES_URL,
+        "latest" => LATEST_RELEASE_URL,
         "guide" => "https://github.com/jackuri/opentrainer/blob/main/docs/USER_GUIDE.md",
         "contribute" => ot_packs::community::CONTRIBUTE_URL,
         "node" => "https://nodejs.org/",
@@ -207,8 +210,9 @@ mod tests {
         if std::env::var_os("OT_UPDATE_URL").is_none() && !BUILT_WITH_UPDATES {
             let s = update_status();
             assert!(!s.enabled);
-            assert!(s.off_reason.unwrap().contains("releases page"));
+            assert!(s.off_reason.unwrap().contains("download page"));
         }
         assert!(LATEST_JSON.starts_with(RELEASES_URL));
+        assert!(LATEST_RELEASE_URL.starts_with(RELEASES_URL));
     }
 }

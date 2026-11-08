@@ -894,7 +894,7 @@ export const api = {
   updateCheck: () => invoke<UpdateInfo | null>("update_check"),
   updateInstall: () => invoke<void>("update_install"),
   /** Opens one of OpenTrainer's own pages in the browser. */
-  openLink: (which: "releases" | "guide" | "contribute" | "node") => invoke<void>("open_link", { which }),
+  openLink: (which: "releases" | "latest" | "guide" | "contribute" | "node") => invoke<void>("open_link", { which }),
   trainerLoad: (key: string) => invoke<TrainerView>("trainer_load", { key }),
   trainerState: () => invoke<TrainerView | null>("trainer_state"),
   trainerUnload: () => invoke<void>("trainer_unload"),

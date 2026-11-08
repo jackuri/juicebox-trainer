@@ -157,8 +157,9 @@ may spend. Every step is logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
 
 ## Updates
 
-Open **About** to see your version and check for updates. If an update is found, **Install and
-restart** puts the games' original code back, installs it and opens the new version. Updates are
+Open **About** and click **Update**. If there's a newer version, OpenTrainer downloads it, puts the
+games' original code back, installs it and opens again in the new version, all in one click. If you
+already have the newest version, it says so. Updates are
 checked against OpenTrainer's own signature before they're installed.
 
 Automatic updates switch on once OpenTrainer is published publicly. Until then, About says so, and

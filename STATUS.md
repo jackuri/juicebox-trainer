@@ -1,9 +1,9 @@
 # Status
 
-_Last updated: 2026-11-08 — v1.4.0_
+_Last updated: 2026-11-08 — v1.4.1_
 
 ## Done
-- CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
+- CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
   (its CI and Release runs started on GitHub).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
@@ -53,6 +53,12 @@ _Last updated: 2026-11-08 — v1.4.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.4.1 Update button: About has one **Update** button (check → install → restart; builds
+  without updates open releases/latest). The user chose to make `jackuri/opentrainer` **public**
+  (done 2026-11-08 after a scan for secrets / binaries found none). **Pending:** the
+  `TAURI_SIGNING_PRIVATE_KEY` secret (the agent may not write secrets; the user adds it). Without
+  it, release builds still have updates off. The first self-updating version is the first one
+  released after the secret is set; older copies need one manual install.
 - v1.4.0 Share with everyone: `github.rs` (device flow, token in Credential Manager via
   CredWriteW/CredReadW, fork → merge-upstream → branch from upstream main → contents PUT → PR;
   owner shares from a branch), ShareDialog in Packs. Tested against a fake GitHub on localhost.
@@ -102,16 +108,15 @@ _Last updated: 2026-11-08 — v1.4.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.3.0 are pushed and tagged (v1.3.0 is Latest). v1.4.0 is committed locally, waiting for "push and tag" (also push the community repo commit).
+- v1.1.0 – v1.4.0 are pushed and tagged (v1.4.0 is Latest). v1.4.1 is committed locally, waiting for the updater secret and "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
 
 ## Next
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
-  (SignPath needs a public repo; Microsoft Trusted Signing about $10/month), making the repository
-  public (turns on in-app updates), adding the updater key as the `TAURI_SIGNING_PRIVATE_KEY`
-  secret.
+  (SignPath works now that the repo is public; Microsoft Trusted Signing about $10/month). The
+  updater key still has to be added as the `TAURI_SIGNING_PRIVATE_KEY` secret by the user.
 - SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
 - The roadmap (PLAN §6) is done through 1.1.0. Left for the user to choose: SQLite saves, code
@@ -123,18 +128,15 @@ _Last updated: 2026-11-08 — v1.4.0_
   Games tab and asked for real covers): the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI
   engine download button, the Browse pickers and auto-load.
-- In-app updates can't be tried for real until the repository is public and the updater key is a
-  repository secret. The update signature and `latest.json` were made locally only. The private
+- In-app updates can't be tried for real until the updater key is a repository secret (the
+  repository is public since 2026-11-08). The update signature and `latest.json` were made locally
+  only. The private
   updater key is at `%USERPROFILE%\.opentrainer-release-keys\updater.key` (outside the repo, no
   password); losing it means installed copies can't update.
 - The installer isn't code-signed, so Windows shows "Windows protected your PC" (More info → Run
   anyway).
-- The community packs repository links to `jackuri/opentrainer`, which is private, so visitors
-  get "page not found" there until this repository is public.
 - The AI engine download pins the SDK and zod to the tested versions, but not their own
   dependencies (about 105 packages from npm, no lockfile).
-- GitHub release assets of a private repository need a sign-in to download, so the releases page
-  only works for the owner while the repository is private.
 - v0.10.0: the user reported it works; not confirmed one by one: the phone remote on a real phone,
   controller combos with a real controller and "Play with cheats" with a store game.
 - The overlay doesn't show over exclusive-fullscreen games (by design, PLAN §8); switch the game to

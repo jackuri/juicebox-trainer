@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.1] - 2026-11-08
+
+### Changed
+- **One-click Update in About.** The **Update** button looks for the newest version and, if there
+  is one, downloads it, installs it and restarts OpenTrainer. A copy that can't update itself
+  opens the newest release page instead.
+- The OpenTrainer repository is now public, so release builds can update themselves (once the
+  updater key is set on GitHub) and anyone can download OpenTrainer from the releases page.
+
 ## [1.4.0] - 2026-11-08
 
 ### Added

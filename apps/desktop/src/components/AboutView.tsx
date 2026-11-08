@@ -2,8 +2,6 @@ import { useEffect, useState } from "react";
 import { type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
-const primary =
-  "rounded-lg bg-emerald-700 px-3 py-1.5 text-xs font-medium hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-40";
 
 /** Version, updates, the user guide and what OpenTrainer never does. */
 export function AboutView() {
@@ -28,20 +26,28 @@ export function AboutView() {
     [],
   );
 
-  async function check() {
+  /** One click: look for a newer version and, if there is one, install it and restart. */
+  async function update() {
+    if (!status) return;
     setError(null);
+    setResult(undefined);
+    if (!status.enabled) {
+      // This copy can't update itself: open the newest release to download.
+      await api.openLink("latest").catch((e: unknown) => setError(toCommandError(e).message));
+      return;
+    }
     setChecking(true);
+    let found: UpdateInfo | null;
     try {
-      setResult(await api.updateCheck());
+      found = await api.updateCheck();
     } catch (e) {
       setError(toCommandError(e).message);
+      return;
     } finally {
       setChecking(false);
     }
-  }
-
-  async function install() {
-    setError(null);
+    setResult(found);
+    if (!found) return;
     setInstalling(true);
     try {
       await api.updateInstall();
@@ -51,7 +57,6 @@ export function AboutView() {
       setProgress(null);
     }
   }
-
   async function removeAi() {
     setConfirmAi(false);
     setError(null);
@@ -88,36 +93,39 @@ export function AboutView() {
 
       <section className="flex flex-col gap-2" aria-label="Updates">
         <h3 className="font-medium">Updates</h3>
-        {status && !status.enabled && <p className="text-zinc-400">{status.offReason}</p>}
-        {status?.enabled && (
-          <>
-            <div className="flex items-center gap-2">
-              <button className={button} disabled={checking || installing} onClick={() => void check()}>
-                {checking ? "Checking…" : "Check for updates"}
-              </button>
-              {result === null && <span className="text-emerald-300">You have the newest version.</span>}
-            </div>
-            {result && (
-              <div className="flex flex-col gap-2 rounded-lg bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
-                <p>
-                  OpenTrainer {result.version} is available{result.date ? ` (${result.date})` : ""}.
-                </p>
-                {result.notes && <p className="whitespace-pre-wrap text-xs text-sky-200/80">{result.notes}</p>}
-                <p className="text-xs text-sky-200/80">
-                  Installing closes OpenTrainer (games get their original code back first) and opens the new version.
-                </p>
-                <div className="flex items-center gap-2">
-                  <button className={primary} disabled={installing} onClick={() => void install()}>
-                    Install and restart
-                  </button>
-                  {progress && <span className="text-xs">{progress}</span>}
-                </div>
-              </div>
-            )}
-          </>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn-accent rounded-xl px-6 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40"
+            disabled={!status || checking || installing}
+            onClick={() => void update()}
+          >
+            {installing ? "Updating…" : checking ? "Checking…" : "Update"}
+          </button>
+          {result === null && !checking && (
+            <span className="text-emerald-300" role="status">
+              You have the newest version.
+            </span>
+          )}
+          {progress && <span className="text-xs text-zinc-300">{progress}</span>}
+        </div>
+        {status?.enabled ? (
+          <p className="text-xs text-zinc-500">
+            Gets the newest OpenTrainer and installs it. OpenTrainer closes for a moment (games get their original code back
+            first) and opens again in the new version.
+          </p>
+        ) : (
+          status && <p className="text-xs text-zinc-500">{status.offReason}</p>
+        )}
+        {result && (
+          <div className="flex flex-col gap-1 rounded-lg bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
+            <p>
+              Updating to OpenTrainer {result.version}
+              {result.date ? ` (${result.date})` : ""}…
+            </p>
+            {result.notes && <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-xs text-sky-200/80">{result.notes}</p>}
+          </div>
         )}
       </section>
-
       {ai && (ai.download === "ready" || ai.download === "outdated") && (
         <section className="flex flex-col gap-2" aria-label="AI engine">
           <h3 className="font-medium">AI engine</h3>

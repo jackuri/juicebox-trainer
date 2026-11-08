@@ -74,9 +74,13 @@ new key. To let the workflow sign update files, add it as a secret:
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | empty (the key has no password) |
 
 In-app updates are switched on only in builds made by the release workflow **on a public
-repository with that secret set** (the build gets `OT_UPDATES=1`). Every other build says
-"Automatic updates are off in this copy". Release assets of a private repository can't be
-downloaded without signing in, so updates can't work before the repository is public.
+repository with that secret set** (the build gets `OT_UPDATES=1`). The repository was made public
+on 2026-11-08. Every other build (e.g. one made on your PC) can't update itself: its **Update**
+button opens the newest release page instead.
+
+To add the secret: GitHub → `jackuri/opentrainer` → Settings → Secrets and variables → Actions →
+**New repository secret**, name `TAURI_SIGNING_PRIVATE_KEY`, value = the whole text of
+`updater.key`. Check a release has updates on: its files include `latest.json` and a `.sig`.
 
 To try the updater locally, serve a `latest.json` and start a debug build with
 `OT_UPDATE_URL=http://127.0.0.1:<port>/latest.json`. The update must still be signed with the real
