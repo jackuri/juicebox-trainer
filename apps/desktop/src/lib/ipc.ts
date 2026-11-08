@@ -323,6 +323,8 @@ export interface PackPreview {
   skipped?: { name: string; why: string }[];
   /** A converted table that doesn't say which exe it's for: choose it before installing. */
   needsExe?: boolean;
+  /** SHA-256 of the pack text shown; installing checks it is unchanged. */
+  checksum?: string;
 }
 
 /** GitHub sign-in for sharing packs with the community list. */
@@ -873,8 +875,8 @@ export const api = {
     invoke<string | null>("pick_exe", { titleText, start: start ?? null }),
   /** `exe`: the game's exe file name, for a Cheat Engine table that doesn't say. */
   packsPreview: (path: string, exe?: string) => invoke<PackPreview>("packs_preview", { path, exe: exe ?? null }),
-  packsImport: (path: string, replace: boolean, exe?: string) =>
-    invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null }),
+  packsImport: (path: string, replace: boolean, exe?: string, checksum?: string) =>
+    invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null, checksum: checksum ?? null }),
   packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
   githubStatus: () => invoke<GithubStatus>("github_status"),
   githubSignIn: () => invoke<DeviceCode>("github_sign_in"),
@@ -884,8 +886,9 @@ export const api = {
   githubSignOut: () => invoke<void>("github_sign_out"),
   githubOpenDevicePage: () => invoke<void>("github_open_device_page"),
   githubOpenPr: (url: string) => invoke<void>("github_open_pr", { url }),
-  communityShare: (key: string, note: string, tableOk: boolean) =>
-    invoke<SharedPack>("community_share", { key, note, tableOk }),
+  /** `permission`: for a pack from someone else, the player made it or its maker allows sharing it. */
+  communityShare: (key: string, note: string, permission: boolean) =>
+    invoke<SharedPack>("community_share", { key, note, permission }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
   communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),
   communityInstall: (id: string, replace: boolean) =>

@@ -67,7 +67,7 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByLabelText(/I tried every cheat/));
     fireEvent.click(shareButton);
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "Steam, v1.2", tableOk: false }),
+      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "Steam, v1.2", permission: false }),
     );
     expect(await screen.findByText(/Sent! A maintainer will check it/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "See it on GitHub" }));
@@ -82,8 +82,17 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByLabelText(/I made that table/));
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "", tableOk: true }),
+      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "", permission: true }),
     );
+  });
+
+  it("asks the maker's permission for a pack someone gave you", async () => {
+    mock({ configured: true, signedIn: true, login: "sam" });
+    render(<ShareDialog pack={{ ...pack, source: "imported", author: "pat", ai: false }} onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByLabelText(/I tried every cheat/));
+    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/This pack came from a file/));
+    expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
   });
 
   it("asks to sign in again when GitHub forgot the sign-in", async () => {

@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.2] - 2026-11-08
+
+Fixes from a full re-test of the real app and a security review.
+
+### Security
+- **Cheat Engine tables:** absurd numbers in an address (e.g. `+7FFFFFFFFFFFFFFF`) are refused
+  instead of wrapping around into a wrong address, and a table may hold at most 300,000 XML nodes
+  (a huge file could use hundreds of MB of memory). Pointer offsets with two signs (`--8`) are
+  refused in every pack.
+- **Sharing:** whether a pack is yours is now checked by the app itself, not only by hiding the
+  button: packs from the community list can't be shared again, and a pack you got as a file needs
+  your word that you made it or its maker allows sharing it (like Cheat Engine tables already did).
+  Names and notes from a pack can no longer mention people or add links in the GitHub request.
+- **Installing a pack file** installs exactly what the preview showed; if the file changed in
+  between, it asks you to open it again.
+- The GitHub sign-in read from Windows Credential Manager is checked for an empty entry first.
+- The updater no longer includes its old zip support (OpenTrainer's updates are the signed setup
+  file), which removes a zip library with known extraction bugs.
+- Release and check workflows: the version tag is passed safely, and build steps no longer keep the
+  job's GitHub token.
+
+### Fixed
+- A Cheat Engine group that has its own address now passes it to the entries inside it
+  (`+10`-style addresses), instead of skipping them.
+- Games with "crash" in their name (e.g. Crash Bandicoot) were hidden from **Your running games**;
+  only real crash reporters are left out now.
+
 ## [1.4.1] - 2026-11-08
 
 ### Changed

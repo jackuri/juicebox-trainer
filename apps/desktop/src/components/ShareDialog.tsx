@@ -34,6 +34,8 @@ export function ShareDialog({ pack, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const name = pack.name ?? pack.id ?? "this pack";
   const fromTable = pack.author === TABLE_AUTHOR;
+  /** Someone else made it: a file the player opened, or a Cheat Engine table. */
+  const fromSomeoneElse = fromTable || pack.source === "imported";
 
   useEffect(() => {
     api.githubStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
@@ -162,16 +164,18 @@ export function ShareDialog({ pack, onClose }: Props) {
             <input type="checkbox" className="mt-1" checked={tested} onChange={(e) => setTested(e.target.checked)} />
             I tried every cheat in this pack and they work. It&apos;s for a single-player game.
           </label>
-          {fromTable && (
+          {fromSomeoneElse && (
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-1" checked={tableOk} onChange={(e) => setTableOk(e.target.checked)} />
-              This pack came from a Cheat Engine table. I made that table, or its author says it may be shared.
+              {fromTable
+                ? "This pack came from a Cheat Engine table. I made that table, or its author says it may be shared."
+                : "This pack came from a file. I made it, or its maker says it may be shared."}
             </label>
           )}
           <div className="flex flex-wrap items-center gap-2">
             <button
               className={primary}
-              disabled={sharing || !tested || (fromTable && !tableOk)}
+              disabled={sharing || !tested || (fromSomeoneElse && !tableOk)}
               onClick={() => void share()}
             >
               {sharing ? "Sharing…" : "Share"}

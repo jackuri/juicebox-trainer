@@ -115,7 +115,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     setBusy(true);
     setError(null);
     try {
-      if (from.kind === "file") await api.packsImport(from.path, replace, from.exe);
+      if (from.kind === "file") await api.packsImport(from.path, replace, from.exe, p.checksum);
       else await api.communityInstall(from.id, replace);
       setIncoming(null);
       setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.`, cheats: true });

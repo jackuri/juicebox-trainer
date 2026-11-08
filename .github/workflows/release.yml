@@ -29,6 +29,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Build scripts don't need the job's GitHub token.
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:
@@ -42,9 +45,11 @@ jobs:
 
       - name: Check the tag matches the version
         shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
-          if ("v$version" -ne "${{ github.ref_name }}") { throw "tag ${{ github.ref_name }} but package.json says $version" }
+          if ("v$version" -ne $env:TAG) { throw "tag $env:TAG but package.json says $version" }
 
       - name: Install JS dependencies
         run: npm ci
@@ -87,13 +92,14 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           $files = Get-ChildItem release-out -Exclude notes.md | ForEach-Object { $_.FullName }
           # "Latest" (what the download page and the updater's latest.json point at) goes to the
           # highest version, even when several tags are released at once or an old one is redone.
-          $mine = [version]"${{ github.ref_name }}".TrimStart('v')
+          $mine = [version]$env:TAG.TrimStart('v')
           $newest = $true
           foreach ($t in (gh release list --limit 200 --json tagName --jq '.[].tagName')) {
             try { if ([version]$t.TrimStart('v') -gt $mine) { $newest = $false } } catch { }
           }
-          gh release create "${{ github.ref_name }}" $files --title "OpenTrainer ${{ github.ref_name }}" --notes-file release-out/notes.md "--latest=$($newest.ToString().ToLower())"
+          gh release create $env:TAG $files --title "OpenTrainer $env:TAG" --notes-file release-out/notes.md "--latest=$($newest.ToString().ToLower())"

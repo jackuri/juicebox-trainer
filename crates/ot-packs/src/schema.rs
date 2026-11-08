@@ -287,11 +287,12 @@ pub fn parse_offset(s: &str) -> Option<i64> {
         .strip_prefix("0x")
         .or_else(|| body.strip_prefix("0X"))
         .unwrap_or(&body);
-    if body.is_empty() {
+    // One sign only: `from_str_radix` would also take a second one.
+    if body.is_empty() || body.starts_with(['+', '-']) {
         return None;
     }
     let v = i64::from_str_radix(body, 16).ok()?;
-    Some(if neg { -v } else { v })
+    if neg { v.checked_neg() } else { Some(v) }
 }
 
 #[cfg(test)]
@@ -307,6 +308,12 @@ mod tests {
         assert_eq!(parse_offset(""), None);
         assert_eq!(parse_offset("0x"), None);
         assert_eq!(parse_offset("zz"), None);
+        // Never a double sign or an overflow.
+        assert_eq!(parse_offset("--8000000000000000"), None);
+        assert_eq!(parse_offset("-+8"), None);
+        assert_eq!(parse_offset("+-8"), None);
+        assert_eq!(parse_offset("-8000000000000000"), None);
+        assert_eq!(parse_offset("-7FFFFFFFFFFFFFFF"), Some(-i64::MAX));
     }
 
     #[test]

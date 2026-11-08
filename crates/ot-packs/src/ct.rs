@@ -27,6 +27,8 @@ pub const MAX_TABLE_BYTES: u64 = 16 << 20;
 pub const MAX_CHEATS: usize = 500;
 const MAX_ENTRIES: usize = 20_000;
 const MAX_DEPTH: usize = 32;
+/// XML nodes read from one table at most (a few hundred bytes of memory each).
+const MAX_NODES: u32 = 300_000;
 /// Stands in for the exe until the player names it (see [`Converted::exe_known`]).
 pub const UNKNOWN_EXE: &str = "unknown.exe";
 
@@ -75,6 +77,7 @@ pub fn convert(
         text,
         roxmltree::ParsingOptions {
             allow_dtd: false,
+            nodes_limit: MAX_NODES,
             ..Default::default()
         },
     )
@@ -203,7 +206,13 @@ impl Walk {
             || (ty.is_none() && address.is_none());
 
         let mut chain = None;
-        if !group {
+        if group {
+            // A group's own address (if any) is what its children's `+X` addresses add to.
+            chain = address
+                .as_deref()
+                .filter(|a| !a.is_empty() && !a.starts_with(['+', '-']))
+                .and_then(|a| parse_address(a).ok());
+        } else {
             match self.value(e, ty.as_deref(), address.as_deref(), parent) {
                 Ok((c, vt)) => {
                     self.add(&name, category, &c, vt);
@@ -256,7 +265,7 @@ impl Walk {
             let mut c = parent
                 .cloned()
                 .ok_or("its address is relative to an entry that couldn't be imported")?;
-            c.add(n);
+            c.add(n)?;
             c
         } else {
             parse_address(address)?
@@ -355,11 +364,13 @@ struct Chain {
 }
 
 impl Chain {
-    fn add(&mut self, n: i64) {
-        match self.offsets.last_mut() {
-            Some(o) => *o += n,
-            None => self.base += n,
-        }
+    fn add(&mut self, n: i64) -> Result<(), String> {
+        let slot = match self.offsets.last_mut() {
+            Some(o) => o,
+            None => &mut self.base,
+        };
+        *slot = slot.checked_add(n).ok_or("its address is out of range")?;
+        Ok(())
     }
 
     fn base(&self) -> String {
@@ -473,10 +484,13 @@ impl Parser<'_> {
                     "its address uses \"{word}\", a name only one of the table's scripts defines"
                 )
             })?;
-            match c.offsets.last_mut() {
-                Some(o) => *o += sign * n,
-                None => c.base += sign * n,
-            }
+            let n = if sign < 0 { n.checked_neg() } else { Some(n) }
+                .ok_or("its address is out of range")?;
+            let slot = match c.offsets.last_mut() {
+                Some(o) => o,
+                None => &mut c.base,
+            };
+            *slot = slot.checked_add(n).ok_or("its address is out of range")?;
         }
     }
 
@@ -536,7 +550,7 @@ impl Parser<'_> {
                     && let Some(n) = parse_hex(right)
                 {
                     let mut c = self.word(left.trim())?;
-                    c.base -= n;
+                    c.base = c.base.checked_sub(n).ok_or("its address is out of range")?;
                     return Ok(c);
                 }
                 self.word(&raw)
@@ -825,6 +839,57 @@ dealloc(newmem)</AssemblerScript>
         assert!(ok("game.exe+player").unwrap_err().contains("player"));
         assert!(ok("game.exe-20").unwrap_err().contains("before the start"));
         assert!(ok(&"[".repeat(40)).is_err());
+    }
+
+    #[test]
+    fn huge_numbers_are_refused_not_wrapped() {
+        let ok = |s: &str| parse_address(s).map(|c| c.base());
+        assert!(
+            ok("game.exe+7FFFFFFFFFFFFFFF+7FFFFFFFFFFFFFFF")
+                .unwrap_err()
+                .contains("out of range")
+        );
+        assert!(
+            ok("[game.exe+10]+7FFFFFFFFFFFFFFF+7FFFFFFFFFFFFFFF")
+                .unwrap_err()
+                .contains("out of range")
+        );
+        assert!(ok("game.exe-7FFFFFFFFFFFFFFF-7FFFFFFFFFFFFFFF").is_err());
+        let t = r#"<CheatTable><CheatEntries><CheatEntry><Description>"P"</Description><VariableType>4 Bytes</VariableType>
+            <Address>game.exe+7FFFFFFFFFFFFFFF</Address><CheatEntries><CheatEntry><Description>"C"</Description>
+            <VariableType>4 Bytes</VariableType><Address>+7FFFFFFFFFFFFFFF</Address></CheatEntry></CheatEntries>
+            </CheatEntry></CheatEntries></CheatTable>"#;
+        let got = convert(t.as_bytes(), "x", None, "2026-11-08").unwrap();
+        assert_eq!(got.pack.cheats.len(), 1);
+        assert!(
+            got.skipped[0].why.contains("out of range"),
+            "{:?}",
+            got.skipped
+        );
+    }
+
+    #[test]
+    fn a_group_with_an_address_is_the_base_of_its_children() {
+        let t = r#"<CheatTable><CheatEntries><CheatEntry><Description>"Player"</Description><GroupHeader>1</GroupHeader>
+            <Address>[game.exe+100]</Address><CheatEntries>
+            <CheatEntry><Description>"Health"</Description><VariableType>4 Bytes</VariableType><Address>+10</Address></CheatEntry>
+            </CheatEntries></CheatEntry></CheatEntries></CheatTable>"#;
+        let got = convert(t.as_bytes(), "x", None, "2026-11-08").unwrap();
+        let (v, cat) = value(&got.pack.cheats[0]);
+        assert_eq!(cat, "Player");
+        assert_eq!(v.address.base.as_deref(), Some("game.exe+0x100"));
+        assert_eq!(v.address.offsets, ["0x10"]);
+    }
+
+    #[test]
+    fn too_many_xml_nodes_are_refused() {
+        let mut t = String::from("<CheatTable>");
+        t.push_str(&"<a/>".repeat(MAX_NODES as usize));
+        t.push_str("</CheatTable>");
+        assert!(matches!(
+            convert(t.as_bytes(), "x", None, "2026-11-08"),
+            Err(CtError::NotTable(_))
+        ));
     }
 
     #[test]

@@ -177,6 +177,8 @@ pub struct PackPreview {
     pub skipped: Vec<ot_packs::ct::Skipped>,
     /// A converted table that doesn't say which exe it's for.
     pub needs_exe: bool,
+    /// SHA-256 of the pack text shown: installing checks it is still the same.
+    pub checksum: String,
 }
 
 fn preview(o: share::Opened) -> PackPreview {
@@ -234,6 +236,7 @@ fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
         existing,
         skipped: Vec::new(),
         needs_exe: false,
+        checksum: ot_core::hash::sha256_bytes(text.as_bytes()),
     }
 }
 
@@ -286,8 +289,18 @@ pub async fn packs_import(
     path: String,
     replace: bool,
     exe: Option<String>,
+    checksum: Option<String>,
 ) -> CmdResult<ImportResult> {
     let o = open_otpack(&path, exe.as_deref())?;
+    // Install exactly what the player looked at, not a file changed since.
+    if let Some(want) = checksum
+        && ot_core::hash::sha256_bytes(o.text.as_bytes()) != want
+    {
+        return Err(CommandError::new(
+            "changed",
+            "the file changed since you looked at it; open it again",
+        ));
+    }
     if o.needs_exe {
         return Err(CommandError::new(
             "needsExe",
@@ -523,6 +536,26 @@ mod tests {
         assert!(p.cheats.iter().any(|c| c.name == "Infinite Health"));
     }
 
+    #[test]
+    fn installs_only_the_pack_that_was_shown() {
+        let dir = std::env::temp_dir().join(format!("ot-import-check-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("pack.json");
+        std::fs::write(&file, store::BUNDLED[0].1).unwrap();
+        let path = file.display().to_string();
+        let shown = tauri::async_runtime::block_on(packs_preview(path.clone(), None)).unwrap();
+        assert_eq!(
+            shown.checksum,
+            ot_core::hash::sha256_bytes(store::BUNDLED[0].1.as_bytes())
+        );
+        // The file is swapped after the preview: nothing is installed.
+        std::fs::write(&file, store::BUNDLED[1].1).unwrap();
+        let e =
+            tauri::async_runtime::block_on(packs_import(path, false, None, Some(shown.checksum)))
+                .unwrap_err();
+        assert_eq!(e.kind, "changed");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
     #[test]
     fn downloads_with_a_size_limit() {
         use std::io::{Read, Write};

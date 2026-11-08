@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-08 — v1.4.1_
+_Last updated: 2026-11-08 — v1.4.2_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,12 @@ _Last updated: 2026-11-08 — v1.4.1_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.4.2 Hardening: re-test (all checks; 29/29 real-app e2e incl. .CT drop → install → use,
+  share dialog, Update button), dependency scan (npm: 0 in shipped code, 10 moderate in eslint's
+  minimatch, dev-only, fix needs a major eslint can't take yet; Rust via OSV: zip 4.6.1 removed by
+  turning off the updater's zip feature; glib/zbus are Linux-only; proc-macro-error is build-time),
+  and an independent security review (0 high, 3 medium, 6 low, all fixed). Community repo PR check
+  also drops persisted credentials (commit not yet pushed).
 - v1.4.1 Update button: About has one **Update** button (check → install → restart; builds
   without updates open releases/latest). The user chose to make `jackuri/opentrainer` **public**
   (done 2026-11-08 after a scan for secrets / binaries found none). The user added the
@@ -108,7 +114,7 @@ _Last updated: 2026-11-08 — v1.4.1_
   works.
 
 ## In progress
-- v1.1.0 – v1.4.1 are pushed and tagged (v1.4.1 is Latest, in-app updates on).
+- v1.1.0 – v1.4.1 are pushed and tagged (v1.4.1 is Latest, in-app updates on). v1.4.2 is committed locally.
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

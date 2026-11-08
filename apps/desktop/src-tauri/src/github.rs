@@ -104,11 +104,17 @@ mod vault {
         // owned by Windows, freed with CredFree below.
         unsafe { CredReadW(&target, CRED_TYPE_GENERIC, None, &mut out) }.ok()?;
         // SAFETY: CredReadW succeeded, so `out` points to a valid CREDENTIALW
-        // whose blob holds `CredentialBlobSize` bytes.
+        // whose blob holds `CredentialBlobSize` bytes (or is null when empty:
+        // any program of this user can write such a credential).
         let secret = unsafe {
             let c = &*out;
-            let bytes = std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize);
-            let s = String::from_utf8(bytes.to_vec()).ok();
+            let s = if c.CredentialBlob.is_null() || c.CredentialBlobSize == 0 {
+                None
+            } else {
+                let bytes =
+                    std::slice::from_raw_parts(c.CredentialBlob, c.CredentialBlobSize as usize);
+                String::from_utf8(bytes.to_vec()).ok()
+            };
             CredFree(out.cast());
             s
         };
@@ -421,8 +427,11 @@ pub struct Shared {
 #[derive(Debug, Clone)]
 pub struct ShareRequest {
     pub note: String,
-    /// The player made the table this pack came from, or its author allows sharing it.
-    pub table_ok: bool,
+    /// The pack came from someone else: a file (`.otpack`, `pack.json`) or a
+    /// Cheat Engine table. Set by the app from where the pack was installed from.
+    pub from_someone_else: bool,
+    /// The player made it, or its maker allows sharing it.
+    pub permission: bool,
 }
 
 /// Checks a pack may be shared; returns the parsed pack.
@@ -432,13 +441,31 @@ pub fn shareable(text: &str, req: &ShareRequest) -> Result<ot_packs::Pack, Comma
     if pack.cheats.is_empty() {
         return Err(err("invalidPack", "the pack has no cheats"));
     }
-    if pack.meta.author == TABLE_AUTHOR && !req.table_ok {
+    if (req.from_someone_else || pack.meta.author == TABLE_AUTHOR) && !req.permission {
         return Err(err(
             "needsPermission",
-            "this pack came from someone's Cheat Engine table: share it only if you made the table or its author allows it",
+            "this pack came from someone else (a file or a Cheat Engine table): share it only if you made it or its maker allows it",
         ));
     }
     Ok(pack)
+}
+
+/// Pack text for the pull request: one line, capped, with markdown escaped
+/// and `@` defused, so a pack can't mention people or add links.
+fn plain(s: &str, max: usize) -> String {
+    let mut out = String::new();
+    for c in s.chars().take(max) {
+        match c {
+            c if c.is_control() => out.push(' '),
+            '@' => out.push_str("@\u{200B}"),
+            '\\' | '`' | '*' | '_' | '[' | ']' | '<' | '>' | '#' | '|' | '!' | '~' | '(' | ')' => {
+                out.push('\\');
+                out.push(c);
+            }
+            c => out.push(c),
+        }
+    }
+    out.trim().to_string()
 }
 
 fn pr_text(
@@ -448,25 +475,34 @@ fn pr_text(
     sharer: &str,
 ) -> (String, String) {
     let g = &pack.game;
-    let title = format!("{} pack: {}", if update { "Update" } else { "Add" }, g.name);
-    let names: Vec<&str> = pack
+    let title = format!(
+        "{} pack: {}",
+        if update { "Update" } else { "Add" },
+        g.name
+            .chars()
+            .take(80)
+            .collect::<String>()
+            .replace('@', "@\u{200B}")
+            .replace(['\r', '\n'], " ")
+    );
+    let names: Vec<String> = pack
         .cheats
         .iter()
         .take(20)
-        .map(|c| c.name.as_str())
+        .map(|c| plain(&c.name, 80))
         .collect();
     let more = pack.cheats.len().saturating_sub(names.len());
-    let note: String = req.note.trim().chars().take(MAX_NOTE).collect();
+    let note = plain(&req.note, MAX_NOTE);
     let mut body = format!(
         "Shared from OpenTrainer {} by @{sharer}.\n\n\
-         - **Game:** {} (`{}`{})\n\
+         - **Game:** {} ({}{})\n\
          - **Cheats ({}):** {}{}\n\
          - **Made by:** {}{}\n\
          - **Tested on:** {}\n\n\
          The sharer says every cheat works in a single-player game.",
         env!("CARGO_PKG_VERSION"),
-        g.name,
-        g.exe,
+        plain(&g.name, 80),
+        plain(&g.exe, 80),
         g.arch.map_or(String::new(), |a| format!(
             ", {}",
             if a == ot_packs::schema::PackArch::X86 {
@@ -482,7 +518,7 @@ fn pr_text(
         } else {
             String::new()
         },
-        pack.meta.author,
+        plain(&pack.meta.author, 80),
         if pack.meta.is_ai() {
             " (made with the AI helper)"
         } else {
@@ -496,6 +532,8 @@ fn pr_text(
     );
     if pack.meta.author == TABLE_AUTHOR {
         body.push_str(" It was converted from a Cheat Engine table; the sharer says they made the table or its author allows sharing it.");
+    } else if req.from_someone_else {
+        body.push_str(" It came from a pack file; the sharer says they made it or its maker allows sharing it.");
     }
     if update {
         body.push_str("\n\nThe list already has a pack for this game: this replaces it.");
@@ -611,7 +649,7 @@ pub async fn share(
         )
         .await?;
     let mut put = json!({
-        "message": format!("{} pack: {}", if update { "Update" } else { "Add" }, pack.game.name),
+        "message": format!("{} pack: {}", if update { "Update" } else { "Add" }, pack.game.id),
         "content": base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
         "branch": branch,
     });
@@ -656,16 +694,26 @@ pub async fn share(
 pub async fn community_share(
     key: String,
     note: String,
-    table_ok: bool,
+    permission: bool,
     state: State<'_, GithubState>,
 ) -> CmdResult<Shared> {
     let found = store::all()
         .into_iter()
         .find(|f| f.key == key)
         .ok_or_else(|| err("notFound", format!("no pack '{key}'")))?;
-    if matches!(found.source, store::Source::Bundled) {
-        return Err(err("badRequest", "built-in examples are already shared"));
-    }
+    let from_someone_else = match found.source {
+        store::Source::Bundled => {
+            return Err(err("badRequest", "built-in examples are already shared"));
+        }
+        store::Source::Community => {
+            return Err(err(
+                "badRequest",
+                "this pack came from the community list; it's already shared",
+            ));
+        }
+        store::Source::Imported => true,
+        store::Source::User => false,
+    };
     let text = found.text.map_err(|e| err("io", e.to_string()))?;
     let token =
         vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
@@ -676,7 +724,11 @@ pub async fn community_share(
         &Hub::github()?,
         &token,
         &text,
-        &ShareRequest { note, table_ok },
+        &ShareRequest {
+            note,
+            from_someone_else,
+            permission,
+        },
         stamp,
     )
     .await;
@@ -773,10 +825,11 @@ mod tests {
         serde_json::to_string_pretty(&pack).unwrap()
     }
 
-    fn req(table_ok: bool) -> ShareRequest {
+    fn req(permission: bool) -> ShareRequest {
         ShareRequest {
             note: "Steam, v1.2".into(),
-            table_ok,
+            from_someone_else: false,
+            permission,
         }
     }
 
@@ -913,6 +966,53 @@ mod tests {
     }
 
     #[test]
+    fn pack_text_cant_mention_people_or_add_links() {
+        let (mut pack, _) = ot_packs::parse(&pack_text("sam")).unwrap();
+        pack.cheats[0].name = "@org/team see [this](https://evil.example) <img>".into();
+        pack.game.name = "Game @everyone\nsecond line".into();
+        let r = ShareRequest {
+            note: "**bold** @someone `x`".into(),
+            from_someone_else: false,
+            permission: false,
+        };
+        let (title, body) = pr_text(&pack, &r, false, "sam");
+        assert!(
+            !title.contains('\n') && title.contains("@\u{200B}everyone"),
+            "{title}"
+        );
+        assert!(
+            body.contains("@\u{200B}org") && body.contains("@\u{200B}someone"),
+            "{body}"
+        );
+        assert!(
+            !body.contains("](") && !body.contains("<img>") && !body.contains("**bold**"),
+            "{body}"
+        );
+        assert!(
+            body.contains("by @sam."),
+            "the sharer is still named: {body}"
+        );
+    }
+
+    #[test]
+    fn packs_from_someone_else_need_permission() {
+        let text = pack_text("someone");
+        let mut r = ShareRequest {
+            note: String::new(),
+            from_someone_else: true,
+            permission: false,
+        };
+        assert_eq!(shareable(&text, &r).unwrap_err().kind, "needsPermission");
+        r.permission = true;
+        assert!(shareable(&text, &r).is_ok());
+        r.from_someone_else = false;
+        r.permission = false;
+        assert!(
+            shareable(&text, &r).is_ok(),
+            "the player's own pack needs no extra promise"
+        );
+    }
+    #[test]
     fn an_expired_sign_in_is_reported() {
         let (hub, _) = fake(|_, _, _| (401, json!({ "message": "Bad credentials" }).to_string()));
         let e = run(share(&hub, "tok", &pack_text("sam"), &req(false), 1)).unwrap_err();
@@ -1031,7 +1131,8 @@ mod tests {
             .as_secs();
         let note = ShareRequest {
             note: "Test of the app's sharing by OpenTrainer's developer; will be closed.".into(),
-            table_ok: true,
+            from_someone_else: true,
+            permission: true,
         };
         let done = run(share(&hub, &token, &text, &note, stamp)).unwrap();
         std::fs::write(

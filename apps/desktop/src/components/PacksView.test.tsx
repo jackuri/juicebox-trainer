@@ -107,7 +107,7 @@ beforeEach(() => {
           preview({ existing: { key: mine.key, name: "My Game", version: "1.0.0", ai: false, same: false } }),
         );
       case "packs_preview":
-        return Promise.resolve(preview({ id: "new-game", game: "New Game" }));
+        return Promise.resolve(preview({ id: "new-game", game: "New Game", checksum: "abc" }));
       case "packs_import":
       case "community_install":
         return Promise.resolve({ key: "k", installed: "new" });
@@ -179,7 +179,7 @@ describe("PacksView", () => {
     expect(within(dialog).getByText(/Install the pack for New Game/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Install" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("packs_import", { path: "C:\\Downloads\\new-game-1.0.0.otpack", replace: false, exe: null }),
+      expect(invoke).toHaveBeenCalledWith("packs_import", { path: "C:\\Downloads\\new-game-1.0.0.otpack", replace: false, exe: null, checksum: "abc" }),
     );
   });
 
@@ -242,6 +242,7 @@ describe("PacksView", () => {
         path: "C:\\Downloads\\Coin_Quest.CT",
         replace: false,
         exe: "CoinQuest.exe",
+        checksum: null,
       }),
     );
   });

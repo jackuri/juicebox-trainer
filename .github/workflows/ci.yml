@@ -22,6 +22,9 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Build scripts don't need the job's GitHub token.
+          persist-credentials: false
 
       - uses: actions/setup-node@v7
         with:

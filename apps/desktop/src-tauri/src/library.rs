@@ -369,7 +369,8 @@ fn match_running(
         .filter_map(|p| {
             let exe = norm_path(p.exe_path.as_deref()?);
             let name = p.name.to_lowercase();
-            if name.contains("crash") || exe.get(1..).is_some_and(|r| r.starts_with(":\\windows\\"))
+            if is_crash_reporter(&name)
+                || exe.get(1..).is_some_and(|r| r.starts_with(":\\windows\\"))
             {
                 return None;
             }
@@ -394,6 +395,25 @@ fn match_running(
         .collect();
     out.sort_by_key(|g| (g.name.to_lowercase(), g.pid));
     out
+}
+
+/// Crash reporters that ship next to games (not the game, even in its folder).
+/// Matched by name, so a game called "Crash ..." still counts.
+fn is_crash_reporter(exe_lower: &str) -> bool {
+    let stem = exe_lower.strip_suffix(".exe").unwrap_or(exe_lower);
+    stem.starts_with("unitycrashhandler")
+        || matches!(
+            stem,
+            "crashreportclient"
+                | "crashpad_handler"
+                | "crashhandler"
+                | "crashreporter"
+                | "crashsender"
+                | "crashsender1403"
+                | "bssndrpt"
+                | "bugsplat"
+                | "werfault"
+        )
 }
 
 /// Running programs that are the player's games (installed, or with a pack).
@@ -633,6 +653,16 @@ mod tests {
                 Some(r"D:\Steam\steamapps\common\Big Game\UnityCrashHandler64.exe"),
             ),
             proc(
+                18,
+                "CrashReportClient.exe",
+                Some(r"D:\Steam\steamapps\common\Big Game\Engine\CrashReportClient.exe"),
+            ),
+            proc(
+                19,
+                "CrashBandicoot.exe",
+                Some(r"D:\Steam\steamapps\common\Big Game\CrashBandicoot.exe"),
+            ),
+            proc(
                 13,
                 "Big Game 2.exe",
                 Some(r"D:\Steam\steamapps\common\Big Game 2\Big Game 2.exe"),
@@ -645,6 +675,7 @@ mod tests {
         let got = match_running(&procs, &installs, &packs);
         let want = [
             (10, "Big Game", Some("steam:1")),
+            (19, "Big Game", Some("steam:1")),
             (11, "Big Game DLC", Some("steam:2")),
             (14, "OpenTrainer testbed", None),
         ];
