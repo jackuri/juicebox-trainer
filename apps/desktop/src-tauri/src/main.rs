@@ -192,6 +192,7 @@ fn main() {
             library::library_open_folder,
             library::library_cancel,
             library::library_play,
+            library::running_games,
             overlay::overlay_set,
             overlay::overlay_visible,
             remote::remote_start,

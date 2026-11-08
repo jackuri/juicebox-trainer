@@ -177,7 +177,7 @@ beforeEach(() => {
 
 describe("SavesView", () => {
   it("lists games with their folders and backups", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     expect(await screen.findByText("Unity save folder (TestCo / Testbed)")).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Games with backups" });
     expect(within(list).getByText(/2 backups · last 1 min ago/)).toBeInTheDocument();
@@ -187,7 +187,7 @@ describe("SavesView", () => {
   });
 
   it("backs up now with a note", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     await screen.findByText("before boss");
     fireEvent.change(screen.getByLabelText("Note for the backup"), { target: { value: "boss" } });
     fireEvent.click(screen.getByRole("button", { name: "Back up now" }));
@@ -196,7 +196,7 @@ describe("SavesView", () => {
   });
 
   it("compares a backup with the saves now", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     await screen.findByText("before boss");
     fireEvent.click(screen.getAllByRole("button", { name: "Compare with now" })[1]!);
     const section = await screen.findByRole("region", { name: "Comparison" });
@@ -207,7 +207,7 @@ describe("SavesView", () => {
 
   it("asks the AI to explain a change and opens the helper", async () => {
     const onOpenAi = vi.fn();
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} onOpenAi={onOpenAi} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} onOpenAi={onOpenAi} />);
     await screen.findByText("before boss");
     fireEvent.click(screen.getAllByRole("button", { name: "Compare with now" })[1]!);
     fireEvent.click(await screen.findByRole("button", { name: "Explain with AI" }));
@@ -218,7 +218,7 @@ describe("SavesView", () => {
   });
 
   it("asks before restoring and reports how to undo", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     await screen.findByText("before boss");
     fireEvent.click(screen.getAllByRole("button", { name: "Restore" })[1]!);
     const dialog = screen.getByRole("dialog", { name: "Restore backup" });
@@ -242,7 +242,7 @@ describe("SavesView", () => {
             ? Promise.resolve(cmd === "saves_files" ? files : codes)
             : Promise.resolve(undefined),
     );
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     expect(await screen.findByText(/Close the game to restore a backup/)).toBeInTheDocument();
     expect(screen.getByText(/Steam Cloud syncs this game/)).toBeInTheDocument();
     await screen.findByText("before boss");
@@ -259,7 +259,7 @@ describe("SavesView", () => {
       if (cmd === "saves_add_folder" || cmd === "saves_add_exe") return Promise.resolve(game);
       return base(cmd, args);
     });
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     await screen.findByText("before boss");
     fireEvent.click(screen.getByRole("button", { name: "Browse for a folder…" }));
     await waitFor(() =>
@@ -277,7 +277,7 @@ describe("SavesView", () => {
         return Promise.reject({ kind: "badExe", message: "enter the full path of the game's .exe file" });
       return Promise.resolve([]);
     });
-    render(<SavesView processes={[testbedProcess]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[testbedProcess]} games={[{ pid: testbedProcess.pid, name: "Testbed", libraryId: null }]} onRefreshProcesses={vi.fn()} />);
     expect(await screen.findByText(/No games yet/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Running program"), { target: { value: "77" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Add" })[0]!);
@@ -289,7 +289,7 @@ describe("SavesView", () => {
   });
 
   it("edits a save value and saves it", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open save1.json" }));
     const editor = await screen.findByRole("region", { name: "Save editor" });
     const gold = await within(editor).findByLabelText("Value of player.gold");
@@ -306,7 +306,7 @@ describe("SavesView", () => {
   });
 
   it("applies a quick code", async () => {
-    render(<SavesView processes={[]} onRefreshProcesses={vi.fn()} />);
+    render(<SavesView processes={[]} games={[]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "999,999 gold (in the save file)" }));
     expect(await screen.findByText(/999,999 gold \(in the save file\): done/)).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("saves_apply_quick_code", {

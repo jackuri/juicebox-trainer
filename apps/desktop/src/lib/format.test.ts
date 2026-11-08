@@ -3,10 +3,10 @@ import {
   backupReason,
   describeFinding,
   fileSize,
-  filterProcesses,
   hex,
   inspect,
   isSystemProcess,
+  splitGames,
   timeAgo,
 } from "./format";
 import type { ProcessInfo } from "./ipc";
@@ -34,17 +34,25 @@ describe("hex", () => {
   });
 });
 
-describe("filterProcesses", () => {
-  it("hides Windows and pathless processes", () => {
+describe("splitGames", () => {
+  const games = [{ pid: 5678, name: "Big Game", libraryId: "steam:1" }];
+  const pids = (s: ReturnType<typeof splitGames>) => [s.games.map((g) => g.process.pid), s.others.map((p) => p.pid)];
+
+  it("puts games first and hides Windows and pathless processes", () => {
     expect(isSystemProcess(list[0]!)).toBe(true);
     expect(isSystemProcess(list[1]!)).toBe(true);
-    expect(filterProcesses(list, "", true).map((p) => p.pid)).toEqual([1234, 5678]);
+    expect(pids(splitGames(list, games))).toEqual([[5678], [1234]]);
   });
 
-  it("matches name substrings and exact pids", () => {
-    expect(filterProcesses(list, "TESTBED", false).map((p) => p.pid)).toEqual([1234]);
-    expect(filterProcesses(list, "5678", false).map((p) => p.pid)).toEqual([5678]);
-    expect(filterProcesses(list, "56", false)).toEqual([]);
+  it("matches game names, exe name substrings and exact pids", () => {
+    expect(pids(splitGames(list, games, "big"))).toEqual([[5678], []]);
+    expect(pids(splitGames(list, games, "TESTBED"))).toEqual([[], [1234]]);
+    expect(pids(splitGames(list, games, "5678"))).toEqual([[5678], []]);
+    expect(pids(splitGames(list, games, "56"))).toEqual([[], []]);
+  });
+
+  it("skips a game whose process is gone", () => {
+    expect(splitGames(list, [{ pid: 1, name: "Gone", libraryId: null }]).games).toEqual([]);
   });
 });
 

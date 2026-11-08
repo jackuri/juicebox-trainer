@@ -45,7 +45,10 @@ the game's pack and turns on your start preset.
 Or do it yourself:
 
 1. Start the game.
-2. In **Cheats**, pick the game in the list on the left. OpenTrainer checks it for anti-cheat.
+2. In **Cheats**, pick the game under **Your running games** on the left (click **Refresh** if you
+   just started it). OpenTrainer checks it for anti-cheat. A game OpenTrainer doesn't recognise
+   (not in the Games tab and no pack yet)? Tick **Show all running programs** and pick its exe.
+   The game pickers in **Make a trainer (AI)** and **Save backups** work the same way.
 3. Click **Attach**. Your saves are backed up first.
 4. If there is one pack for the game, it is loaded for you (nothing is turned on yet). If there are
    several, click **Load** on the one you want. No pack yet? Click **Get a pack…**.

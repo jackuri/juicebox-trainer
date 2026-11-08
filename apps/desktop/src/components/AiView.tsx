@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { pendingAsk } from "../lib/ai";
-import { isSystemProcess } from "../lib/format";
 import {
   type AiEvent,
   type AiStatus,
@@ -8,8 +7,10 @@ import {
   onAiEvent,
   onAiInstallProgress,
   type ProcessInfo,
+  type RunningGame,
   toCommandError,
 } from "../lib/ipc";
+import { GamePicker } from "./GamePicker";
 
 const WISHES = [
   "Infinite health",
@@ -27,6 +28,7 @@ const big =
 
 interface Props {
   processes: ProcessInfo[];
+  games: RunningGame[];
   onRefreshProcesses: () => void;
 }
 
@@ -70,7 +72,7 @@ function saveSettings(s: Settings) {
 }
 
 /** "Make a trainer": the AI helper finds cheats with the player's help. */
-export function AiView({ processes, onRefreshProcesses }: Props) {
+export function AiView({ processes, games, onRefreshProcesses }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [events, setEvents] = useState<AiEvent[]>([]);
   const [pid, setPid] = useState("");
@@ -111,7 +113,6 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
   const ask = pendingAsk(events);
   const cost = [...events].reverse().find((e) => e.type === "cost");
   const finished = [...events].reverse().find((e) => e.type === "finished");
-  const candidates = processes.filter((p) => !isSystemProcess(p));
 
   async function start() {
     setError(null);
@@ -204,23 +205,18 @@ export function AiView({ processes, onRefreshProcesses }: Props) {
             things in the game (like "spend some gold") while it searches, then saves a cheat pack.
             Single-player games only: games with anti-cheat are refused.
           </p>
-          <label className="flex flex-col gap-1 text-sm">
+          <div className="flex flex-col gap-1 text-sm">
             Game
-            <select
-              aria-label="Game"
+            <GamePicker
+              label="Game"
               className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+              processes={processes}
+              games={games}
               value={pid}
-              onFocus={onRefreshProcesses}
-              onChange={(e) => setPid(e.target.value)}
-            >
-              <option value="">Pick your running game…</option>
-              {candidates.map((p) => (
-                <option key={p.pid} value={p.pid}>
-                  {p.name} ({p.pid})
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={setPid}
+              onRefresh={onRefreshProcesses}
+            />
+          </div>
           <fieldset className="flex flex-col gap-1 text-sm">
             <legend className="mb-1">Cheats you want</legend>
             {WISHES.map((w) => (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { backupReason, fileSize, isSystemProcess, timeAgo } from "../lib/format";
+import { backupReason, fileSize, timeAgo } from "../lib/format";
 import {
   api,
   type Backup,
@@ -7,6 +7,7 @@ import {
   onSavesChanged,
   type ProcessInfo,
   type QuickCode,
+  type RunningGame,
   type RestoreReport,
   type SaveDiff,
   type SaveFile,
@@ -14,6 +15,7 @@ import {
   type SavesOverview,
   toCommandError,
 } from "../lib/ipc";
+import { GamePicker } from "./GamePicker";
 import { SaveDiffView } from "./SaveDiffView";
 import { SaveEditor } from "./SaveEditor";
 
@@ -27,13 +29,14 @@ function when(ms: number): string {
 
 interface Props {
   processes: ProcessInfo[];
+  games: RunningGame[];
   onRefreshProcesses: () => void;
   /** Switches to the AI helper view (after starting "explain a save"). */
   onOpenAi?: () => void;
 }
 
 /** Save backups: games, their save folders, backups, compare and restore. */
-export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
+export function SavesView({ processes, games, onRefreshProcesses, onOpenAi }: Props) {
   const [overview, setOverview] = useState<SavesOverview | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -79,7 +82,6 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
     }
   }
 
-  const candidates = processes.filter((p) => !isSystemProcess(p));
   const selected = overview?.games.find((g) => g.id === selectedId) ?? null;
 
   return (
@@ -125,21 +127,16 @@ export function SavesView({ processes, onRefreshProcesses, onOpenAi }: Props) {
 
         <div className="mt-2 flex flex-col gap-2 border-t border-zinc-800 pt-3">
           <h3 className="text-xs font-medium text-zinc-400">Add a game</h3>
-          <div className="flex gap-1">
-            <select
-              aria-label="Running program"
+          <div className="flex items-start gap-1">
+            <GamePicker
+              label="Running program"
               className={input}
+              processes={processes}
+              games={games}
               value={pid}
-              onChange={(e) => setPid(e.target.value)}
-              onFocus={onRefreshProcesses}
-            >
-              <option value="">Pick a running game…</option>
-              {candidates.map((p) => (
-                <option key={p.pid} value={p.pid}>
-                  {p.name} ({p.pid})
-                </option>
-              ))}
-            </select>
+              onChange={setPid}
+              onRefresh={onRefreshProcesses}
+            />
             <button
               className={button}
               disabled={!pid}

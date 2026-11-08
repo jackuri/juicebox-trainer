@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-07 — v1.2.2_
+_Last updated: 2026-11-07 — v1.2.3_
 
 ## Done
 - CI green on GitHub (private repo jackuri/opentrainer) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,11 @@ _Last updated: 2026-11-07 — v1.2.2_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.2.3 Game lists: the user found the program dropdowns confusing (every running program,
+  no games). New `running_games` command matches running exes to installed games' folders
+  (deepest folder wins, no drive roots, no crash reporters / Windows programs) or to a pack's exe
+  name; Cheats list, AI and Save backups pickers show those by game name, others behind "Show all
+  running programs". All checks pass.
 - v1.2.2 Fixes, found by an end-to-end test of the real built app (driven through WebView2's
   DevTools port on this PC: covers, community list, auto-load and Unload on the x86 testbed,
   Infinite Health checked against the game's real health, scanner → Find pointers → pointer scan →
@@ -79,7 +84,7 @@ _Last updated: 2026-11-07 — v1.2.2_
   works.
 
 ## In progress
-- v1.1.0 – v1.2.1 are pushed and tagged. v1.2.2 is committed locally, waiting for "push and tag".
+- v1.1.0 – v1.2.2 are pushed and tagged (v1.2.2 is Latest). v1.2.3 is committed locally, waiting for "push and tag".
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

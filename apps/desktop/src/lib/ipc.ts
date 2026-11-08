@@ -266,6 +266,13 @@ export interface LibraryGame {
   cover: "art" | "icon" | null;
 }
 
+/** A running program that is one of the player's games (installed, or with a pack). */
+export interface RunningGame {
+  pid: number;
+  name: string;
+  libraryId: string | null;
+}
+
 export interface PlayResult {
   session: SessionInfo;
   trainer: TrainerView | null;
@@ -784,6 +791,7 @@ export function toCommandError(e: unknown): CommandError {
 export const api = {
   appInfo: () => invoke<AppInfo>("app_info"),
   listProcesses: () => invoke<ProcessInfo[]>("list_processes"),
+  runningGames: () => invoke<RunningGame[]>("running_games"),
   checkGuard: (pid: number) => invoke<Verdict>("check_guard", { pid }),
   attach: (pid: number) => invoke<SessionInfo>("attach", { pid }),
   detach: () => invoke<void>("detach"),

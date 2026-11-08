@@ -58,6 +58,11 @@ beforeEach(() => {
         return Promise.resolve({ version: "9.9.9", coreVersion: "9.9.9" });
       case "list_processes":
         return Promise.resolve([testbed, onlineGame]);
+      case "running_games":
+        return Promise.resolve([
+          { pid: 1234, name: "OpenTrainer testbed", libraryId: null },
+          { pid: 5678, name: "Counter-Strike 2", libraryId: "steam:730" },
+        ]);
       case "current_session":
         return Promise.resolve(null);
       case "check_guard":

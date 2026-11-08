@@ -1,4 +1,35 @@
-import type { BackupReason, Finding, ProcessInfo } from "./ipc";
+import type { BackupReason, Finding, ProcessInfo, RunningGame } from "./ipc";
+
+/** A running game with its process. */
+export interface GameProcess {
+  game: RunningGame;
+  process: ProcessInfo;
+}
+
+/**
+ * Splits the running programs into the player's games (by game name) and the
+ * rest (no Windows programs). Both are narrowed by `query` (name, exe or PID).
+ */
+export function splitGames(
+  processes: ProcessInfo[],
+  games: RunningGame[],
+  query = "",
+): { games: GameProcess[]; others: ProcessInfo[] } {
+  const byPid = new Map(processes.map((p) => [p.pid, p]));
+  const q = query.trim().toLowerCase();
+  const hit = (pid: number, ...names: string[]) =>
+    !q || String(pid) === q || names.some((t) => t.toLowerCase().includes(q));
+  const gamePids = new Set(games.map((g) => g.pid));
+  return {
+    games: games.flatMap((game) => {
+      const process = byPid.get(game.pid);
+      return process && hit(process.pid, game.name, process.name) ? [{ game, process }] : [];
+    }),
+    others: processes.filter(
+      (p) => !gamePids.has(p.pid) && !isSystemProcess(p) && hit(p.pid, p.name),
+    ),
+  };
+}
 
 /** `0x`-prefixed uppercase hex. Addresses stay below 2^53, so numbers are exact. */
 export function hex(n: number): string {
@@ -9,19 +40,6 @@ export function hex(n: number): string {
 export function isSystemProcess(p: ProcessInfo): boolean {
   if (!p.exePath) return true;
   return /^[a-z]:\\windows\\/i.test(p.exePath);
-}
-
-export function filterProcesses(
-  list: ProcessInfo[],
-  query: string,
-  hideSystem: boolean,
-): ProcessInfo[] {
-  const q = query.trim().toLowerCase();
-  return list.filter((p) => {
-    if (hideSystem && isSystemProcess(p)) return false;
-    if (!q) return true;
-    return p.name.toLowerCase().includes(q) || String(p.pid) === q;
-  });
 }
 
 const KIND_TEXT: Record<Finding["kind"], string> = {

@@ -4,6 +4,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.3] - 2026-11-07
+
+### Changed
+- **Game lists show your games, not every program.** The Cheats tab, "Make a trainer (AI)" and
+  Save backups now list the running programs that are your games, under the game's name (a program
+  counts as a game when it runs from an installed game's folder, or a cheat pack is made for it).
+  Other programs appear only after ticking **Show all running programs**, and Windows' own programs
+  never do. When no game is running, the list says how to start one.
+
 ## [1.2.2] - 2026-11-07
 
 Fixes found by testing the real app end to end and by a code review.

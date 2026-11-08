@@ -18,6 +18,7 @@ import {
   onUpdateAvailable,
   type ProcessInfo,
   type Recovery,
+  type RunningGame,
   type SessionInfo,
   toCommandError,
   type UpdateInfo,
@@ -29,6 +30,7 @@ type View = "games" | "cheats" | "packs" | "saves" | "ai" | "about";
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
+  const [games, setGames] = useState<RunningGame[]>([]);
   const [loadingList, setLoadingList] = useState(false);
   const [selected, setSelected] = useState<ProcessInfo | null>(null);
   const [verdict, setVerdict] = useState<Verdict | null>(null);
@@ -71,7 +73,9 @@ export default function App() {
   const refresh = useCallback(async () => {
     setLoadingList(true);
     try {
-      setProcesses(await api.listProcesses());
+      const [list, running] = await Promise.all([api.listProcesses(), api.runningGames().catch(() => [])]);
+      setProcesses(list);
+      setGames(running);
     } catch (e) {
       setError(toCommandError(e));
     } finally {
@@ -84,6 +88,7 @@ export default function App() {
     api.currentSession().then(setSession, () => undefined);
     api.recoveryReport().then(setRecovered, () => undefined);
     api.listProcesses().then(setProcesses, (e: unknown) => setError(toCommandError(e)));
+    api.runningGames().then(setGames, () => undefined);
   }, []);
 
   async function select(p: ProcessInfo) {
@@ -226,6 +231,7 @@ export default function App() {
             setSelected(r.session.process);
             setSession(r.session);
             setView("cheats");
+            void refresh();
           }}
         />
       ) : view === "packs" ? (
@@ -233,10 +239,11 @@ export default function App() {
       ) : view === "about" ? (
         <AboutView />
       ) : view === "ai" ? (
-        <AiView processes={processes} onRefreshProcesses={() => void refresh()} />
+        <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (
         <SavesView
           processes={processes}
+          games={games}
           onRefreshProcesses={() => void refresh()}
           onOpenAi={() => setView("ai")}
         />
@@ -244,6 +251,8 @@ export default function App() {
         <div className="grid min-h-0 grid-cols-[272px_1fr]">
           <ProcessList
             processes={processes}
+            games={games}
+            onShowGames={() => setView("games")}
             selectedPid={session?.process.pid ?? selected?.pid ?? null}
             loading={loadingList}
             onSelect={(p) => void select(p)}

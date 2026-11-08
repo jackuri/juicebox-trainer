@@ -25,6 +25,8 @@ const game: ProcessInfo = {
   threads: 1,
 };
 
+const testbedGame = { pid: 77, name: "OpenTrainer testbed", libraryId: null };
+
 function status(over: Record<string, unknown> = {}) {
   return {
     available: true,
@@ -52,7 +54,7 @@ describe("AiView", () => {
     invoke.mockImplementation(() =>
       Promise.resolve(status({ available: false, problem: "The AI helper needs Node.js." })),
     );
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     expect(await screen.findByText("The AI helper needs Node.js.")).toBeInTheDocument();
   });
 
@@ -69,7 +71,7 @@ describe("AiView", () => {
           : status({ available: false, problem: "The AI helper's engine isn't downloaded yet.", download: "missing" }),
       );
     });
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Open nodejs.org" })).not.toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "Download the AI engine" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("ai_install", undefined));
@@ -80,14 +82,14 @@ describe("AiView", () => {
     invoke.mockImplementation(() =>
       Promise.resolve(status({ available: false, problem: "The AI helper needs Node.js (free).", download: "missing" })),
     );
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Open nodejs.org" }));
     expect(invoke).toHaveBeenCalledWith("open_link", { which: "node" });
     expect(screen.queryByRole("button", { name: "Download the AI engine" })).not.toBeInTheDocument();
   });
 
   it("starts with the chosen game and wishes, then walks through steps", async () => {
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
     fireEvent.change(screen.getByLabelText("Other cheats"), { target: { value: "potions" } });
     fireEvent.click(screen.getByRole("button", { name: "Start" }));
@@ -137,7 +139,7 @@ describe("AiView", () => {
         ? Promise.resolve(status({ running: true, transcript: [{ type: "say", text: "Working on it." }] }))
         : Promise.resolve(undefined),
     );
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     expect(invoke).toHaveBeenCalledWith("ai_cancel", undefined);
   });
@@ -145,7 +147,7 @@ describe("AiView", () => {
 
 describe("AiView settings", () => {
   it("uses a local model when chosen, and remembers it", async () => {
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
     fireEvent.click(screen.getByLabelText(/free AI running on this PC/));
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
@@ -183,7 +185,7 @@ describe("AiView sign-in", () => {
     invoke.mockImplementation((cmd: string) =>
       cmd === "ai_status" ? Promise.resolve(status({ signedIn })) : Promise.resolve(undefined),
     );
-    render(<AiView processes={[game]} onRefreshProcesses={vi.fn()} />);
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
     fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
     expect(screen.getByRole("note")).toHaveTextContent("isn't signed in");
     expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();

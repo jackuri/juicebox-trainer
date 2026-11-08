@@ -334,6 +334,83 @@ fn running_in(folder: &str) -> Vec<ot_core::ProcessInfo> {
         .collect()
 }
 
+/// A running program that is one of the player's games.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunningGame {
+    pub pid: u32,
+    /// The game's name, from the library or its cheat pack.
+    pub name: String,
+    /// The library game it belongs to, if any.
+    pub library_id: Option<String>,
+}
+
+/// Lowercase, backslashes, no trailing backslash.
+fn norm_path(p: &str) -> String {
+    p.replace('/', "\\").trim_end_matches('\\').to_lowercase()
+}
+
+/// Which running programs are games: the exe lives in an installed game's
+/// folder (the deepest one wins), or a cheat pack is made for that exe name.
+/// Crash reporters and Windows' own programs are left out.
+fn match_running(
+    procs: &[ot_core::ProcessInfo],
+    installs: &[Install],
+    pack_games: &HashMap<String, String>,
+) -> Vec<RunningGame> {
+    let folders: Vec<(String, &Install)> = installs
+        .iter()
+        .map(|i| (format!("{}\\", norm_path(&i.folder)), i))
+        // A drive root ("c:\") would match every program on that drive.
+        .filter(|(f, _)| f.trim_end_matches('\\').contains('\\'))
+        .collect();
+    let mut out: Vec<RunningGame> = procs
+        .iter()
+        .filter_map(|p| {
+            let exe = norm_path(p.exe_path.as_deref()?);
+            let name = p.name.to_lowercase();
+            if name.contains("crash") || exe.get(1..).is_some_and(|r| r.starts_with(":\\windows\\"))
+            {
+                return None;
+            }
+            let install = folders
+                .iter()
+                .filter(|(f, _)| exe.starts_with(f.as_str()))
+                .max_by_key(|(f, _)| f.len())
+                .map(|(_, i)| *i);
+            match install {
+                Some(i) => Some(RunningGame {
+                    pid: p.pid,
+                    name: i.name.clone(),
+                    library_id: Some(i.id.clone()),
+                }),
+                None => pack_games.get(&name).map(|g| RunningGame {
+                    pid: p.pid,
+                    name: g.clone(),
+                    library_id: None,
+                }),
+            }
+        })
+        .collect();
+    out.sort_by_key(|g| (g.name.to_lowercase(), g.pid));
+    out
+}
+
+/// Running programs that are the player's games (installed, or with a pack).
+#[tauri::command]
+pub async fn running_games() -> CmdResult<Vec<RunningGame>> {
+    tauri::async_runtime::spawn_blocking(|| -> CmdResult<Vec<RunningGame>> {
+        let procs = ot_core::list_processes()?;
+        let pack_games: HashMap<String, String> = packs_by_exe()
+            .into_iter()
+            .map(|(exe, (pack, _))| (exe, pack.name))
+            .collect();
+        Ok(match_running(&procs, &all_installs(), &pack_games))
+    })
+    .await
+    .map_err(blocking_err)?
+}
+
 /// The game's main process: the pack's exe if it's running, else the one
 /// with the biggest exe (a launcher or bootstrap exe is small).
 fn pick(procs: &[ot_core::ProcessInfo], pack_exe: Option<&str>) -> Option<u32> {
@@ -511,6 +588,71 @@ mod tests {
         assert_eq!(pick(&procs, Some("launcher.exe")), Some(1));
         assert_eq!(pick(&procs, None), Some(2));
         assert_eq!(pick(&[], None), None);
+    }
+
+    fn install(id: &str, name: &str, folder: &str) -> Install {
+        Install {
+            id: id.into(),
+            name: name.into(),
+            store: installs::StoreKind::Steam,
+            folder: folder.into(),
+            exe: None,
+            launch: Launch::Manual,
+        }
+    }
+
+    #[test]
+    fn running_games_are_matched_by_folder_or_pack() {
+        let installs = [
+            install("steam:1", "Big Game", r"D:\Steam\steamapps\common\Big Game"),
+            install(
+                "steam:2",
+                "Big Game DLC",
+                r"D:/Steam/steamapps/common/Big Game/DLC/",
+            ),
+            install("own:x", "Whole drive", r"E:\"),
+        ];
+        let packs = HashMap::from([(
+            "testbed_native.exe".to_string(),
+            "OpenTrainer testbed".to_string(),
+        )]);
+        let procs = [
+            proc(
+                10,
+                "BigGame.exe",
+                Some(r"d:\steam\steamapps\common\big game\bin\BigGame.exe"),
+            ),
+            proc(
+                11,
+                "dlc.exe",
+                Some(r"D:\Steam\steamapps\common\Big Game\DLC\dlc.exe"),
+            ),
+            proc(
+                12,
+                "UnityCrashHandler64.exe",
+                Some(r"D:\Steam\steamapps\common\Big Game\UnityCrashHandler64.exe"),
+            ),
+            proc(
+                13,
+                "Big Game 2.exe",
+                Some(r"D:\Steam\steamapps\common\Big Game 2\Big Game 2.exe"),
+            ),
+            proc(14, "testbed_native.exe", Some(r"C:\dev\testbed_native.exe")),
+            proc(15, "chrome.exe", Some(r"E:\Chrome\chrome.exe")),
+            proc(16, "notepad.exe", Some(r"C:\Windows\notepad.exe")),
+            proc(17, "System", None),
+        ];
+        let got = match_running(&procs, &installs, &packs);
+        let want = [
+            (10, "Big Game", Some("steam:1")),
+            (11, "Big Game DLC", Some("steam:2")),
+            (14, "OpenTrainer testbed", None),
+        ];
+        let got: Vec<(u32, &str, Option<&str>)> = got
+            .iter()
+            .map(|g| (g.pid, g.name.as_str(), g.library_id.as_deref()))
+            .collect();
+        assert_eq!(got, want);
     }
 
     #[test]
