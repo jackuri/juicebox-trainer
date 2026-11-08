@@ -55,10 +55,10 @@ _Last updated: 2026-11-08 — v1.4.1_
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
 - v1.4.1 Update button: About has one **Update** button (check → install → restart; builds
   without updates open releases/latest). The user chose to make `jackuri/opentrainer` **public**
-  (done 2026-11-08 after a scan for secrets / binaries found none). **Pending:** the
-  `TAURI_SIGNING_PRIVATE_KEY` secret (the agent may not write secrets; the user adds it). Without
-  it, release builds still have updates off. The first self-updating version is the first one
-  released after the secret is set; older copies need one manual install.
+  (done 2026-11-08 after a scan for secrets / binaries found none). The user added the
+  `TAURI_SIGNING_PRIVATE_KEY` secret (2026-11-08); the v1.4.1 release was built with in-app updates
+  on and has `latest.json` + `.sig` (fetched publicly without a sign-in). 1.4.1 is the first
+  self-updating version; older copies need one manual install. A real update runs with 1.4.2.
 - v1.4.0 Share with everyone: `github.rs` (device flow, token in Credential Manager via
   CredWriteW/CredReadW, fork → merge-upstream → branch from upstream main → contents PUT → PR;
   owner shares from a branch), ShareDialog in Packs. Tested against a fake GitHub on localhost.
@@ -108,7 +108,7 @@ _Last updated: 2026-11-08 — v1.4.1_
   works.
 
 ## In progress
-- v1.1.0 – v1.4.0 are pushed and tagged (v1.4.0 is Latest). v1.4.1 is committed locally, waiting for the updater secret and "push and tag".
+- v1.1.0 – v1.4.1 are pushed and tagged (v1.4.1 is Latest, in-app updates on).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
@@ -128,9 +128,7 @@ _Last updated: 2026-11-08 — v1.4.1_
   Games tab and asked for real covers): the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI
   engine download button, the Browse pickers and auto-load.
-- In-app updates can't be tried for real until the updater key is a repository secret (the
-  repository is public since 2026-11-08). The update signature and `latest.json` were made locally
-  only. The private
+- In-app updates haven't run for real yet: the first chance is updating 1.4.1 to 1.4.2. The private
   updater key is at `%USERPROFILE%\.opentrainer-release-keys\updater.key` (outside the repo, no
   password); losing it means installed copies can't update.
 - The installer isn't code-signed, so Windows shows "Windows protected your PC" (More info → Run
