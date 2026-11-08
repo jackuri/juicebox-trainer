@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Cheat, CheatState, GameSettings, PackSummary, SessionInfo, TrainerView } from "../lib/ipc";
+import { chosenPacks } from "../lib/trainer";
 import { TrainerPanel } from "./TrainerPanel";
 
 const invoke = vi.fn();
@@ -113,6 +114,7 @@ function st(id: string, over: Partial<CheatState> = {}): CheatState {
 }
 
 beforeEach(() => {
+  chosenPacks.clear();
   loaded = false;
   settings = { presets: [], favourites: [], notes: {}, keys: {}, pads: {} };
   pending = [];
@@ -238,7 +240,7 @@ describe("TrainerPanel", () => {
     invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
       cmd === "packs_list" ? Promise.resolve([summary({}), summary({ key: "other", exe: "other.exe" })]) : base(cmd, args),
     );
-    render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={vi.fn()} />);
+    const { unmount } = render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={vi.fn()} />);
     expect(await screen.findByRole("switch", { name: "Infinite Health" })).toBeInTheDocument();
     expect(screen.getByText(/Loaded automatically/)).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("trainer_load", { key: "bundled:testbed-native" });
@@ -248,6 +250,13 @@ describe("TrainerPanel", () => {
     await new Promise((r) => setTimeout(r, 50));
     expect(invoke.mock.calls.filter(([c]) => c === "trainer_load")).toHaveLength(1);
     expect(screen.queryByRole("switch", { name: "Infinite Health" })).not.toBeInTheDocument();
+
+    // Going to another tab and back (the panel is rebuilt) still remembers the choice.
+    unmount();
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={vi.fn()} />);
+    expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(invoke.mock.calls.filter(([c]) => c === "trainer_load")).toHaveLength(1);
   });
 
   it("toggles, presses, sets, slides, releases and shows failures", async () => {

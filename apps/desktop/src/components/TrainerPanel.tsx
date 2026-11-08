@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { formatStep, groupByCategory } from "../lib/trainer";
+import { chosenPacks as chosenFor, formatStep, groupByCategory } from "../lib/trainer";
 import { CheatSettings } from "./CheatSettings";
 import { PresetBar } from "./PresetBar";
 import { RemotePanel } from "./RemotePanel";
@@ -20,6 +20,7 @@ import {
 } from "../lib/ipc";
 
 const POLL_MS = 500;
+
 const SLIDER_DEBOUNCE_MS = 150;
 
 interface Props {
@@ -43,8 +44,6 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
   const [polled, setPolled] = useState(false);
   /** The pack was loaded automatically (the only one for this game). */
   const [autoLoaded, setAutoLoaded] = useState(false);
-  /** The game (PID) a pack was auto-loaded for once; after "Unload" it isn't loaded again. */
-  const autoFor = useRef<number | null>(null);
 
   useEffect(() => {
     api.overlayVisible().then(setOverlay, () => undefined);
@@ -124,11 +123,11 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
   // A pack that was loaded for this game (by hand, by a preset, or before this tab
   // opened) means the player has chosen: after "Unload", don't load it again.
   useEffect(() => {
-    if (view) autoFor.current = pid;
+    if (view) chosenFor.add(pid);
   }, [view, pid]);
   useEffect(() => {
-    if (!autoKey || autoFor.current === pid) return;
-    autoFor.current = pid;
+    if (!autoKey || chosenFor.has(pid)) return;
+    chosenFor.add(pid);
     void Promise.resolve().then(() => load(autoKey, true));
   }, [autoKey, pid, load]);
 

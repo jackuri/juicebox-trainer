@@ -44,3 +44,10 @@ export function pointerCheatJson(path: PathParts, ty: string): string {
   };
   return JSON.stringify(cheat, null, 2);
 }
+
+/**
+ * Games (PIDs) that had a pack loaded at some point, by hand or automatically. Kept outside the
+ * Trainer panel so that after "Unload pack" the pack isn't loaded again when the player comes back
+ * from another tab.
+ */
+export const chosenPacks = new Set<number>();
