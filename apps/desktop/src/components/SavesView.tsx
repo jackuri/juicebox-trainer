@@ -15,6 +15,7 @@ import {
   type SavesOverview,
   toCommandError,
 } from "../lib/ipc";
+import { AccountCopyPanel } from "./AccountCopyPanel";
 import { GamePicker } from "./GamePicker";
 import { SaveDiffView } from "./SaveDiffView";
 import { SaveEditor } from "./SaveEditor";
@@ -527,6 +528,13 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
           />
         )}
       </section>
+
+      <AccountCopyPanel
+        gameId={game.id}
+        running={game.running}
+        reloadKey={`${reloadKey}|${game.backups}|${game.folders.length}`}
+        onCopied={onChanged}
+      />
 
       <section className="flex flex-col gap-2" aria-label="Backups">
         <div className="flex flex-wrap items-center gap-2">

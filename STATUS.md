@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.10.0_
+_Last updated: 2026-11-09 — v1.11.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,11 @@ _Last updated: 2026-11-09 — v1.10.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.11.0 Account copy: `ot_saves::accounts` (accounts, view, plan, copy, rewrite_ids),
+  `Reason::BeforeAccountCopy`, `Library::add_folder_as`, commands `saves_accounts`,
+  `saves_account_plan`, `saves_account_copy`, `AccountCopyPanel` in Save backups (hidden unless the
+  game has per-account saves and the PC knows 2+ accounts). Tested with a fake Steam folder only;
+  not tried with a real game or real second account.
 - v1.10.0 Save formats: `codec::xml` (roxmltree, already a dependency of ot-packs; DTDs refused,
   element text + attributes, CDATA, repeated names `Item[2]`), `codec::yaml` (own block-style
   scanner: maps, lists, quotes, comments, `---` documents as `doc1.…`; flow / alias / block text
@@ -254,6 +259,10 @@ _Last updated: 2026-11-09 — v1.10.0_
   up at attach only if a save folder was found.
 - Steam Cloud: OpenTrainer can't stop Steam from syncing; it warns and tells you to keep the local
   copy if Steam asks.
+- Account copy: only finds saves whose folder path names the account; a game that keeps one save
+  file per account in a shared folder (`save_<id>.dat` next to each other) isn't offered. Short
+  binary account ids (4 bytes) and ids in encrypted saves aren't changed. Steam Cloud may not
+  upload copied files until the game saves once with that account. Copying between PCs isn't done.
 - Backups of files the game has locked are listed as "couldn't be read" and the rest is backed up.
 - The user isn't a developer: test instructions should be double-click-first (see
   `Try OpenTrainer.cmd`), not terminal-first.

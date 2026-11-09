@@ -546,6 +546,72 @@ pub async fn saves_apply_quick_code(
     )?)
 }
 
+fn steam_accounts() -> Vec<ot_saves::accounts::SteamAccount> {
+    ot_saves::steam::steam_dir()
+        .map(|s| ot_saves::accounts::accounts(&s))
+        .unwrap_or_default()
+}
+
+/// The game's saves per Steam account, for "Copy to another Steam account".
+#[tauri::command]
+pub async fn saves_accounts(
+    id: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<ot_saves::accounts::AccountsView> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(ot_saves::accounts::view(&game, &steam_accounts())?)
+}
+
+/// What copying one account's saves to another would do. Changes nothing.
+#[tauri::command]
+pub async fn saves_account_plan(
+    id: String,
+    from: String,
+    to: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<ot_saves::accounts::CopyPlan> {
+    let (game, _) = state.game_and_store(&id)?;
+    Ok(ot_saves::accounts::plan(
+        &game,
+        &steam_accounts(),
+        &from,
+        &to,
+    )?)
+}
+
+/// Copies one account's saves to another (guarded, backed up first), and adds
+/// the other account's new folders to the game so they are backed up too.
+#[tauri::command]
+pub async fn saves_account_copy(
+    id: String,
+    from: String,
+    to: String,
+    state: State<'_, SavesState>,
+) -> CmdResult<ot_saves::accounts::CopyReport> {
+    let (game, store) = state.game_and_store(&id)?;
+    let known = steam_accounts();
+    let report = ot_saves::accounts::copy(&game, &store, &known, &from, &to)?;
+    let label = known
+        .iter()
+        .find(|a| a.id64 == to.trim())
+        .map(ot_saves::accounts::SteamAccount::label)
+        .unwrap_or_else(|| to.clone());
+    for folder in &report.add_folders {
+        let added = state.with_lib(|lib| {
+            lib.add_folder_as(
+                &id,
+                Path::new(folder),
+                &format!("Copied to the Steam account {label}"),
+            )?;
+            Ok(())
+        });
+        if let Err(e) = added {
+            warn!(%folder, "could not add the copied folder: {}", e.message);
+        }
+    }
+    Ok(report)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

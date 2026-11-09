@@ -617,6 +617,58 @@ export function onTrainerChanged(cb: () => void): () => void {
 
 // ----- save backups (ot-saves, src-tauri/src/saves.rs) -----
 
+/** A Steam account on this PC (ot_saves::accounts::SteamAccount). */
+export interface SteamAccount {
+  /** SteamID64 as text (too big for a JS number). */
+  id64: string;
+  id32: number;
+  name: string | null;
+  login: string | null;
+  onThisPc: boolean;
+}
+
+export interface AccountFolder {
+  path: string;
+  listed: string;
+}
+
+export interface AccountSaves {
+  account: SteamAccount;
+  folders: AccountFolder[];
+  files: number;
+  bytes: number;
+}
+
+export interface AccountsView {
+  withSaves: AccountSaves[];
+  accounts: SteamAccount[];
+}
+
+export interface PlannedCopy {
+  from: string;
+  to: string;
+  size: number;
+  replaces: boolean;
+  ids: number;
+}
+
+export interface CopyPlan {
+  from: SteamAccount;
+  to: SteamAccount;
+  files: PlannedCopy[];
+  newFolders: string[];
+  cloudWarning: string | null;
+}
+
+export interface CopyReport {
+  backup: string;
+  copied: number;
+  replaced: number;
+  ids: number;
+  addFolders: string[];
+  cloudWarning: string | null;
+}
+
 export interface SaveFolder {
   path: string;
   reason: string;
@@ -644,7 +696,13 @@ export interface SavesOverview {
   root: string | null;
 }
 
-export type BackupReason = "launch" | "exit" | "manual" | "beforeRestore" | "beforeEdit";
+export type BackupReason =
+  | "launch"
+  | "exit"
+  | "manual"
+  | "beforeRestore"
+  | "beforeEdit"
+  | "beforeAccountCopy";
 
 export interface Backup {
   id: string;
@@ -1028,6 +1086,11 @@ export const api = {
     invoke<number[]>("saves_hex", { id, folder, path, offset, len }),
   savesEdit: (id: string, folder: string, path: string, edits: SaveEdit[]) =>
     invoke<EditReport>("saves_edit", { id, folder, path, edits }),
+  savesAccounts: (id: string) => invoke<AccountsView>("saves_accounts", { id }),
+  savesAccountPlan: (id: string, from: string, to: string) =>
+    invoke<CopyPlan>("saves_account_plan", { id, from, to }),
+  savesAccountCopy: (id: string, from: string, to: string) =>
+    invoke<CopyReport>("saves_account_copy", { id, from, to }),
   savesQuickCodes: (id: string) => invoke<QuickCode[]>("saves_quick_codes", { id }),
   savesApplyQuickCode: (id: string, packKey: string, codeId: string) =>
     invoke<EditReport>("saves_apply_quick_code", { id, packKey, codeId }),

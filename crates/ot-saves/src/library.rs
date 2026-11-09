@@ -239,6 +239,11 @@ impl Library {
 
     /// Adds a save folder chosen by the player.
     pub fn add_folder(&mut self, id: &str, path: &Path) -> Result<Game> {
+        self.add_folder_as(id, path, "Added by you")
+    }
+
+    /// Like [`Library::add_folder`], with the reason shown under the folder.
+    pub fn add_folder_as(&mut self, id: &str, path: &Path, reason: &str) -> Result<Game> {
         let bad = |why: &str| Error::BadFolder {
             path: path.to_path_buf(),
             why: why.to_string(),
@@ -270,7 +275,7 @@ impl Library {
         if self.inside_root(&p) {
             return Err(bad("that is where OpenTrainer keeps its backups"));
         }
-        self.push_folder(id, p, "Added by you")
+        self.push_folder(id, p, reason)
     }
 
     fn push_folder(&mut self, id: &str, p: String, reason: &str) -> Result<Game> {

@@ -172,6 +172,12 @@ You can also click **Back up now**.
   are compressed or Base64 text. Skyrim and Fallout 4 saves show their summary (name, level, place)
   but can't be changed. Anything else opens as bytes (hex).
 
+- **Copy saves to another Steam account:** for games that keep saves per Steam account, pick the
+  account to copy from and the one to copy to, click **Check what will be copied**, then **Copy**.
+  Your Steam ID inside the saves is changed to the other account's. The saves you copy from stay
+  as they are, and everything is backed up first. Then sign in to Steam with the other account and
+  start the game.
+
 Steam Cloud can overwrite restored saves. If Steam asks which copy to keep, choose the local one.
 
 ## Make a trainer with AI

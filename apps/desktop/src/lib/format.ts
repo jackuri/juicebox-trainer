@@ -86,6 +86,7 @@ const REASON_TEXT: Record<BackupReason, string> = {
   manual: "Made by you",
   beforeRestore: "Before a restore",
   beforeEdit: "Before an edit",
+  beforeAccountCopy: "Before copying to another account",
 };
 
 export function backupReason(r: BackupReason): string {
@@ -119,4 +120,10 @@ export function coverBytes(data: unknown): Uint8Array<ArrayBuffer> | null {
   else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
   else if (Array.isArray(data) && data.every((n) => typeof n === "number")) bytes = Uint8Array.from(data as number[]);
   return bytes && bytes.byteLength > 0 ? bytes : null;
+}
+
+/** "Name (sign-in name)" for a Steam account, or its id. */
+export function accountLabel(a: { id64: string; name: string | null; login: string | null }): string {
+  if (a.name && a.login && a.name !== a.login) return `${a.name} (${a.login})`;
+  return a.name ?? a.login ?? a.id64;
 }

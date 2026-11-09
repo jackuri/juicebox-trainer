@@ -46,6 +46,8 @@ pub enum Reason {
     BeforeRestore,
     /// Taken right before editing a save.
     BeforeEdit,
+    /// Taken right before copying saves to another Steam account.
+    BeforeAccountCopy,
 }
 
 impl Reason {

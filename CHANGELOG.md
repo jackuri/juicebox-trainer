@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-11-09
+
+### Added
+- **Copy saves to another Steam account.** For games that keep saves per Steam account (Steam
+  Cloud's `userdata` folders, or a game folder named after your Steam ID), Save backups has a new
+  section: pick the account to copy from and the one to copy to, click **Check what will be
+  copied** to see every file (and which ones would be replaced), then **Copy**. Your Steam ID
+  inside the saves, and in file names, is changed to the other account's, so games that check it
+  accept the save; compressed and checksummed saves are unpacked for this and packed again. The
+  saves you copy from are never changed, all the game's saves are backed up first ("Before copying
+  to another account"), the game must be closed, and the anti-cheat guard applies as for restoring.
+  The other account's new folder is added to the game's save folders so it is backed up too.
+  Accounts are the ones Steam knows on this PC (names from Steam's sign-in list).
+
 ## [1.10.0] - 2026-11-09
 
 ### Added
