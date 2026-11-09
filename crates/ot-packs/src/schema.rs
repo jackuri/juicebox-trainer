@@ -216,6 +216,35 @@ pub struct Address {
     /// Hex offsets (`"0x18"`, `"-0x8"`), applied after a pointer read each.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub offsets: Vec<String>,
+    /// AOB form only: instead of the found address itself, the value a
+    /// register holds when the game runs the code there (see [`Capture`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub capture: Option<Capture>,
+}
+
+/// Read a register when the game runs the code at the found address (match +
+/// `offset`), with a hardware breakpoint: no game code is changed. That value
+/// plus `add` is the start point; then `offsets` apply as usual. The same idea
+/// as a Cheat Engine script that copies a register into a pointer variable.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Capture {
+    /// `rdx`, `rsi`, `r12` (64-bit games; `edx` for the low half) or `edx`
+    /// (32-bit games).
+    pub register: String,
+    /// Hex offset added to the register's value.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub add: Option<String>,
+    /// Only when this register holds this value at that moment.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<When>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct When {
+    pub register: String,
+    pub equals: i64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

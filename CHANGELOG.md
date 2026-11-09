@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0] - 2026-11-09
+
+### Added
+- **Values behind hooked pointers.** Many Cheat Engine tables grab the player's data with a script
+  that hooks a line of game code and copies a register into a variable (`player_ptr`,
+  `battle_ptr`). OpenTrainer now redoes that without changing any game code: when you use such a
+  value, it briefly puts a hardware breakpoint on that line, reads the same register once, removes
+  the breakpoint and lets go of the game. Conditions like "only when ebx is 0" are kept. Held
+  values re-read it every few seconds so they follow the game (e.g. a new battle).
+- Packs can say this too: an `aob` address can have `"capture": { "register": "rdx", "add":
+  "0x10", "when": { "register": "ebx", "equals": 0 } }` (64-bit and 32-bit games).
+- In Cheats, such a value shows "not found yet" until the game has used it, and an action that has
+  to wait for the game says "Waiting for the game…" with what to do.
+- On the Dragon Ball Xenoverse 2 table this adds the 39 battle values (current health, ki, stamina…):
+  137 cheats in all.
+
+### Changed
+- Entries under a script use the names that script defines (tables often define the same name in
+  several scripts).
+
 ## [1.5.0] - 2026-11-08
 
 ### Added

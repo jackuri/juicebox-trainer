@@ -91,8 +91,15 @@ In the **Packs** tab:
   - **Scripts are never run.** OpenTrainer reads them only to understand them. The common kinds it
     redoes its own safe way: scripts that find a base address (so the values under it come over),
     save-slot numbers, and scripts that just swap a few bytes of game code (they become on/off
-    cheats). Scripts that inject their own code ("unlimited health for the player only") are left
-    out; freezing the value (e.g. Current Health) usually does the same job.
+    cheats), and scripts that hook a line of game code just to grab a pointer (like `battle_ptr`):
+    OpenTrainer reads that pointer itself instead. Scripts that inject their own logic ("unlimited
+    health for the player only") are left out; freezing the value (e.g. Current Health) usually does
+    the same job.
+  - **Values found while you play:** some values (often battle stats) are found the moment the game
+    uses them. Until then they show "not found yet". Click **Set** and do it in the game (start a
+    battle, take a hit): OpenTrainer waits a few seconds and says "Waiting for the game…". To read
+    them it attaches to the game as a debugger for a moment, like "find what writes". It never hides
+    that; a game that refuses debuggers may close.
   - If the table doesn't say which game it's for, click **Choose the game's exe…** and pick the
     game's `.exe` (in its install folder).
   - In Cheats, type a value and click **Set**: it stays at that value (like ticking the box in

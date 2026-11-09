@@ -7,6 +7,7 @@
 
 pub mod address;
 pub mod aob;
+pub mod capture;
 pub mod code;
 pub mod dotnet;
 pub mod engine;

@@ -19,8 +19,8 @@ use serde::Serialize;
 
 use crate::ct_script::{self, Sym};
 use crate::schema::{
-    Address, Cheat, Game, Impl, Meta, NumberConfig, Operand, Pack, PackArch, PatchImpl,
-    SCHEMA_VERSION, Ui, ValueImpl,
+    Address, Capture, Cheat, Game, Impl, Meta, NumberConfig, Operand, Pack, PackArch, PatchImpl,
+    SCHEMA_VERSION, Ui, ValueImpl, When,
 };
 use crate::validate::{Severity, validate};
 
@@ -117,12 +117,20 @@ pub fn convert(
             name,
             engine: None,
             exe: guessed.unwrap_or_else(|| UNKNOWN_EXE.into()),
-            // Patches are only taken from tables that show a 64-bit game.
+            // Patches are only taken from tables that show a 64-bit game;
+            // captures name registers, which differ between 32 and 64 bits.
             arch: walk
                 .cheats
                 .iter()
-                .any(|c| matches!(c.implementation, Impl::Patch(_)))
-                .then_some(PackArch::X64),
+                .any(|c| match &c.implementation {
+                    Impl::Patch(_) => true,
+                    Impl::Value(v) => v.address.capture.is_some(),
+                })
+                .then_some(if walk.x64 {
+                    PackArch::X64
+                } else {
+                    PackArch::X86
+                }),
             builds: Vec::new(),
         },
         meta: Meta {
@@ -277,7 +285,24 @@ impl Walk {
             } else {
                 category.unwrap_or_default()
             };
+            // Entries under a script use the names that script defines (tables
+            // often define the same name in several scripts).
+            let saved = if ty.as_deref() == Some("Auto Assembler Script") {
+                let script = child(e, "AssemblerScript").map(text_of).unwrap_or_default();
+                let mut own = HashMap::new();
+                ct_script::symbols(&script, &mut own);
+                (!own.is_empty()).then(|| {
+                    let saved = self.syms.clone();
+                    self.syms.extend(own);
+                    saved
+                })
+            } else {
+                None
+            };
             self.entries(kids, Some(cat), kids_base.as_ref(), depth + 1);
+            if let Some(saved) = saved {
+                self.syms = saved;
+            }
         }
     }
 
@@ -345,7 +370,7 @@ impl Walk {
                         o.trim()
                     )
                 })?;
-                chain.offsets.push(n);
+                chain.push_offset(n)?;
             }
         }
         Ok(chain)
@@ -478,6 +503,36 @@ enum Start {
         offset: i64,
         rip_next: Option<i64>,
     },
+    /// A register's value when the game runs the code there (a pointer a
+    /// script grabs). `stored`: still at the script's variable that holds
+    /// it; the first pointer read gives the register's value itself.
+    Capture {
+        module: Option<String>,
+        aob: String,
+        offset: i64,
+        register: String,
+        when: Option<(String, i64)>,
+        stored: bool,
+    },
+}
+
+/// One pointer read (`[x]` or a table offset) on a path.
+fn deref(start: &mut Option<Start>, base: &mut i64, offsets: &mut Vec<i64>) -> Result<(), String> {
+    if let Some(Start::Capture { stored, .. }) = start
+        && *stored
+    {
+        if *base != 0 {
+            return Err(
+                "it reads next to where a table script keeps a pointer, not the pointer itself"
+                    .into(),
+            );
+        }
+        // Reading the script's variable gives the register's value.
+        *stored = false;
+        return Ok(());
+    }
+    offsets.push(0);
+    Ok(())
 }
 
 /// A pointer path: the start plus `base`, then for each offset read a
@@ -490,6 +545,16 @@ struct Chain {
 }
 
 impl Chain {
+    /// A table offset: read a pointer, then add `o`.
+    fn push_offset(&mut self, o: i64) -> Result<(), String> {
+        let mut start = Some(self.start.clone());
+        deref(&mut start, &mut self.base, &mut self.offsets)?;
+        if let Some(s) = start {
+            self.start = s;
+        }
+        self.add(o)
+    }
+
     fn add(&mut self, n: i64) -> Result<(), String> {
         let slot = match self.offsets.last_mut() {
             Some(o) => o,
@@ -515,6 +580,7 @@ impl Chain {
                     operand: None,
                     next: None,
                     offsets,
+                    capture: None,
                 }
             }
             Start::Aob {
@@ -540,8 +606,38 @@ impl Chain {
                     operand: rip_next.map(|_| Operand::Rip32),
                     next: *rip_next,
                     offsets,
+                    capture: None,
                 }
             }
+            Start::Capture { stored: true, .. } => {
+                return Err(
+                    "it uses where a table script keeps a pointer, not the pointer itself".into(),
+                );
+            }
+            Start::Capture {
+                module,
+                aob,
+                offset,
+                register,
+                when,
+                stored: false,
+            } => Address {
+                base: None,
+                aob: Some(aob.clone()),
+                module: module.clone(),
+                offset: (*offset != 0).then_some(*offset),
+                operand: None,
+                next: None,
+                offsets,
+                capture: Some(Capture {
+                    register: register.clone(),
+                    add: (self.base != 0).then(|| hex(self.base)),
+                    when: when.as_ref().map(|(r, v)| When {
+                        register: r.clone(),
+                        equals: *v,
+                    }),
+                }),
+            },
         })
     }
 
@@ -550,6 +646,7 @@ impl Chain {
         match &self.start {
             Start::Module(m) => format!("{m}+{}", hex(self.base)),
             Start::Aob { aob, .. } => format!("aob({aob})+{}", hex(self.base)),
+            Start::Capture { register, .. } => format!("{register}+{}", hex(self.base)),
         }
     }
 }
@@ -805,7 +902,7 @@ impl Parser<'_> {
                 if inner.start.is_none() {
                     return Err("its address starts from a fixed number, which usually changes every time the game starts".into());
                 }
-                inner.offsets.push(0);
+                deref(&mut inner.start, &mut inner.base, &mut inner.offsets)?;
                 Ok(inner)
             }
             Some(b'"') => {
@@ -878,6 +975,26 @@ impl Parser<'_> {
                         aob: aob.clone(),
                         offset: *offset,
                         rip_next: *rip_next,
+                    }),
+                    base: 0,
+                    offsets: Vec::new(),
+                });
+            }
+            Some(Sym::Capture {
+                module,
+                aob,
+                offset,
+                register,
+                when,
+            }) => {
+                return Ok(Partial {
+                    start: Some(Start::Capture {
+                        module: module.clone(),
+                        aob: aob.clone(),
+                        offset: *offset,
+                        register: register.clone(),
+                        when: when.clone(),
+                        stored: true,
                     }),
                     base: 0,
                     offsets: Vec::new(),

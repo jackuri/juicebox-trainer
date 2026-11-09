@@ -13,8 +13,8 @@ use serde_json::Number;
 use crate::hotkey::Hotkey;
 use crate::numbers::{Num, in_bounds, is_float, to_value};
 use crate::schema::{
-    Address, Cheat, Impl, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS, SAVE_PLACEHOLDERS,
-    SCHEMA_VERSION, Ui, ValueImpl, parse_offset,
+    Address, Capture, Cheat, Impl, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS,
+    SAVE_PLACEHOLDERS, SCHEMA_VERSION, Ui, ValueImpl, parse_offset,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -235,7 +235,18 @@ pub fn validate(pack: &Pack) -> Vec<Issue> {
         check_hotkey(&mut cx, &p, c, &mut hotkeys);
         check_ui(&mut cx, &p, c);
         match &c.implementation {
-            Impl::Value(v) => check_value(&mut cx, &p, c, v),
+            Impl::Value(v) => {
+                check_value(&mut cx, &p, c, v);
+                if let Some(cap) = &v.address.capture {
+                    check_capture(
+                        &mut cx,
+                        &format!("{p}.impl.address"),
+                        &v.address,
+                        cap,
+                        g.arch,
+                    );
+                }
+            }
             Impl::Patch(pt) => check_patch(&mut cx, &p, c, pt, g.arch),
         }
     }
@@ -521,6 +532,56 @@ fn check_address(cx: &mut Ctx, p: &str, a: &Address) {
                 "must be a hex offset like \"0x18\"",
             );
         }
+    }
+}
+
+/// A register read when game code runs: needs the code (aob), a register the
+/// game's architecture has, and no operand (the register replaces it).
+fn check_capture(cx: &mut Ctx, p: &str, a: &Address, cap: &Capture, arch: Option<PackArch>) {
+    if a.aob.is_none() {
+        cx.error(
+            format!("{p}.capture"),
+            "needs \"aob\": the game code where the register is read",
+        );
+    }
+    if a.operand.is_some() {
+        cx.error(
+            format!("{p}.operand"),
+            "not used with \"capture\" (the register's value is the start point)",
+        );
+    }
+    if let Some(add) = &cap.add
+        && parse_offset(add).is_none()
+    {
+        cx.error(
+            format!("{p}.capture.add"),
+            "must be a hex offset like \"0x18\"",
+        );
+    }
+    let Some(arch) = arch else {
+        cx.error(
+            "game.arch",
+            "packs that capture a register must say \"arch\": \"x86\" or \"x64\"",
+        );
+        return;
+    };
+    let reg_ok = |name: &str| ot_core::capture::Register::parse(name, arch.core()).is_some();
+    if !reg_ok(&cap.register) {
+        cx.error(
+            format!("{p}.capture.register"),
+            format!(
+                "not a register of {} games (e.g. rdx, rsi, r12; edx)",
+                arch.core()
+            ),
+        );
+    }
+    if let Some(w) = &cap.when
+        && !reg_ok(&w.register)
+    {
+        cx.error(
+            format!("{p}.capture.when.register"),
+            format!("not a register of {} games", arch.core()),
+        );
     }
 }
 

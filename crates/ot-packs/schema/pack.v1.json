@@ -141,7 +141,23 @@
         "offset": { "type": "integer" },
         "operand": { "enum": ["rip32", "abs32"] },
         "next": { "type": "integer" },
-        "offsets": { "type": "array", "items": { "$ref": "#/$defs/hexOffset" } }
+        "offsets": { "type": "array", "items": { "$ref": "#/$defs/hexOffset" } },
+        "capture": {
+          "description": "AOB form only, no operand: the start point is the value of a register when the game runs the code at match + offset (read with a hardware breakpoint; no code is changed), plus add. Then offsets apply. Needs game.arch.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["register"],
+          "properties": {
+            "register": { "type": "string", "description": "rax..r15 or their low halves (eax, r8d) for x64 games; eax..edi for x86." },
+            "add": { "$ref": "#/$defs/hexOffset" },
+            "when": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["register", "equals"],
+              "properties": { "register": { "type": "string" }, "equals": { "type": "integer" } }
+            }
+          }
+        }
       },
       "oneOf": [{ "required": ["base"] }, { "required": ["aob"] }]
     },

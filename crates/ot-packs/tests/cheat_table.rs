@@ -285,3 +285,133 @@ fn script_style_table_works_on_the_x64_testbed() {
     t.restore_all().unwrap();
     tb.kill();
 }
+
+/// A table whose values hang off a pointer a hook script grabs (the damage
+/// code's register, only for a hit of 7), like DBXV2's `battle_ptr`.
+fn hook_table(flavor: Flavor, ready: &Json) -> String {
+    let f = &ready["chain"]["fields"];
+    let gold = bare(&f["gold"]);
+    let (tmp, field, amount) = match flavor {
+        Flavor::X64 => ("rax", "rcx", "edx"),
+        Flavor::X86 => ("eax", "ecx", "edx"),
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>0</ID>
+      <Description>"Stats Pointer"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+aobscanmodule(dmg,testbed_native.exe,0F 1F 80 54 4F 54 01 8B 01 29 D0)
+alloc(newmem,$1000,dmg)
+label(code)
+label(return)
+label(stats_ptr)
+newmem:
+  cmp {amount},7
+  jne code
+  mov {tmp},stats_ptr
+  mov [{tmp}],{field}
+code:
+  mov eax,[{field}]
+  sub eax,edx
+  jmp return
+stats_ptr:
+  dd 0
+dmg+7:
+  jmp newmem
+return:
+registersymbol(stats_ptr)
+[DISABLE]
+dmg+7:
+  db 8B 01 29 D0
+unregistersymbol(stats_ptr)
+dealloc(newmem)
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>1</ID>
+          <Description>"Health"</Description>
+          <ShowAsSigned>1</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>stats_ptr</Address>
+          <Offsets>
+            <Offset>0</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>2</ID>
+          <Description>"Gold"</Description>
+          <VariableType>4 Bytes</VariableType>
+          <Address>[stats_ptr]+{gold}</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+"#
+    )
+}
+
+fn hook_table_works(flavor: Flavor) {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(flavor));
+    let opened =
+        share::open_table(hook_table(flavor, &tb.ready).as_bytes(), "Hooked", None).unwrap();
+    let names: Vec<&str> = opened.pack.cheats.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Health", "Gold"], "skipped: {:?}", opened.skipped);
+    assert!(
+        opened.skipped.is_empty(),
+        "the hook script is redone, not skipped: {:?}",
+        opened.skipped
+    );
+
+    let process = Arc::new(AttachedProcess::attach(tb.pid()).expect("attach to testbed"));
+    let mut t = Trainer::load(Arc::clone(&process), opened.pack).unwrap();
+    // Not found yet: waiting for the game, not failed.
+    let s = t.states().unwrap();
+    assert_eq!(s[0].status, "ready", "{:?}", s[0].message);
+    assert!(
+        s[0].message
+            .as_deref()
+            .unwrap_or("")
+            .contains("not found yet")
+    );
+    assert_eq!(s[0].value, None);
+
+    // Setting a value waits for the game to run the code (a hit of 7).
+    let set = std::thread::scope(|scope| {
+        let job = scope.spawn(|| t.set_value("health", "555"));
+        sleep(Duration::from_millis(700));
+        assert_eq!(tb.send("hit 5")["health"], 95);
+        assert_eq!(tb.send("hit 7")["health"], 88);
+        job.join().unwrap()
+    });
+    set.unwrap();
+    assert_eq!(tb.send("state")["health"], 555);
+    // Held, like Cheat Engine's freeze.
+    tb.send("hit 10");
+    sleep(Duration::from_millis(200));
+    assert_eq!(tb.send("state")["health"], 555);
+    // The other value under the same pointer needs no new wait.
+    t.set_value("gold", "4242").unwrap();
+    assert_eq!(tb.send("state")["gold"], 4242);
+    let shown = t.states().unwrap();
+    assert_eq!(shown[1].value.as_deref(), Some("4242"));
+    t.restore_all().unwrap();
+    // The game code was never changed.
+    assert_eq!(tb.send("hit 1")["health"].as_i64().unwrap(), 554);
+    tb.kill();
+}
+
+#[test]
+fn hook_table_works_on_the_x64_testbed() {
+    hook_table_works(Flavor::X64);
+}
+
+#[test]
+fn hook_table_works_on_the_x86_testbed() {
+    hook_table_works(Flavor::X86);
+}

@@ -6,8 +6,15 @@
 //! each write and records the change (crash-safe when the session keeps a
 //! journal). They are restored when turned off, when the trainer is unloaded
 //! and when it is dropped. Value toggles and held values use a freeze thread.
+//!
+//! Addresses that start from a register (`capture`) are read with a short
+//! hardware breakpoint (see [`ot_core::capture`]) when the player uses the
+//! cheat, then remembered; held values re-read it every few seconds so they
+//! follow the game (e.g. a new battle).
 
+use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use ot_core::freeze::DEFAULT_FREEZE_INTERVAL;
 use ot_core::{AttachedProcess, Freezer, Module, Pattern, Value, ValueType};
@@ -16,7 +23,7 @@ use tracing::{info, warn};
 
 use crate::hotkey::Hotkey;
 use crate::numbers::{Num, add, in_bounds, to_value};
-use crate::schema::{Address, Cheat, Impl, Operand, Pack, PatchImpl, Ui, parse_offset};
+use crate::schema::{Address, Capture, Cheat, Impl, Operand, Pack, PatchImpl, Ui, parse_offset};
 use crate::validate::{self, Severity};
 
 /// Errors from running a pack.
@@ -63,6 +70,12 @@ pub enum Error {
 
     #[error("{value} is out of range for '{id}'")]
     OutOfRange { id: String, value: String },
+
+    /// A captured address: the game hasn't run that code yet.
+    #[error(
+        "not found yet: do something in the game that uses '{0}' (for example start a battle), then try again"
+    )]
+    NotFoundYet(String),
 }
 
 impl Error {
@@ -80,6 +93,7 @@ impl Error {
             Error::BytesChanged { .. } => "needsRepair",
             Error::Unavailable(..) => "unavailable",
             Error::OutOfRange { .. } => "outOfRange",
+            Error::NotFoundYet(_) => "notFoundYet",
         }
     }
 
@@ -163,6 +177,30 @@ pub struct Trainer {
     exe_sha256: Option<String>,
     slots: Vec<Slot>,
     freezer: Freezer,
+    /// Captured register values by code address and register: value, when.
+    captures: HashMap<(u64, String), (u64, Instant)>,
+}
+
+/// How fresh a captured address must be.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Need {
+    /// The player is using the cheat: read it again unless just read
+    /// (waits for the game to run the code).
+    Now,
+    /// Keeping a held value on the right address: re-read now and then,
+    /// briefly; keep the last one if the code didn't run.
+    Refresh,
+    /// Showing values: only what was read before.
+    Cached,
+}
+
+/// Waits and ages for each [`Need`].
+fn capture_policy(need: Need) -> (Duration, Duration) {
+    match need {
+        Need::Now => (Duration::from_secs(2), Duration::from_secs(6)),
+        Need::Refresh => (Duration::from_secs(5), Duration::from_millis(400)),
+        Need::Cached => (Duration::MAX, Duration::ZERO),
+    }
 }
 
 impl Trainer {
@@ -219,6 +257,7 @@ impl Trainer {
             build,
             exe_sha256,
             freezer,
+            captures: HashMap::new(),
         };
         for i in 0..trainer.slots.len() {
             if let Impl::Patch(p) = &trainer.pack.cheats[i].implementation {
@@ -349,13 +388,18 @@ impl Trainer {
 
     /// Resolves a value cheat's address now (pointer chains can move).
     fn resolve_value(&mut self, i: usize) -> Result<(u64, ValueType)> {
+        self.resolve_value_for(i, Need::Now)
+    }
+
+    fn resolve_value_for(&mut self, i: usize, need: Need) -> Result<(u64, ValueType)> {
         let (ty, a) = self.value_impl(i).ok_or_else(|| Error::WrongUi {
             id: self.pack.cheats[i].id.clone(),
             ui: self.pack.cheats[i].ui,
         })?;
-        let start = match (&a.base, &a.aob) {
-            (Some(base), _) => self.process.resolve(base)?,
-            (None, Some(aob)) => match self.slots[i].aob_base {
+        let start = match (&a.base, &a.aob, &a.capture) {
+            (None, Some(aob), Some(cap)) => self.captured_start(i, &a, aob, cap, need)?,
+            (Some(base), _, _) => self.process.resolve(base)?,
+            (None, Some(aob), None) => match self.slots[i].aob_base {
                 Some(b) => b,
                 None => {
                     let b = self.aob_start(&a, aob)?;
@@ -363,7 +407,7 @@ impl Trainer {
                     b
                 }
             },
-            (None, None) => unreachable!("validated: base or aob"),
+            (None, None, _) => unreachable!("validated: base or aob"),
         };
         let offsets: Vec<i64> = a
             .offsets
@@ -371,6 +415,71 @@ impl Trainer {
             .map(|o| parse_offset(o).expect("validated offset"))
             .collect();
         Ok((self.process.resolve_chain(start, &offsets)?, ty))
+    }
+
+    /// The start point of a `capture` address: the register's value when the
+    /// game runs the code at the found address, plus `add`.
+    fn captured_start(
+        &mut self,
+        i: usize,
+        a: &Address,
+        aob: &str,
+        cap: &Capture,
+        need: Need,
+    ) -> Result<u64> {
+        let site = match self.slots[i].aob_base {
+            Some(b) => b,
+            None => {
+                let b = self.aob_start(a, aob)?;
+                self.slots[i].aob_base = Some(b);
+                b
+            }
+        };
+        let arch = self.process.arch();
+        let bad =
+            || Error::InvalidPack(format!("'{}' isn't a register of this game", cap.register));
+        let register = ot_core::capture::Register::parse(&cap.register, arch).ok_or_else(bad)?;
+        let when = match &cap.when {
+            Some(w) => Some((
+                ot_core::capture::Register::parse(&w.register, arch).ok_or_else(bad)?,
+                w.equals,
+            )),
+            None => None,
+        };
+        let add = cap
+            .add
+            .as_deref()
+            .map_or(0, |o| parse_offset(o).expect("validated offset"));
+        let key = (
+            site,
+            format!("{}|{:?}", register.name(), when.map(|(r, v)| (r.name(), v))),
+        );
+        let (max_age, wait) = capture_policy(need);
+        let known = self.captures.get(&key).copied();
+        let start = |v: u64| v.wrapping_add_signed(add);
+        if let Some((v, at)) = known
+            && at.elapsed() <= max_age
+        {
+            return Ok(start(v));
+        }
+        let name = self.cheat(i).name.clone();
+        if wait.is_zero() {
+            return known.map(|(v, _)| start(v)).ok_or(Error::NotFoundYet(name));
+        }
+        let spec = ot_core::capture::CaptureSpec {
+            site,
+            register,
+            when,
+        };
+        match ot_core::capture::capture(&self.process, spec, wait)? {
+            Some(v) => {
+                self.captures.insert(key, (v, Instant::now()));
+                Ok(start(v))
+            }
+            // The code didn't run in time: keep the last one, like a table's
+            // hook keeps its pointer until the code runs again.
+            None => known.map(|(v, _)| start(v)).ok_or(Error::NotFoundYet(name)),
+        }
     }
 
     fn aob_start(&self, a: &Address, aob: &str) -> Result<u64> {
@@ -595,7 +704,7 @@ impl Trainer {
             let Some((old, value)) = self.slots[i].frozen else {
                 continue;
             };
-            match self.resolve_value(i) {
+            match self.resolve_value_for(i, Need::Refresh) {
                 Ok((address, _)) => {
                     if address != old {
                         info!(cheat = %self.cheat(i).id, "frozen value moved to {address:#X}");
@@ -659,6 +768,7 @@ impl Trainer {
         let c = self.cheat(i).clone();
         let mut touches = Vec::new();
         let (mut value, mut address, mut resolve_error) = (None, None, None);
+        let mut waiting = false;
         match &c.implementation {
             Impl::Patch(p) => match &self.slots[i].site {
                 Some(s) => {
@@ -680,7 +790,7 @@ impl Trainer {
             },
             Impl::Value(v) => {
                 touches.push(format!("{} at {}", v.ty, describe_address(&v.address)));
-                match self.resolve_value(i) {
+                match self.resolve_value_for(i, Need::Cached) {
                     Ok((a, ty)) => {
                         address = Some(a);
                         match self.process.read_value(a, ty) {
@@ -695,6 +805,10 @@ impl Trainer {
                         }
                     }
                     Err(e) if e.is_fatal() => return Err(e),
+                    Err(e @ Error::NotFoundYet(_)) => {
+                        waiting = true;
+                        resolve_error = Some(e.to_string());
+                    }
                     Err(e) => resolve_error = Some(e.to_string()),
                 }
             }
@@ -703,7 +817,8 @@ impl Trainer {
         let message = slot.error.clone().or(resolve_error);
         let failed = match &c.implementation {
             Impl::Patch(_) => slot.site.is_none(),
-            Impl::Value(_) => address.is_none() && !slot.active,
+            // Waiting for the game to run captured code isn't a failure.
+            Impl::Value(_) => address.is_none() && !slot.active && !waiting,
         };
         let status = if slot.active {
             "active"
@@ -768,10 +883,23 @@ pub fn describe_address(a: &Address) -> String {
                 o if o < 0 => format!("-{:#X}", o.unsigned_abs()),
                 o => format!("+{o:#X}"),
             };
-            match a.operand {
-                None => format!("aob({module}: {aob}){off}"),
-                Some(Operand::Abs32) => format!("abs32 at aob({module}: {aob}){off}"),
-                Some(Operand::Rip32) => format!("rip32 at aob({module}: {aob}){off}"),
+            match (a.operand, &a.capture) {
+                (_, Some(c)) => {
+                    let when = c
+                        .when
+                        .as_ref()
+                        .map(|w| format!(" when {} = {}", w.register, w.equals))
+                        .unwrap_or_default();
+                    let add = c
+                        .add
+                        .as_deref()
+                        .map(|o| format!("+{o}"))
+                        .unwrap_or_default();
+                    format!("{}{when} at aob({module}: {aob}){off}{add}", c.register)
+                }
+                (None, None) => format!("aob({module}: {aob}){off}"),
+                (Some(Operand::Abs32), None) => format!("abs32 at aob({module}: {aob}){off}"),
+                (Some(Operand::Rip32), None) => format!("rip32 at aob({module}: {aob}){off}"),
             }
         }
         (None, None) => "?".into(),
@@ -796,6 +924,7 @@ mod tests {
             operand: None,
             next: None,
             offsets: vec!["0x18".into(), "0x40".into()],
+            capture: None,
         };
         assert_eq!(describe_address(&a), "[[game.exe+0x10]+0x18]+0x40");
         let b = Address {
@@ -806,10 +935,31 @@ mod tests {
             next: Some(14),
             offsets: vec![],
             module: None,
+            capture: None,
         };
         assert_eq!(
             describe_address(&b),
             "rip32 at aob(exe: 48 8B 0D ?? ?? ?? ??)+0xA"
+        );
+        let c = Address {
+            operand: None,
+            next: None,
+            offset: Some(7),
+            aob: Some("0F 1F 80 54 4F 54 01 8B 01".into()),
+            offsets: vec!["0xC".into()],
+            capture: Some(Capture {
+                register: "rcx".into(),
+                add: Some("0x10".into()),
+                when: Some(crate::schema::When {
+                    register: "edx".into(),
+                    equals: 7,
+                }),
+            }),
+            ..b
+        };
+        assert_eq!(
+            describe_address(&c),
+            "[rcx when edx = 7 at aob(exe: 0F 1F 80 54 4F 54 01 8B 01)+0x7+0x10]+0xC"
         );
     }
 

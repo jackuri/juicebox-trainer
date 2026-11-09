@@ -39,6 +39,8 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
   const [repairNote, setRepairNote] = useState<string | null>(null);
   const [repairing, setRepairing] = useState(false);
   const [loading, setLoading] = useState(false);
+  /** An action is taking a while: usually waiting for the game to run code a value is read from. */
+  const [waiting, setWaiting] = useState(false);
   const [overlay, setOverlay] = useState(false);
   /** The trainer's state was read at least once (so `view === null` means "no pack loaded"). */
   const [polled, setPolled] = useState(false);
@@ -90,12 +92,16 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
 
   async function act(fn: () => Promise<TrainerView | void>) {
     setError(null);
+    const slow = setTimeout(() => setWaiting(true), 700);
     try {
       const v = await fn();
       if (v) setView(v);
     } catch (e) {
       fail(e);
       poll();
+    } finally {
+      clearTimeout(slow);
+      setWaiting(false);
     }
   }
 
@@ -265,6 +271,12 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
       )}
       {buildWarning(view.build) && (
         <p className="rounded-lg bg-amber-950/40 px-3 py-2 text-xs text-amber-300">{buildWarning(view.build)}</p>
+      )}
+      {waiting && (
+        <p className="rounded-lg bg-sky-950/40 px-3 py-2 text-xs text-sky-200" role="status">
+          Waiting for the game… Some values are found when the game uses them: do it in the game now (for example
+          start a battle or take a hit).
+        </p>
       )}
       {error && (
         <p className="rounded-lg bg-red-950/40 px-3 py-2 text-xs text-red-300" role="alert">

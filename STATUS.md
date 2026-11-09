@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-08 — v1.5.0_
+_Last updated: 2026-11-09 — v1.6.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,15 @@ _Last updated: 2026-11-08 — v1.5.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.6.0 Hooked pointers: `ot_core::capture` reads a register at a code address with a hardware
+  execute breakpoint (attach as debugger, arm DR0 on all threads, resume flag on hits, optional
+  `when` register = value, disarm, detach); live-tested on x64 and x86 testbeds. Pack schema
+  `address.capture {register, add?, when?}` (aob only, no operand, needs arch). Trainer: captured
+  starts cached per (site, register, when); user actions wait up to 6 s, held values refresh every
+  5 s (0.4 s wait, keep last), states show "not found yet" (status ready). `ct_script` recognises
+  pointer-grab hooks (mov tmp,var / mov [tmp],reg, mov [var],reg, test/cmp + jne guard, lea no-op;
+  globalalloc or label vars). DBXV2: 137 cheats (Current Health = rdi+0xF8, matching the table's
+  own health script). All checks pass.
 - v1.5.0 Smarter tables (user's DBXV2.CT from FearLessRevolution gave 0 cheats): `ct_script.rs`
   reads Auto Assembler / Lua as text and recognises symbol patterns (Lua RIP idiom, aobscanmodule +
   registersymbol, define, label-at-number), byte-swap scripts (→ patch, x64 only, changed bytes
@@ -121,7 +130,7 @@ _Last updated: 2026-11-08 — v1.5.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.4.2 are pushed and tagged (v1.4.2 is Latest, in-app updates on; its latest.json is served). The community list has its first real shared pack (Species Unknown, merged by the user).
+- v1.1.0 – v1.5.0 are pushed and tagged (v1.5.0 is Latest, in-app updates on). v1.6.0 is committed locally. The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

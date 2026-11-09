@@ -45,12 +45,12 @@ use crate::win::OwnedHandle;
 /// A watch stops by itself after this long.
 pub const MAX_WATCH: Duration = Duration::from_secs(120);
 
-const DBG_CONTINUE: NTSTATUS = NTSTATUS(0x0001_0002);
-const DBG_EXCEPTION_NOT_HANDLED: NTSTATUS = NTSTATUS(0x8001_0001_u32 as i32);
-const EXCEPTION_SINGLE_STEP: i32 = 0x8000_0004_u32 as i32;
-const STATUS_WX86_SINGLE_STEP: i32 = 0x4000_001E;
-const EXCEPTION_BREAKPOINT: i32 = 0x8000_0003_u32 as i32;
-const STATUS_WX86_BREAKPOINT: i32 = 0x4000_001F;
+pub(crate) const DBG_CONTINUE: NTSTATUS = NTSTATUS(0x0001_0002);
+pub(crate) const DBG_EXCEPTION_NOT_HANDLED: NTSTATUS = NTSTATUS(0x8001_0001_u32 as i32);
+pub(crate) const EXCEPTION_SINGLE_STEP: i32 = 0x8000_0004_u32 as i32;
+pub(crate) const STATUS_WX86_SINGLE_STEP: i32 = 0x4000_001E;
+pub(crate) const EXCEPTION_BREAKPOINT: i32 = 0x8000_0003_u32 as i32;
+pub(crate) const STATUS_WX86_BREAKPOINT: i32 = 0x4000_001F;
 
 /// One instruction that wrote to the watched address.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -87,14 +87,14 @@ pub(crate) fn dr7_for(len: usize) -> Result<u64> {
 const DR7_SLOT0: u64 = 0b11 | (0b1111 << 16);
 
 #[repr(C, align(16))]
-struct Ctx64(CONTEXT);
+pub(crate) struct Ctx64(pub(crate) CONTEXT);
 
-enum Wow {
+pub(crate) enum Wow {
     No,
     Yes,
 }
 
-fn threads_of(pid: u32) -> Result<Vec<u32>> {
+pub(crate) fn threads_of(pid: u32) -> Result<Vec<u32>> {
     // SAFETY: plain Win32 call; the handle is owned below.
     let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) }
         .map_err(|e| Error::win32("CreateToolhelp32Snapshot(threads)", e))?;
@@ -116,7 +116,7 @@ fn threads_of(pid: u32) -> Result<Vec<u32>> {
     Ok(out)
 }
 
-fn open_thread(tid: u32) -> Option<OwnedHandle> {
+pub(crate) fn open_thread(tid: u32) -> Option<OwnedHandle> {
     let access =
         THREAD_GET_CONTEXT | THREAD_SET_CONTEXT | THREAD_SUSPEND_RESUME | THREAD_QUERY_INFORMATION;
     // SAFETY: plain Win32 call; the handle is owned by OwnedHandle.
@@ -127,7 +127,7 @@ fn open_thread(tid: u32) -> Option<OwnedHandle> {
 
 /// Sets (`Some(address)`) or clears (`None`) breakpoint 0 in a thread. The
 /// thread is suspended while its registers change.
-fn set_slot0(thread: HANDLE, wow: &Wow, target: Option<(u64, u64)>) -> bool {
+pub(crate) fn set_slot0(thread: HANDLE, wow: &Wow, target: Option<(u64, u64)>) -> bool {
     // SAFETY: `thread` is a valid thread handle opened with suspend rights.
     if unsafe { SuspendThread(thread) } == u32::MAX {
         return false;

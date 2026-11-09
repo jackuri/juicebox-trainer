@@ -13,6 +13,11 @@
 //!   (`1:` then `name:`), used in offsets like `slot*6180+2F90`.
 //! - Byte swaps: at a found address, `db 90 90` on enable and `db 75 15` on
 //!   disable, with nothing else: OpenTrainer's checked `patch` op.
+//! - Pointer grabs: at a found address, `jmp newmem`, and `newmem` only copies
+//!   registers into variables (`mov rax,player_ptr` / `mov [rax],rdx`, or
+//!   `mov [player_ptr],rdx`), optionally only when a register is zero
+//!   (`test ebx,ebx` / `jne code`): OpenTrainer reads the same register with
+//!   a hardware breakpoint instead (a `capture` address), changing no code.
 //!
 //! Anything else (allocated memory, injected code, Lua logic) is not
 //! understood and stays out. Recognising a pattern only produces pack data;
@@ -36,6 +41,16 @@ pub(crate) enum Sym {
     Module { module: String, offset: i64 },
     /// A plain number.
     Const(i64),
+    /// A variable a script fills with a register's value when the game runs
+    /// the code at the found address. The name is where the pointer is
+    /// *stored*; `[name]` is the register's value.
+    Capture {
+        module: Option<String>,
+        aob: String,
+        offset: i64,
+        register: String,
+        when: Option<(String, i64)>,
+    },
 }
 
 /// A byte swap at one found address.
@@ -277,6 +292,10 @@ pub(crate) fn symbols(script: &str, out: &mut HashMap<String, Sym>) {
         out.entry(name).or_insert(d);
     }
 
+    for (name, sym) in grabs(&s, &aobs) {
+        out.insert(name, sym);
+    }
+
     if s.has_lua {
         for (name, (module, aob)) in &aobs {
             if let Some(k) = lua_rip(&s.lua, name) {
@@ -292,6 +311,161 @@ pub(crate) fn symbols(script: &str, out: &mut HashMap<String, Sym>) {
             }
         }
     }
+}
+
+fn is_name(w: &str) -> bool {
+    !w.is_empty()
+        && w.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        && aa_number(w).is_none()
+}
+
+/// `mov a,b` → ("mov", ["a", "b"]), lowercase, spaces removed in operands.
+fn instruction(line: &str) -> Option<(String, Vec<String>)> {
+    let lower = line.to_ascii_lowercase();
+    let (op, rest) = lower
+        .split_once(char::is_whitespace)
+        .unwrap_or((lower.as_str(), ""));
+    let args: String = rest.chars().filter(|c| !c.is_whitespace()).collect();
+    let args = if args.is_empty() {
+        Vec::new()
+    } else {
+        args.split(',').map(str::to_string).collect()
+    };
+    Some((op.to_string(), args))
+}
+
+/// Pointer grabs: the injected code only copies registers into variables.
+fn grabs(s: &Sections, aobs: &HashMap<String, (Option<String>, String)>) -> Vec<(String, Sym)> {
+    let lines: Vec<&str> = s
+        .enable
+        .iter()
+        .map(|l| l.rsplit("[[").next().unwrap_or(l).trim())
+        .collect();
+    // alloc(newmem, $1000, site) → the injected code's label.
+    let Some(newmem) = lines.iter().find_map(|l| {
+        call(l, "alloc")
+            .filter(|a| a.len() >= 2)
+            .map(|a| a[0].to_ascii_lowercase())
+    }) else {
+        return Vec::new();
+    };
+    // `site:` (or `site+3:`) followed by `jmp newmem`: where the hook is.
+    let Some((hook, offset)) = lines.windows(2).find_map(|w| {
+        let (name, off) = site(w[0])?;
+        let (op, args) = instruction(w[1])?;
+        (op == "jmp" && args.first() == Some(&newmem) && aobs.contains_key(&name))
+            .then_some((name, off))
+    }) else {
+        return Vec::new();
+    };
+    let Some(start) = lines
+        .iter()
+        .position(|l| site(l).is_some_and(|(n, o)| n == newmem && o == 0))
+    else {
+        return Vec::new();
+    };
+    // Variables: label(x) with `x: dq 0`, or globalalloc(x, 8).
+    let mut temps: HashMap<String, String> = HashMap::new();
+    let mut when: Option<(String, i64)> = None;
+    let mut pending_cond: Option<(String, i64)> = None;
+    let mut found = Vec::new();
+    for line in &lines[start + 1..] {
+        if line.ends_with(':') {
+            // `code:` or any other label ends the injected part.
+            break;
+        }
+        let Some((op, args)) = instruction(line) else {
+            return Vec::new();
+        };
+        match (op.as_str(), args.as_slice()) {
+            ("test", [a, b]) if a == b => pending_cond = Some((a.clone(), 0)),
+            ("cmp", [a, b]) if !a.starts_with('[') => match aa_number(b) {
+                Some(n) => pending_cond = Some((a.clone(), n)),
+                None => return Vec::new(),
+            },
+            ("jne" | "jnz", [target])
+                if target == "code" && pending_cond.is_some() && when.is_none() =>
+            {
+                when = pending_cond.take();
+            }
+            ("mov", [t, v]) if !t.starts_with('[') && is_name(v) && !is_register(v) => {
+                temps.insert(t.clone(), v.clone());
+            }
+            ("mov", [dst, reg])
+                if dst.starts_with('[') && dst.ends_with(']') && is_register(reg) =>
+            {
+                let inner = &dst[1..dst.len() - 1];
+                let var = temps
+                    .get(inner)
+                    .cloned()
+                    .or_else(|| (is_name(inner) && !is_register(inner)).then(|| inner.to_string()));
+                match var {
+                    Some(v) => found.push((v, reg.clone())),
+                    None => return Vec::new(),
+                }
+            }
+            // `lea rdx,[rdx]` does nothing.
+            ("lea", [a, b]) if *b == format!("[{a}]") => {}
+            _ => return Vec::new(),
+        }
+    }
+    if pending_cond.is_some() {
+        return Vec::new();
+    }
+    let (module, aob) = &aobs[&hook];
+    found
+        .into_iter()
+        .map(|(var, register)| {
+            (
+                var,
+                Sym::Capture {
+                    module: module.clone(),
+                    aob: aob.clone(),
+                    offset,
+                    register,
+                    when: when.clone(),
+                },
+            )
+        })
+        .collect()
+}
+
+fn is_register(w: &str) -> bool {
+    matches!(
+        w,
+        "rax"
+            | "rbx"
+            | "rcx"
+            | "rdx"
+            | "rsi"
+            | "rdi"
+            | "rbp"
+            | "rsp"
+            | "r8"
+            | "r9"
+            | "r10"
+            | "r11"
+            | "r12"
+            | "r13"
+            | "r14"
+            | "r15"
+            | "eax"
+            | "ebx"
+            | "ecx"
+            | "edx"
+            | "esi"
+            | "edi"
+            | "ebp"
+            | "esp"
+            | "r8d"
+            | "r9d"
+            | "r10d"
+            | "r11d"
+            | "r12d"
+            | "r13d"
+            | "r14d"
+            | "r15d"
+    )
 }
 
 /// The Lua RIP idiom for `name`: `getAddress("name") + K`, then
@@ -433,12 +607,16 @@ pub(crate) fn byte_patch(script: &str) -> Option<BytePatch> {
 /// find itself (`known`), and changes nothing in the game.
 pub(crate) fn only_registers(script: &str, known: &HashMap<String, Sym>) -> bool {
     let s = sections(script);
+    // Injected code is fine when it only grabs pointers: `known` then has
+    // captures (recognised only when the injected part does nothing else).
+    let grabs_only = known.values().any(|s| matches!(s, Sym::Capture { .. }));
     let mut names = Vec::new();
     for line in &s.enable {
         let line = line.rsplit("[[").next().unwrap_or(line).trim();
-        if call(line, "alloc").is_some()
-            || call(line, "globalalloc").is_some()
-            || bytes_of(line).is_some()
+        if !grabs_only
+            && (call(line, "alloc").is_some()
+                || call(line, "globalalloc").is_some()
+                || bytes_of(line).is_some())
         {
             return false;
         }
@@ -594,6 +772,47 @@ unregistersymbol(gameoffset)
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn pointer_grabs_become_captures() {
+        let grab = "[ENABLE]\naobscanmodule(player,DBXV2.exe,48 8B C7 48 83 C4 48 5F 5B C3 83)\n\
+                    alloc(newmem,$1000,player)\nglobalalloc(player_ptr,8)\nglobalalloc(battle_ptr,8)\n\
+                    label(code)\nlabel(return)\nnewmem:\n  mov rax,player_ptr\n  mov [rax],rdi\n\
+                    mov rax,battle_ptr\n  mov [rax],rbx\ncode:\n  mov rax,rdi\n  add rsp,48\n  jmp return\n\
+                    player:\n  jmp newmem\n  nop\n  nop\nreturn:\nregistersymbol(player)\n[DISABLE]\n\
+                    player:\n  db 48 8B C7 48 83 C4 48\ndealloc(newmem)";
+        let mut syms = HashMap::new();
+        symbols(grab, &mut syms);
+        let cap = |r: &str| Sym::Capture {
+            module: Some("DBXV2.exe".into()),
+            aob: "48 8B C7 48 83 C4 48 5F 5B C3 83".into(),
+            offset: 0,
+            register: r.into(),
+            when: None,
+        };
+        assert_eq!(syms.get("player_ptr"), Some(&cap("rdi")));
+        assert_eq!(syms.get("battle_ptr"), Some(&cap("rbx")));
+
+        // With a guard, a store through the variable itself, and a no-op lea.
+        let guarded = "[ENABLE]\naobscanmodule(p,G.exe,33 C9 3B D8 48 0F 45 F1)\nalloc(newmem,$1000,p)\n\
+                       label(code)\nlabel(return)\nlabel(pp)\nnewmem:\n  test ebx,ebx\n  jne code\n\
+                       mov [pp],rsi\n  lea rsi,[rsi]\ncode:\n  xor ecx,ecx\n  jmp return\npp:\n  dq 0\n\
+                       p:\n  jmp newmem\n  nop 3\nreturn:\nregistersymbol(pp)\n[DISABLE]\n";
+        let mut syms = HashMap::new();
+        symbols(guarded, &mut syms);
+        assert!(matches!(
+            syms.get("pp"),
+            Some(Sym::Capture { register, when: Some((w, 0)), .. }) if register == "rsi" && w == "ebx"
+        ));
+
+        // Injected code that does anything else isn't a grab.
+        let logic = "[ENABLE]\naobscanmodule(h,G.exe,0F 57 DB F3 0F 5F CB)\nalloc(newmem,$1000,h)\n\
+                     newmem:\n  mov rax,player_ptr\n  cmp rcx,[rax]\n  jne code\n  xorps xmm1,xmm1\n\
+                     code:\n  jmp return\nh:\n  jmp newmem\n[DISABLE]\n";
+        let mut syms = HashMap::new();
+        symbols(logic, &mut syms);
+        assert!(!syms.values().any(|s| matches!(s, Sym::Capture { .. })));
     }
 
     #[test]

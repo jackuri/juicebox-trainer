@@ -299,6 +299,24 @@ describe("TrainerPanel", () => {
     expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
   });
 
+  it("says it's waiting for the game while a value is being found", async () => {
+    loaded = true;
+    let finish: (v: unknown) => void = () => undefined;
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "trainer_set" ? new Promise((r) => (finish = r)) : base(cmd, args),
+    );
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    const input = await screen.findByLabelText("Set Gold value");
+    fireEvent.change(input, { target: { value: "777" } });
+    fireEvent.click(screen.getByRole("button", { name: "Set" }));
+    expect(
+      await screen.findByText(/Waiting for the game/, undefined, { timeout: 2000 }),
+    ).toBeInTheDocument();
+    finish(view());
+    await vi.waitFor(() => expect(screen.queryByText(/Waiting for the game/)).not.toBeInTheDocument());
+  });
+
   it("repairs cheats that stopped matching after an update", async () => {
     loaded = true;
     render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
