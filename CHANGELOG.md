@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0] - 2026-11-09
+
+### Added
+- **Hide games in the Games tab.** Each game has a **Hide** button; hidden games leave the list and
+  **Show hidden (N)** brings them back, marked "Hidden", with **Unhide**. The list of hidden games is
+  kept only on this PC (`%APPDATA%\OpenTrainer\hidden-games.json`); the game and its pack are not
+  touched.
+
 ## [1.7.0] - 2026-11-09
 
 ### Changed

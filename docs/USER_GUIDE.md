@@ -49,6 +49,10 @@ attached to, if any.
 The quickest way is **Games → Play with cheats**. It starts the game, waits for it, attaches, loads
 the game's pack and turns on your start preset.
 
+To keep a game out of the Games list, click **Hide** on it. Hidden games are remembered on this PC
+only (nothing is uploaded). Tick **Show hidden** at the top to see them again; **Unhide** puts a game
+back in the list. Hiding only changes the list: the game and its pack stay as they are.
+
 Or do it yourself:
 
 1. Start the game.

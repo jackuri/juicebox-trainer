@@ -266,6 +266,8 @@ export interface LibraryGame {
   blocked: string | null;
   /** Anti-cheat that comes with the game; works only while it isn't running. */
   antiCheat: string | null;
+  /** Hidden from the Games tab by the player. */
+  hidden: boolean;
   /** A cover picture is on this PC (`libraryCover`): wide artwork, or an icon / logo. */
   cover: "art" | "icon" | null;
 }
@@ -925,6 +927,7 @@ export const api = {
   libraryCover: (id: string) => invoke<unknown>("library_cover", { id }),
   libraryAdd: (exe: string) => invoke<void>("library_add", { exe }),
   libraryRemove: (id: string) => invoke<void>("library_remove", { id }),
+  librarySetHidden: (id: string, hidden: boolean) => invoke<void>("library_set_hidden", { id, hidden }),
   libraryOpenFolder: (id: string) => invoke<void>("library_open_folder", { id }),
   libraryCancel: () => invoke<void>("library_cancel"),
   libraryPlay: (id: string) => invoke<PlayResult>("library_play", { id }),

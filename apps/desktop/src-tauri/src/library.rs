@@ -65,6 +65,8 @@ pub struct LibraryGame {
     pub anti_cheat: Option<String>,
     /// A cover picture is available (`library_cover`), and how to draw it.
     pub cover: Option<CoverKind>,
+    /// The player hid it from the Games tab (shown only with "Show hidden").
+    pub hidden: bool,
     #[serde(skip)]
     cover_source: Option<CoverSource>,
 }
@@ -72,6 +74,49 @@ pub struct LibraryGame {
 /// `%APPDATA%\OpenTrainer` (the player's own games list lives here).
 fn app_dir() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("OpenTrainer"))
+}
+
+const HIDDEN_FILE: &str = "hidden-games.json";
+
+/// Ids of the games the player hid. A missing or broken file hides nothing.
+fn load_hidden(dir: &Path) -> HashSet<String> {
+    std::fs::read_to_string(dir.join(HIDDEN_FILE))
+        .ok()
+        .and_then(|t| serde_json::from_str::<Vec<String>>(&t).ok())
+        .map(|ids| ids.into_iter().collect())
+        .unwrap_or_default()
+}
+
+fn save_hidden(dir: &Path, ids: &HashSet<String>) -> std::io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let mut sorted: Vec<&String> = ids.iter().collect();
+    sorted.sort();
+    let text = serde_json::to_string_pretty(&sorted).map_err(std::io::Error::other)?;
+    let tmp = dir.join(format!("{HIDDEN_FILE}.tmp"));
+    std::fs::write(
+        &tmp,
+        text + "
+",
+    )?;
+    std::fs::rename(&tmp, dir.join(HIDDEN_FILE))
+}
+
+/// Hides or shows one game. Ids are kept as given (the list only ever
+/// compares them); an empty or very long id is refused.
+fn set_hidden(dir: &Path, id: &str, hidden: bool) -> std::io::Result<()> {
+    if id.is_empty() || id.len() > 1024 {
+        return Err(std::io::Error::other("not a game id"));
+    }
+    let mut ids = load_hidden(dir);
+    let changed = if hidden {
+        ids.insert(id.to_string())
+    } else {
+        ids.remove(id)
+    };
+    if changed {
+        save_hidden(dir, &ids)?;
+    }
+    Ok(())
 }
 
 /// Valid packs by exe name (lowercase). The player's packs win over the
@@ -172,6 +217,7 @@ fn describe(
         auto_preset,
         blocked,
         anti_cheat,
+        hidden: false,
         cover: cover_source.as_ref().map(|(k, _)| *k),
         cover_source: cover_source.map(|(_, s)| s),
     }
@@ -188,9 +234,14 @@ fn all_installs() -> Vec<Install> {
 fn list(settings_dir: Option<&Path>) -> Vec<LibraryGame> {
     let packs = packs_by_exe();
     let steam = ot_saves::steam::steam_dir();
+    let hidden = app_dir().map(|d| load_hidden(&d)).unwrap_or_default();
     let mut games: Vec<LibraryGame> = all_installs()
         .into_iter()
-        .map(|i| describe(i, &packs, settings_dir, steam.as_deref()))
+        .map(|i| {
+            let mut g = describe(i, &packs, settings_dir, steam.as_deref());
+            g.hidden = hidden.contains(&g.install.id);
+            g
+        })
         .collect();
     // Games with a pack first, then by name.
     games.sort_by_key(|g| (g.pack.is_none(), g.install.name.to_lowercase()));
@@ -268,6 +319,16 @@ pub async fn library_remove(id: String) -> CmdResult<()> {
     let mut own = installs::load_own(&dir);
     own.retain(|g| g.install().id != id);
     installs::save_own(&dir, &own).map_err(blocking_err)
+}
+
+/// Hides a game from the Games tab, or shows it again.
+#[tauri::command]
+pub async fn library_set_hidden(id: String, hidden: bool) -> CmdResult<()> {
+    let dir = app_dir().ok_or_else(|| CommandError::new("io", "%APPDATA% is not set"))?;
+    tauri::async_runtime::spawn_blocking(move || set_hidden(&dir, &id, hidden))
+        .await
+        .map_err(blocking_err)?
+        .map_err(blocking_err)
 }
 
 #[tauri::command]
@@ -704,6 +765,26 @@ mod tests {
             .map(|g| (g.pid, g.name.as_str(), g.library_id.as_deref()))
             .collect();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn hidden_games_are_remembered() {
+        let dir = std::env::temp_dir().join(format!("ot-hidden-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(load_hidden(&dir).is_empty());
+        set_hidden(&dir, "steam:454650", true).unwrap();
+        set_hidden(&dir, r"own:c:\games\a.exe", true).unwrap();
+        set_hidden(&dir, "steam:454650", true).unwrap();
+        let ids = load_hidden(&dir);
+        assert_eq!(ids.len(), 2);
+        assert!(ids.contains("steam:454650"));
+        set_hidden(&dir, "steam:454650", false).unwrap();
+        assert_eq!(load_hidden(&dir).len(), 1);
+        assert!(set_hidden(&dir, "", true).is_err());
+        // A broken file hides nothing instead of failing the list.
+        std::fs::write(dir.join(HIDDEN_FILE), "not json").unwrap();
+        assert!(load_hidden(&dir).is_empty());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

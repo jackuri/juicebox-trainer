@@ -27,6 +27,7 @@ interface Props {
 export function LibraryView({ onPlayed, onOpenAi }: Props) {
   const [games, setGames] = useState<LibraryGame[] | null>(null);
   const [filter, setFilter] = useState("");
+  const [showHidden, setShowHidden] = useState(false);
   const [addPath, setAddPath] = useState("");
   const [playing, setPlaying] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
@@ -39,10 +40,21 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
   useEffect(() => load(), [load]);
   useEffect(() => onLibraryProgress(setProgress), []);
 
+  const hiddenCount = useMemo(() => (games ?? []).filter((g) => g.hidden).length, [games]);
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return (games ?? []).filter((g) => !q || g.name.toLowerCase().includes(q));
-  }, [games, filter]);
+    return (games ?? []).filter((g) => (showHidden || !g.hidden) && (!q || g.name.toLowerCase().includes(q)));
+  }, [games, filter, showHidden]);
+
+  async function setHidden(g: LibraryGame, hidden: boolean) {
+    setError(null);
+    try {
+      await api.librarySetHidden(g.id, hidden);
+      setGames((list) => list?.map((x) => (x.id === g.id ? { ...x, hidden } : x)) ?? null);
+    } catch (e) {
+      setError(toCommandError(e).message);
+    }
+  }
 
   async function play(g: LibraryGame) {
     setError(null);
@@ -91,6 +103,12 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
+        {(hiddenCount > 0 || showHidden) && (
+          <label className="flex items-center gap-1.5 text-xs text-zinc-400">
+            <input type="checkbox" checked={showHidden} onChange={(e) => setShowHidden(e.target.checked)} />
+            Show hidden ({hiddenCount})
+          </label>
+        )}
         <button
           className="rounded-lg bg-zinc-800 px-3 py-1 text-xs hover:bg-zinc-700"
           onClick={() => {
@@ -117,6 +135,9 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
         </p>
       )}
       {games === null && <p className="text-sm text-zinc-500">Looking for games (Steam, Epic, GOG, Xbox)…</p>}
+      {games !== null && games.length > 0 && shown.length === 0 && !filter.trim() && (
+        <p className="text-sm text-zinc-400">All your games are hidden. Tick &quot;Show hidden&quot; to see them.</p>
+      )}
       {games !== null && games.length === 0 && (
         <p className="text-sm text-zinc-400">No games found. Add one below by its .exe.</p>
       )}
@@ -126,7 +147,7 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
           <li
             key={g.id}
             className={`group flex flex-col overflow-hidden rounded-2xl bg-zinc-900/80 ring-1 ring-zinc-800 transition hover:ring-zinc-600 ${
-              g.blocked ? "opacity-70" : ""
+              g.blocked || g.hidden ? "opacity-70" : ""
             }`}
             data-testid={`game-${g.id}`}
           >
@@ -134,6 +155,11 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
               <span className="absolute left-2.5 top-2.5 rounded-full bg-black/45 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/90 backdrop-blur">
                 {STORE[g.store]}
               </span>
+              {g.hidden && (
+                <span className="absolute bottom-2.5 left-2.5 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-200">
+                  Hidden
+                </span>
+              )}
               {g.pack && !g.blocked && (
                 <span className="absolute right-2.5 top-2.5 rounded-full bg-green-500/90 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-green-950">
                   Cheats
@@ -178,6 +204,14 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
                   onClick={() => void api.libraryOpenFolder(g.id).catch((e: unknown) => setError(toCommandError(e).message))}
                 >
                   Folder
+                </button>
+                <button
+                  className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700"
+                  aria-label={`${g.hidden ? "Unhide" : "Hide"} ${g.name}`}
+                  title={g.hidden ? "Show this game in the list again" : "Hide this game from the list (only on this PC)"}
+                  onClick={() => void setHidden(g, !g.hidden)}
+                >
+                  {g.hidden ? "Unhide" : "Hide"}
                 </button>
                 {g.store === "own" && (
                   <button

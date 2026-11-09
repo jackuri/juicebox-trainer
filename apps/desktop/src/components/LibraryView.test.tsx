@@ -25,6 +25,7 @@ function game(over: Partial<LibraryGame>): LibraryGame {
     autoPreset: null,
     blocked: null,
     antiCheat: null,
+    hidden: false,
     cover: null,
     ...over,
   };
@@ -173,5 +174,30 @@ describe("LibraryView", () => {
     picked = "C:\\Games\\Mine\\mine.exe";
     fireEvent.click(browse);
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_add", { exe: "C:\\Games\\Mine\\mine.exe" }));
+  });
+
+  it("hides games and shows them again", async () => {
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "library_list")
+        return Promise.resolve([game({ id: "steam:1", name: "Shown Game" }), game({ id: "steam:2", name: "Secret Game", hidden: true })]);
+      return Promise.resolve();
+    });
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    await screen.findByTestId("game-steam:1");
+    expect(screen.queryByTestId("game-steam:2")).not.toBeInTheDocument();
+
+    // Hide the shown one: it leaves the list and the switch counts it.
+    fireEvent.click(screen.getByRole("button", { name: "Hide Shown Game" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_set_hidden", { id: "steam:1", hidden: true }));
+    await vi.waitFor(() => expect(screen.queryByTestId("game-steam:1")).not.toBeInTheDocument());
+    expect(screen.getByText(/All your games are hidden/)).toBeInTheDocument();
+
+    const toggle = screen.getByLabelText("Show hidden (2)");
+    fireEvent.click(toggle);
+    const secret = screen.getByTestId("game-steam:2");
+    expect(within(secret).getByText("Hidden")).toBeInTheDocument();
+    fireEvent.click(within(secret).getByRole("button", { name: "Unhide Secret Game" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("library_set_hidden", { id: "steam:2", hidden: false }));
+    await vi.waitFor(() => expect(screen.getByLabelText("Show hidden (1)")).toBeInTheDocument());
   });
 });

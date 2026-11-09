@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.7.0_
+_Last updated: 2026-11-09 — v1.8.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,10 @@ _Last updated: 2026-11-09 — v1.7.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.8.0 Hide games: `library_set_hidden(id, hidden)` keeps hidden ids in
+  `%APPDATA%\OpenTrainer\hidden-games.json` (broken file = nothing hidden); `LibraryGame.hidden`;
+  Games tab Hide / Unhide buttons, "Show hidden (N)" switch, "Hidden" badge, all-hidden message.
+  Only the Games list changes (the Cheats game picker still lists running hidden games).
 - v1.7.0 Official no-anti-cheat modes: `guard::check` (running game) treats install markers alone as
   `Verdict.notes` (allowed); anything live (process/service/driver/module), online-only or a failed
   check still blocks, listing the markers too. `check_install` (saves, Games list) unchanged; the
@@ -140,7 +144,7 @@ _Last updated: 2026-11-09 — v1.7.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.7.0 are pushed and tagged (v1.7.0 is Latest, in-app updates on). The community list has its first real shared pack (Species Unknown, merged by the user).
+- v1.1.0 – v1.7.0 are pushed and tagged (v1.7.0 is Latest, in-app updates on). v1.8.0 is committed locally. The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.

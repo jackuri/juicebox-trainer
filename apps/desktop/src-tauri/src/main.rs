@@ -199,6 +199,7 @@ fn main() {
             library::library_cover,
             library::library_add,
             library::library_remove,
+            library::library_set_hidden,
             library::library_open_folder,
             library::library_cancel,
             library::library_play,
