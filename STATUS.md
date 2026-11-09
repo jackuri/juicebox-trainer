@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-08 — v1.4.2_
+_Last updated: 2026-11-08 — v1.5.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,13 @@ _Last updated: 2026-11-08 — v1.4.2_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.5.0 Smarter tables (user's DBXV2.CT from FearLessRevolution gave 0 cheats): `ct_script.rs`
+  reads Auto Assembler / Lua as text and recognises symbol patterns (Lua RIP idiom, aobscanmodule +
+  registersymbol, define, label-at-number), byte-swap scripts (→ patch, x64 only, changed bytes
+  wildcarded), and `ct.rs` evaluates offset math. DBXV2 now gives 98 cheats (92 values, 6 patches).
+  A script-style table for the live x64 testbed (Lua RIP pointer, slot math, byte swap) passes.
+  Next (1.6.0): values under pointers that injection scripts grab (battle_ptr / player_ptr, 39 in
+  DBXV2) via a hardware-breakpoint "capture" address; maybe Binary (bit) values.
 - v1.4.2 Hardening: re-test (all checks; 29/29 real-app e2e incl. .CT drop → install → use,
   share dialog, Update button), dependency scan (npm: 0 in shipped code, 10 moderate in eslint's
   minimatch, dev-only, fix needs a major eslint can't take yet; Rust via OSV: zip 4.6.1 removed by

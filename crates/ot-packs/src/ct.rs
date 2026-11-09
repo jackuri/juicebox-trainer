@@ -1,21 +1,26 @@
 //! Cheat Engine tables (`.CT`) to packs.
 //!
-//! A table is XML. Only plain value entries come over: a number type, an
-//! address inside a module (`game.exe+1234`, `[[game.exe+10]+20]+8`) and
-//! optional pointer offsets. Everything else is listed as skipped with the
-//! reason, never run: Auto Assembler and Lua scripts, fixed addresses, names
-//! that only a table script defines, text and byte-array values. The pack
-//! that comes out goes through the normal validator like any other pack.
+//! A table is XML. Value entries come over: a number type, an address inside
+//! a module (`game.exe+1234`, `[[game.exe+10]+20]+8`) and optional pointer
+//! offsets, also when they start from a name a table script defines and
+//! OpenTrainer can find itself (see [`crate::ct_script`]), and offsets with
+//! simple math (`slot*6180+2F90`). Scripts that only swap a few bytes become
+//! checked patch cheats. Everything else is listed as skipped with the reason,
+//! never run: other Auto Assembler and Lua scripts, fixed addresses, text and
+//! byte-array values. The pack that comes out goes through the normal
+//! validator like any other pack.
 //!
 //! The XML is read with DTDs refused, from at most [`MAX_TABLE_BYTES`].
 
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use ot_core::ValueType;
 use serde::Serialize;
 
+use crate::ct_script::{self, Sym};
 use crate::schema::{
-    Address, Cheat, Game, Impl, Meta, NumberConfig, Pack, SCHEMA_VERSION, Ui, ValueImpl,
+    Address, Cheat, Game, Impl, Meta, NumberConfig, Operand, Pack, PackArch, PatchImpl,
+    SCHEMA_VERSION, Ui, ValueImpl,
 };
 use crate::validate::{Severity, validate};
 
@@ -91,6 +96,7 @@ pub fn convert(
     }
 
     let mut walk = Walk::default();
+    walk.read_scripts(root);
     if let Some(entries) = child(root, "CheatEntries") {
         walk.entries(entries, None, None, 0);
     }
@@ -111,7 +117,12 @@ pub fn convert(
             name,
             engine: None,
             exe: guessed.unwrap_or_else(|| UNKNOWN_EXE.into()),
-            arch: None,
+            // Patches are only taken from tables that show a 64-bit game.
+            arch: walk
+                .cheats
+                .iter()
+                .any(|c| matches!(c.implementation, Impl::Patch(_)))
+                .then_some(PackArch::X64),
             builds: Vec::new(),
         },
         meta: Meta {
@@ -167,9 +178,34 @@ struct Walk {
     skipped: Vec<Skipped>,
     ids: HashSet<String>,
     seen: usize,
+    /// Names the table's scripts define that OpenTrainer can redo itself.
+    syms: HashMap<String, Sym>,
+    /// A script uses 64-bit registers: the game is 64-bit.
+    x64: bool,
 }
 
+/// Something wrong with an address, said to the player.
+const OUT_OF_RANGE: &str = "its address is out of range";
+
 impl Walk {
+    /// Reads every script in the table first (as text), so values can use the
+    /// names they define wherever they are.
+    fn read_scripts(&mut self, root: roxmltree::Node) {
+        let mut n = 0usize;
+        for s in root
+            .descendants()
+            .filter(|d| d.has_tag_name("AssemblerScript"))
+        {
+            n += 1;
+            if n > MAX_ENTRIES {
+                break;
+            }
+            let text = text_of(s);
+            ct_script::symbols(&text, &mut self.syms);
+            self.x64 |= ct_script::mentions_x64(&text);
+        }
+    }
+
     fn entries(
         &mut self,
         list: roxmltree::Node,
@@ -201,26 +237,37 @@ impl Walk {
             name = format!("Entry {}", id.trim());
         }
         let ty = child(e, "VariableType").map(|n| text_of(n).trim().to_string());
-        let address = child(e, "Address").map(|n| text_of(n).trim().to_string());
+        let address = child(e, "Address")
+            .map(|n| text_of(n).trim().to_string())
+            .filter(|a| !a.is_empty());
         let group = child(e, "GroupHeader").is_some_and(|n| text_of(n).trim() == "1")
             || (ty.is_none() && address.is_none());
 
-        let mut chain = None;
-        if group {
-            // A group's own address (if any) is what its children's `+X` addresses add to.
-            chain = address
-                .as_deref()
-                .filter(|a| !a.is_empty() && !a.starts_with(['+', '-']))
-                .and_then(|a| parse_address(a).ok());
-        } else {
-            match self.value(e, ty.as_deref(), address.as_deref(), parent) {
-                Ok((c, vt)) => {
-                    self.add(&name, category, &c, vt);
-                    chain = Some(c);
+        // The entry's address, if it has one: its children's `+X` addresses
+        // add to it even when the entry itself can't come over (e.g. text).
+        let chain = address.as_deref().map(|a| self.chain(e, a, parent));
+        let kids_base = chain.as_ref().and_then(|c| c.as_ref().ok()).cloned();
+
+        if ty.as_deref() == Some("Auto Assembler Script") {
+            let script = child(e, "AssemblerScript").map(text_of).unwrap_or_default();
+            self.script(&name, category, &script);
+        } else if !group {
+            let signed = child(e, "ShowAsSigned").is_some_and(|n| text_of(n).trim() == "1");
+            let result = match (ty.as_deref(), chain) {
+                (None, _) => Err("it has no value type".to_string()),
+                (Some(t), _) if value_type(t, signed).is_none() => {
+                    Err(format!("its type ({t}) isn't a number OpenTrainer can set"))
                 }
+                (_, None) => Err("it has no address".to_string()),
+                (Some(t), Some(c)) => {
+                    c.map(|c| (c, value_type(t, signed).unwrap_or(ValueType::U32)))
+                }
+            };
+            match result.and_then(|(c, vt)| Ok((c.address()?, vt))) {
+                Ok((address, vt)) => self.add_value(&name, category, address, vt),
                 Err(why) => self.skipped.push(Skipped {
                     name: name.clone(),
-                    why: why.to_string(),
+                    why,
                 }),
             }
         }
@@ -230,45 +277,59 @@ impl Walk {
             } else {
                 category.unwrap_or_default()
             };
-            self.entries(kids, Some(cat), chain.as_ref(), depth + 1);
+            self.entries(kids, Some(cat), kids_base.as_ref(), depth + 1);
         }
     }
 
-    fn value(
+    /// A script entry: a byte swap becomes a patch cheat; a script that only
+    /// finds addresses OpenTrainer can find itself isn't needed; anything
+    /// else is left out.
+    fn script(&mut self, name: &str, category: Option<&str>, script: &str) {
+        if let Some(p) = ct_script::byte_patch(script) {
+            if !self.x64 {
+                self.skipped.push(Skipped {
+                    name: name.into(),
+                    why: "it changes game code, but the table doesn't show whether the game is 64-bit".into(),
+                });
+                return;
+            }
+            self.add_patch(name, category, p);
+            return;
+        }
+        let mut mine = HashMap::new();
+        ct_script::symbols(script, &mut mine);
+        let only_finds = ct_script::only_registers(script, &mine);
+        if !only_finds {
+            self.skipped.push(Skipped {
+                name: name.into(),
+                why: SCRIPT.into(),
+            });
+        }
+    }
+
+    /// The address an entry's `Address` and `Offsets` describe.
+    fn chain(
         &self,
         e: roxmltree::Node,
-        ty: Option<&str>,
-        address: Option<&str>,
+        address: &str,
         parent: Option<&Chain>,
-    ) -> Result<(Chain, ValueType), String> {
-        let signed = child(e, "ShowAsSigned").is_some_and(|n| text_of(n).trim() == "1");
-        let vt = match ty {
-            Some("Auto Assembler Script") => return Err(SCRIPT.into()),
-            Some(t) => value_type(t, signed)
-                .ok_or_else(|| format!("its type ({t}) isn't a number OpenTrainer can set"))?,
-            None => return Err("it has no value type".into()),
-        };
-        let address = address
-            .filter(|a| !a.is_empty())
-            .ok_or("it has no address")?;
-        let mut chain = if let Some(rel) = address
-            .strip_prefix('+')
-            .or_else(|| address.strip_prefix('-').map(|_| address))
-        {
-            // Relative to the entry it sits under.
-            let n = if address.starts_with('-') {
-                parse_hex(address)
-            } else {
-                parse_hex(rel)
-            }
-            .ok_or("its address isn't a plain hex offset")?;
+    ) -> Result<Chain, String> {
+        let mut chain = if let Some(rel) = address.strip_prefix('+') {
+            let n = eval(rel, &self.syms).ok_or("its address isn't a plain hex offset")?;
             let mut c = parent
                 .cloned()
-                .ok_or("its address is relative to an entry that couldn't be imported")?;
+                .ok_or("it builds on an entry above it that couldn't be imported")?;
+            c.add(n)?;
+            c
+        } else if address.starts_with('-') {
+            let n = eval(address, &self.syms).ok_or("its address isn't a plain hex offset")?;
+            let mut c = parent
+                .cloned()
+                .ok_or("it builds on an entry above it that couldn't be imported")?;
             c.add(n)?;
             c
         } else {
-            parse_address(address)?
+            parse_address(address, &self.syms)?
         };
         if let Some(offs) = child(e, "Offsets") {
             let list: Vec<String> = offs
@@ -278,25 +339,25 @@ impl Walk {
                 .collect();
             // Cheat Engine stores them last-applied first.
             for o in list.iter().rev() {
-                let n = parse_hex(o).ok_or_else(|| {
+                let n = eval(o, &self.syms).ok_or_else(|| {
                     format!(
-                        "its pointer offset \"{}\" isn't a plain hex number",
+                        "its pointer offset \"{}\" isn't something OpenTrainer can work out",
                         o.trim()
                     )
                 })?;
                 chain.offsets.push(n);
             }
         }
-        Ok((chain, vt))
+        Ok(chain)
     }
 
-    fn add(&mut self, name: &str, category: Option<&str>, chain: &Chain, ty: ValueType) {
+    fn new_id(&mut self, name: &str) -> Option<String> {
         if self.cheats.len() >= MAX_CHEATS {
             self.skipped.push(Skipped {
                 name: name.into(),
                 why: format!("only the first {MAX_CHEATS} entries of a table are imported"),
             });
-            return;
+            return None;
         }
         let base = slug(name, "value");
         let mut id = base.chars().take(56).collect::<String>();
@@ -306,6 +367,11 @@ impl Walk {
             n += 1;
         }
         self.ids.insert(id.clone());
+        Some(id)
+    }
+
+    fn add_value(&mut self, name: &str, category: Option<&str>, address: Address, ty: ValueType) {
+        let Some(id) = self.new_id(name) else { return };
         self.cheats.push(Cheat {
             id,
             name: name.chars().take(80).collect(),
@@ -321,17 +387,32 @@ impl Walk {
                 hold: true,
             }),
             button: None,
-            implementation: Impl::Value(ValueImpl {
-                ty,
-                address: Address {
-                    base: Some(chain.base()),
-                    aob: None,
-                    module: None,
-                    offset: None,
-                    operand: None,
-                    next: None,
-                    offsets: chain.offsets.iter().map(|&o| hex(o)).collect(),
-                },
+            implementation: Impl::Value(ValueImpl { ty, address }),
+        });
+    }
+
+    fn add_patch(&mut self, name: &str, category: Option<&str>, p: ct_script::BytePatch) {
+        let Some(id) = self.new_id(name) else { return };
+        self.cheats.push(Cheat {
+            id,
+            name: name.chars().take(80).collect(),
+            category: category.map(|c| c.chars().take(60).collect()),
+            description: Some(
+                "Changes a few bytes of game code (from the table); turned off, they're put back."
+                    .into(),
+            ),
+            ui: Ui::Toggle,
+            hotkey: None,
+            toggle: None,
+            slider: None,
+            number: None,
+            button: None,
+            implementation: Impl::Patch(PatchImpl {
+                module: p.module,
+                aob: wildcard_changed(&p.aob, p.offset, &p.original, &p.replace),
+                offset: p.offset,
+                original: p.original,
+                replace: p.replace,
             }),
         });
     }
@@ -340,25 +421,70 @@ impl Walk {
     fn likely_exe(&self) -> Option<String> {
         let mut count: BTreeMap<String, (usize, String)> = BTreeMap::new();
         for c in &self.cheats {
-            if let Impl::Value(v) = &c.implementation
-                && let Some(base) = &v.address.base
-                && let Some((m, _)) = base.rsplit_once('+')
+            let module = match &c.implementation {
+                Impl::Value(v) => v
+                    .address
+                    .base
+                    .as_ref()
+                    .and_then(|b| b.rsplit_once('+').map(|(m, _)| m.to_string()))
+                    .or_else(|| v.address.module.clone()),
+                Impl::Patch(p) => p.module.clone(),
+            };
+            if let Some(m) = module
                 && m.to_ascii_lowercase().ends_with(".exe")
             {
-                count
-                    .entry(m.to_ascii_lowercase())
-                    .or_insert((0, m.to_string()))
-                    .0 += 1;
+                count.entry(m.to_ascii_lowercase()).or_insert((0, m)).0 += 1;
             }
         }
         count.into_values().max_by_key(|(n, _)| *n).map(|(_, m)| m)
     }
 }
 
-/// A pointer path: `module+base`, then for each offset read a pointer and add it.
+/// The bytes a patch changes become `??` in its signature, so a game that is
+/// already patched is still found (and can be put back); only if at least 4
+/// fixed bytes are left.
+fn wildcard_changed(aob: &str, offset: i64, original: &str, replace: &str) -> String {
+    let mut bytes: Vec<String> = aob.split_whitespace().map(str::to_string).collect();
+    let (Ok(start), true) = (usize::try_from(offset), offset >= 0) else {
+        return aob.to_string();
+    };
+    for (k, (o, r)) in original
+        .split_whitespace()
+        .zip(replace.split_whitespace())
+        .enumerate()
+    {
+        if o != r
+            && let Some(b) = bytes.get_mut(start + k)
+        {
+            *b = "??".into();
+        }
+    }
+    if bytes.iter().filter(|b| *b != "??").count() >= 4 {
+        bytes.join(" ")
+    } else {
+        aob.to_string()
+    }
+}
+
+/// What an address starts from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Start {
+    /// `game.exe+...`
+    Module(String),
+    /// Found by its bytes (a name a script defines with `aobscanmodule`).
+    Aob {
+        module: Option<String>,
+        aob: String,
+        offset: i64,
+        rip_next: Option<i64>,
+    },
+}
+
+/// A pointer path: the start plus `base`, then for each offset read a
+/// pointer and add it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Chain {
-    module: String,
+    start: Start,
     base: i64,
     offsets: Vec<i64>,
 }
@@ -369,12 +495,62 @@ impl Chain {
             Some(o) => o,
             None => &mut self.base,
         };
-        *slot = slot.checked_add(n).ok_or("its address is out of range")?;
+        *slot = slot.checked_add(n).ok_or(OUT_OF_RANGE)?;
         Ok(())
     }
 
+    /// As a pack address.
+    fn address(&self) -> Result<Address, String> {
+        let offsets = self.offsets.iter().map(|&o| hex(o)).collect();
+        Ok(match &self.start {
+            Start::Module(m) => {
+                if self.base < 0 {
+                    return Err("its address is before the start of the module".into());
+                }
+                Address {
+                    base: Some(format!("{m}+{}", hex(self.base))),
+                    aob: None,
+                    module: None,
+                    offset: None,
+                    operand: None,
+                    next: None,
+                    offsets,
+                }
+            }
+            Start::Aob {
+                module,
+                aob,
+                offset,
+                rip_next,
+            } => {
+                let offset = match rip_next {
+                    // The found address is the operand's target: adding to it
+                    // before reading a pointer can't be said in a pack.
+                    Some(_) if self.base != 0 => {
+                        return Err("its address adds to a found address in a way OpenTrainer can't express".into());
+                    }
+                    Some(_) => *offset,
+                    None => offset.checked_add(self.base).ok_or(OUT_OF_RANGE)?,
+                };
+                Address {
+                    base: None,
+                    aob: Some(aob.clone()),
+                    module: module.clone(),
+                    offset: (offset != 0).then_some(offset),
+                    operand: rip_next.map(|_| Operand::Rip32),
+                    next: *rip_next,
+                    offsets,
+                }
+            }
+        })
+    }
+
+    #[cfg(test)]
     fn base(&self) -> String {
-        format!("{}+{}", self.module, hex(self.base))
+        match &self.start {
+            Start::Module(m) => format!("{m}+{}", hex(self.base)),
+            Start::Aob { aob, .. } => format!("aob({aob})+{}", hex(self.base)),
+        }
     }
 }
 
@@ -411,17 +587,129 @@ fn parse_hex(s: &str) -> Option<i64> {
     crate::schema::parse_offset(t)
 }
 
+/// A number word: a name a script defined as a number, else hex.
+fn number_word(w: &str, syms: &HashMap<String, Sym>) -> Option<i64> {
+    match syms.get(&w.to_ascii_lowercase()) {
+        Some(Sym::Const(n)) => Some(*n),
+        Some(_) => None,
+        None => parse_hex(w),
+    }
+}
+
+/// Evaluates an offset like `gameoffset*6180-6180+2F90+C`: hex numbers and
+/// numbers scripts define, with `+ - *` and brackets. `None` if it uses
+/// anything else or overflows.
+fn eval(expr: &str, syms: &HashMap<String, Sym>) -> Option<i64> {
+    struct E<'a> {
+        s: &'a [u8],
+        i: usize,
+        syms: &'a HashMap<String, Sym>,
+        depth: usize,
+    }
+    impl E<'_> {
+        fn ws(&mut self) {
+            while self.s.get(self.i).is_some_and(u8::is_ascii_whitespace) {
+                self.i += 1;
+            }
+        }
+        fn sum(&mut self) -> Option<i64> {
+            let mut v = self.product()?;
+            loop {
+                self.ws();
+                match self.s.get(self.i) {
+                    Some(b'+') => {
+                        self.i += 1;
+                        v = v.checked_add(self.product()?)?;
+                    }
+                    Some(b'-') => {
+                        self.i += 1;
+                        v = v.checked_sub(self.product()?)?;
+                    }
+                    _ => return Some(v),
+                }
+            }
+        }
+        fn product(&mut self) -> Option<i64> {
+            let mut v = self.atom()?;
+            loop {
+                self.ws();
+                if self.s.get(self.i) == Some(&b'*') {
+                    self.i += 1;
+                    v = v.checked_mul(self.atom()?)?;
+                } else {
+                    return Some(v);
+                }
+            }
+        }
+        fn atom(&mut self) -> Option<i64> {
+            self.ws();
+            match self.s.get(self.i)? {
+                b'(' => {
+                    self.depth += 1;
+                    if self.depth > 16 {
+                        return None;
+                    }
+                    self.i += 1;
+                    let v = self.sum()?;
+                    self.ws();
+                    (self.s.get(self.i) == Some(&b')')).then_some(())?;
+                    self.i += 1;
+                    self.depth -= 1;
+                    Some(v)
+                }
+                b'-' => {
+                    self.i += 1;
+                    self.atom()?.checked_neg()
+                }
+                _ => {
+                    let start = self.i;
+                    while self
+                        .s
+                        .get(self.i)
+                        .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_')
+                    {
+                        self.i += 1;
+                    }
+                    let w = std::str::from_utf8(&self.s[start..self.i]).ok()?;
+                    if w.is_empty() {
+                        return None;
+                    }
+                    let w = w
+                        .strip_prefix("0x")
+                        .or_else(|| w.strip_prefix("0X"))
+                        .unwrap_or(w);
+                    number_word(w, self.syms)
+                }
+            }
+        }
+    }
+    if expr.len() > 200 {
+        return None;
+    }
+    let mut e = E {
+        s: expr.trim().as_bytes(),
+        i: 0,
+        syms,
+        depth: 0,
+    };
+    let v = e.sum()?;
+    e.ws();
+    (e.i == e.s.len()).then_some(v)
+}
+
 fn is_module(s: &str) -> bool {
     let l = s.to_ascii_lowercase();
     (l.ends_with(".exe") || l.ends_with(".dll")) && l.len() > 4 && !s.contains(['/', '\\', ':'])
 }
 
-/// Parses `"game.exe"+1234`, `game.exe+10+8`, `[[game.exe+10]+20]+8`.
-fn parse_address(s: &str) -> Result<Chain, String> {
+/// Parses `"game.exe"+1234`, `game.exe+10+8`, `[[game.exe+10]+20]+8`, and the
+/// same starting from a name a script defines (`[gamedata]+10`).
+fn parse_address(s: &str, syms: &HashMap<String, Sym>) -> Result<Chain, String> {
     let mut p = Parser {
         s: s.as_bytes(),
         i: 0,
         depth: 0,
+        syms,
     };
     let chain = p.expr()?;
     p.skip_ws();
@@ -430,22 +718,22 @@ fn parse_address(s: &str) -> Result<Chain, String> {
             "its address ({s}) isn't a module address OpenTrainer understands"
         ));
     }
-    let module = chain.module.ok_or(
+    let start = chain.start.ok_or(
         "its address is a fixed number, which usually changes every time the game starts"
             .to_string(),
     )?;
-    if chain.base < 0 {
+    if matches!(start, Start::Module(_)) && chain.base < 0 {
         return Err("its address is before the start of the module".into());
     }
     Ok(Chain {
-        module,
+        start,
         base: chain.base,
         offsets: chain.offsets,
     })
 }
 
 struct Partial {
-    module: Option<String>,
+    start: Option<Start>,
     base: i64,
     offsets: Vec<i64>,
 }
@@ -454,6 +742,7 @@ struct Parser<'a> {
     s: &'a [u8],
     i: usize,
     depth: usize,
+    syms: &'a HashMap<String, Sym>,
 }
 
 impl Parser<'_> {
@@ -475,22 +764,25 @@ impl Parser<'_> {
             self.i += 1;
             self.skip_ws();
             let start = self.i;
-            while self.s.get(self.i).is_some_and(u8::is_ascii_alphanumeric) {
+            while self
+                .s
+                .get(self.i)
+                .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+            {
                 self.i += 1;
             }
             let word = std::str::from_utf8(&self.s[start..self.i]).unwrap_or_default();
-            let n = parse_hex(word).ok_or_else(|| {
+            let n = number_word(word, self.syms).ok_or_else(|| {
                 format!(
-                    "its address uses \"{word}\", a name only one of the table's scripts defines"
+                    "it depends on \"{word}\", which a table script works out while the game runs; OpenTrainer can't redo that one yet"
                 )
             })?;
-            let n = if sign < 0 { n.checked_neg() } else { Some(n) }
-                .ok_or("its address is out of range")?;
+            let n = if sign < 0 { n.checked_neg() } else { Some(n) }.ok_or(OUT_OF_RANGE)?;
             let slot = match c.offsets.last_mut() {
                 Some(o) => o,
                 None => &mut c.base,
             };
-            *slot = slot.checked_add(n).ok_or("its address is out of range")?;
+            *slot = slot.checked_add(n).ok_or(OUT_OF_RANGE)?;
         }
     }
 
@@ -510,7 +802,7 @@ impl Parser<'_> {
                 }
                 self.i += 1;
                 self.depth -= 1;
-                if inner.module.is_none() {
+                if inner.start.is_none() {
                     return Err("its address starts from a fixed number, which usually changes every time the game starts".into());
                 }
                 inner.offsets.push(0);
@@ -547,10 +839,10 @@ impl Parser<'_> {
                 // `Game-Win64-Shipping.exe` has dashes; `game.exe-10` subtracts.
                 if !is_module(&raw)
                     && let Some((left, right)) = raw.rsplit_once('-')
-                    && let Some(n) = parse_hex(right)
+                    && let Some(n) = number_word(right, self.syms)
                 {
                     let mut c = self.word(left.trim())?;
-                    c.base = c.base.checked_sub(n).ok_or("its address is out of range")?;
+                    c.base = c.base.checked_sub(n).ok_or(OUT_OF_RANGE)?;
                     return Ok(c);
                 }
                 self.word(&raw)
@@ -561,14 +853,48 @@ impl Parser<'_> {
     fn word(&self, w: &str) -> Result<Partial, String> {
         if is_module(w) {
             return Ok(Partial {
-                module: Some(w.to_string()),
+                start: Some(Start::Module(w.to_string())),
                 base: 0,
                 offsets: Vec::new(),
             });
         }
+        match self.syms.get(&w.to_ascii_lowercase()) {
+            Some(Sym::Module { module, offset }) => {
+                return Ok(Partial {
+                    start: Some(Start::Module(module.clone())),
+                    base: *offset,
+                    offsets: Vec::new(),
+                });
+            }
+            Some(Sym::Aob {
+                module,
+                aob,
+                offset,
+                rip_next,
+            }) => {
+                return Ok(Partial {
+                    start: Some(Start::Aob {
+                        module: module.clone(),
+                        aob: aob.clone(),
+                        offset: *offset,
+                        rip_next: *rip_next,
+                    }),
+                    base: 0,
+                    offsets: Vec::new(),
+                });
+            }
+            Some(Sym::Const(n)) => {
+                return Ok(Partial {
+                    start: None,
+                    base: *n,
+                    offsets: Vec::new(),
+                });
+            }
+            None => {}
+        }
         if let Some(n) = parse_hex(w) {
             return Ok(Partial {
-                module: None,
+                start: None,
                 base: n,
                 offsets: Vec::new(),
             });
@@ -577,7 +903,7 @@ impl Parser<'_> {
             return Err("its address is empty".into());
         }
         Err(format!(
-            "its address uses \"{w}\", a name only one of the table's scripts defines"
+            "it depends on \"{w}\", which a table script works out while the game runs; OpenTrainer can't redo that one yet"
         ))
     }
 }
@@ -810,7 +1136,7 @@ dealloc(newmem)</AssemblerScript>
     #[test]
     fn addresses_parse_or_explain() {
         let ok = |s: &str| {
-            parse_address(s).map(|c| {
+            parse_address(s, &HashMap::new()).map(|c| {
                 (
                     c.base(),
                     c.offsets.iter().map(|&o| hex(o)).collect::<Vec<_>>(),
@@ -842,8 +1168,79 @@ dealloc(newmem)</AssemblerScript>
     }
 
     #[test]
+    fn offset_math_uses_numbers_scripts_define() {
+        let syms = HashMap::from([
+            ("slot".to_string(), Sym::Const(2)),
+            ("add".to_string(), Sym::Const(1)),
+        ]);
+        assert_eq!(
+            eval("slot*6180-6180+2F90+C", &syms),
+            Some(0x6180 + 0x2F90 + 0xC)
+        );
+        assert_eq!(eval("(slot+1)*10", &syms), Some(0x30));
+        assert_eq!(eval("-8", &syms), Some(-8));
+        // A defined name wins over reading it as hex ("add" is also hex).
+        assert_eq!(eval("add", &syms), Some(1));
+        assert_eq!(eval("ADD", &HashMap::new()), Some(0xADD));
+        assert_eq!(eval("unknown_name+4", &syms), None);
+        assert_eq!(eval("7FFFFFFFFFFFFFFF*2", &syms), None);
+        assert_eq!(eval("1+", &syms), None);
+        assert_eq!(eval(&"(".repeat(40), &syms), None);
+    }
+
+    #[test]
+    fn addresses_can_start_from_names_scripts_define() {
+        let found = Sym::Aob {
+            module: Some("g.exe".into()),
+            aob: "48 8B 0D ?? ?? ?? ??".into(),
+            offset: 3,
+            rip_next: Some(7),
+        };
+        let syms = HashMap::from([
+            ("gamedata".to_string(), found),
+            (
+                "site".to_string(),
+                Sym::Aob {
+                    module: None,
+                    aob: "75 15 8B D3".into(),
+                    offset: 0,
+                    rip_next: None,
+                },
+            ),
+            (
+                "base".to_string(),
+                Sym::Module {
+                    module: "g.exe".into(),
+                    offset: 0x100,
+                },
+            ),
+        ]);
+        let a = parse_address("[[gamedata]+10]+8", &syms)
+            .unwrap()
+            .address()
+            .unwrap();
+        assert_eq!(a.aob.as_deref(), Some("48 8B 0D ?? ?? ?? ??"));
+        assert_eq!(
+            (a.offset, a.operand, a.next),
+            (Some(3), Some(Operand::Rip32), Some(7))
+        );
+        assert_eq!(a.offsets, ["0x10", "0x8"]);
+        // Adding to a found code address moves where it points.
+        let a = parse_address("site+2", &syms).unwrap().address().unwrap();
+        assert_eq!((a.offset, a.operand), (Some(2), None));
+        let a = parse_address("base+10", &syms).unwrap().address().unwrap();
+        assert_eq!(a.base.as_deref(), Some("g.exe+0x110"));
+        // Adding to a RIP target before a pointer read can't be said in a pack.
+        assert!(
+            parse_address("gamedata+8", &syms)
+                .unwrap()
+                .address()
+                .is_err()
+        );
+    }
+    #[test]
     fn huge_numbers_are_refused_not_wrapped() {
-        let ok = |s: &str| parse_address(s).map(|c| c.base());
+        let ok = |s: &str| parse_address(s, &HashMap::new()).map(|c| c.base());
         assert!(
             ok("game.exe+7FFFFFFFFFFFFFFF+7FFFFFFFFFFFFFFF")
                 .unwrap_err()
@@ -915,5 +1312,43 @@ dealloc(newmem)</AssemblerScript>
         let got = convert(t.as_bytes(), "x", None, "2026-11-08").unwrap();
         assert_eq!(got.pack.cheats.len(), MAX_CHEATS);
         assert_eq!(got.skipped.len(), 3);
+    }
+
+    /// Converts a real table on this PC and prints what came over (manual:
+    /// `OT_CT_FILE=... cargo test -p ot-packs ct::tests::real_table -- --ignored --nocapture`).
+    #[test]
+    #[ignore = "needs a real Cheat Engine table on this PC"]
+    fn real_table() {
+        let path = std::path::PathBuf::from(std::env::var("OT_CT_FILE").unwrap());
+        let got = convert(&std::fs::read(&path).unwrap(), "Real", None, "2026-11-08").unwrap();
+        let patches = got
+            .pack
+            .cheats
+            .iter()
+            .filter(|c| matches!(c.implementation, Impl::Patch(_)))
+            .count();
+        println!(
+            "exe: {} (known {}), arch {:?}",
+            got.pack.game.exe, got.exe_known, got.pack.game.arch
+        );
+        println!(
+            "cheats: {} ({} values, {patches} patches)",
+            got.pack.cheats.len(),
+            got.pack.cheats.len() - patches
+        );
+        for c in got.pack.cheats.iter().take(12) {
+            println!("  + {} [{}]", c.name, c.category.as_deref().unwrap_or(""));
+        }
+        let mut why: BTreeMap<String, usize> = BTreeMap::new();
+        for s in &got.skipped {
+            *why.entry(s.why.chars().take(70).collect()).or_default() += 1;
+        }
+        println!("skipped: {}", got.skipped.len());
+        for (w, n) in why {
+            println!("  {n:4} x {w}");
+        }
+        let text = serde_json::to_string_pretty(&got.pack).unwrap();
+        crate::parse(&text).unwrap();
+        std::fs::write(std::env::temp_dir().join("ot-real-table.json"), text).unwrap();
     }
 }

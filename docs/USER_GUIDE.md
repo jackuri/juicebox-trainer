@@ -88,9 +88,11 @@ In the **Packs** tab:
   such as FearLessRevolution. Download one, then drop it on the window or click **Open a pack or
   table…**. OpenTrainer turns its number values (health, money, ammo…, also ones found through
   pointers) into a pack. You see which cheats came over and which entries were left out, and why.
-  - **Scripts are always left out.** Most "infinite health"-style switches in a table are scripts
-    (code). OpenTrainer never runs code from a file, so only the plain values come over. A table
-    with only scripts gives nothing to install.
+  - **Scripts are never run.** OpenTrainer reads them only to understand them. The common kinds it
+    redoes its own safe way: scripts that find a base address (so the values under it come over),
+    save-slot numbers, and scripts that just swap a few bytes of game code (they become on/off
+    cheats). Scripts that inject their own code ("unlimited health for the player only") are left
+    out; freezing the value (e.g. Current Health) usually does the same job.
   - If the table doesn't say which game it's for, click **Choose the game's exe…** and pick the
     game's `.exe` (in its install folder).
   - In Cheats, type a value and click **Set**: it stays at that value (like ticking the box in

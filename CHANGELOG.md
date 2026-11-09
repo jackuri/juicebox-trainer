@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0] - 2026-11-08
+
+### Added
+- **Smarter Cheat Engine tables.** Many tables find their addresses with small scripts.
+  OpenTrainer now reads those scripts as text (never runs them) and redoes the common patterns its
+  own checked way, so the values built on them come over:
+  - a pointer found from the game's code by a Lua script (`getAddress` + `readInteger` + 4) or an
+    `aobscanmodule` + `registersymbol` script;
+  - numbers a script sets (`define`, or a label placed at a number, like a save slot) and offsets
+    with simple math (`slot*6180-6180+2F90`);
+  - scripts that only swap a few bytes of game code (`db 90 90` on, the original bytes off) become
+    OpenTrainer's checked patch cheats (64-bit games).
+- Entries that sit under a text or other non-number entry (a "Base Address" line) still come over.
+- On a real FearLessRevolution table (Dragon Ball Xenoverse 2) this goes from 0 to 98 cheats (92
+  values like Zeni, TP Medals and experience, and 6 patches).
+
+### Changed
+- Clearer reasons for entries that still can't come over, e.g. values that depend on an address a
+  script grabs by injecting code (planned next).
+
 ## [1.4.2] - 2026-11-08
 
 Fixes from a full re-test of the real app and a security review.
