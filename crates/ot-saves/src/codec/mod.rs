@@ -1,18 +1,23 @@
 //! Save file formats ("codecs"), read structurally (PLAN.md §2.3).
 //!
 //! A file is opened by removing its wrappers (checksums, gzip, zlib, Base64,
-//! see [`layers`]) and recognising what's inside: JSON, INI text or an Unreal
-//! save. Anything else is shown as hex. Nothing is ever deserialised into
+//! lz-string, see [`layers`]) and recognising what's inside: JSON, XML, INI
+//! text (also GameMaker and Godot), YAML, an Unreal save, or the summary of a
+//! Bethesda save (read-only). Anything else is shown as hex. Nothing is ever deserialised into
 //! objects or run (no BinaryFormatter, no pickle).
 //!
 //! Saving applies [`Edit`]s to the inside and puts the wrappers back, with
 //! checksums recomputed. Opening and saving with no edits gives back exactly
 //! the same bytes.
 
+pub mod ess;
 pub mod gvas;
 pub mod ini;
 pub mod json;
 pub mod layers;
+pub mod lzstring;
+pub mod xml;
+pub mod yaml;
 
 use serde::{Deserialize, Serialize};
 
@@ -60,8 +65,12 @@ pub enum Edit {
 #[serde(rename_all = "camelCase")]
 pub enum BodyKind {
     Json,
+    Xml,
     Ini,
+    Yaml,
     Gvas,
+    /// Skyrim / Fallout 4: a read-only summary.
+    Bethesda,
     Binary,
 }
 
@@ -69,8 +78,11 @@ impl BodyKind {
     pub fn label(self) -> &'static str {
         match self {
             BodyKind::Json => "JSON",
+            BodyKind::Xml => "XML",
             BodyKind::Ini => "INI text",
+            BodyKind::Yaml => "YAML",
             BodyKind::Gvas => "Unreal save (GVAS)",
+            BodyKind::Bethesda => "Bethesda save",
             BodyKind::Binary => "Binary (hex)",
         }
     }
@@ -79,8 +91,11 @@ impl BodyKind {
     pub fn codec_name(self) -> &'static str {
         match self {
             BodyKind::Json => "json",
+            BodyKind::Xml => "xml",
             BodyKind::Ini => "ini",
+            BodyKind::Yaml => "yaml",
             BodyKind::Gvas => "gvas",
+            BodyKind::Bethesda => "ess",
             BodyKind::Binary => "hex",
         }
     }
@@ -90,11 +105,20 @@ pub(crate) fn body_kind(b: &[u8]) -> BodyKind {
     if b.starts_with(b"GVAS") {
         return BodyKind::Gvas;
     }
+    if ess::is_bethesda(b) {
+        return BodyKind::Bethesda;
+    }
     if json::parse(b).is_ok() {
         return BodyKind::Json;
     }
+    if xml::parse(b).is_some() {
+        return BodyKind::Xml;
+    }
     if ini::parse(b).is_some() {
         return BodyKind::Ini;
+    }
+    if yaml::parse(b).is_some() {
+        return BodyKind::Yaml;
     }
     BodyKind::Binary
 }
@@ -127,9 +151,31 @@ pub fn open(bytes: &[u8]) -> Opened {
                 (BodyKind::Binary, Vec::new(), false)
             }
         },
+        BodyKind::Xml => match xml::parse(&contents) {
+            Some((s, t)) => (BodyKind::Xml, s, t),
+            None => (BodyKind::Binary, Vec::new(), false),
+        },
         BodyKind::Ini => match ini::parse(&contents) {
             Some((s, t)) => (BodyKind::Ini, s, t),
             None => (BodyKind::Binary, Vec::new(), false),
+        },
+        BodyKind::Yaml => match yaml::parse(&contents) {
+            Some((s, t)) => (BodyKind::Yaml, s, t),
+            None => (BodyKind::Binary, Vec::new(), false),
+        },
+        BodyKind::Bethesda => match ess::parse(&contents) {
+            Some(summary) => {
+                note = Some(format!(
+                    "Only the summary at the start of this {} save is shown. OpenTrainer can't \
+                     change Bethesda saves.",
+                    summary.game
+                ));
+                (BodyKind::Bethesda, summary.spots, false)
+            }
+            None => {
+                note = Some("Bethesda save whose summary can't be read".into());
+                (BodyKind::Binary, Vec::new(), false)
+            }
         },
         BodyKind::Gvas => match gvas::parse(&contents) {
             Ok((s, t)) => (BodyKind::Gvas, s, t),
@@ -138,7 +184,15 @@ pub fn open(bytes: &[u8]) -> Opened {
                 (BodyKind::Binary, Vec::new(), false)
             }
         },
-        BodyKind::Binary => (BodyKind::Binary, Vec::new(), false),
+        BodyKind::Binary => {
+            if contents.starts_with(b"GDEC") {
+                note = Some(
+                    "This Godot save is encrypted by the game. OpenTrainer doesn't decrypt saves."
+                        .into(),
+                );
+            }
+            (BodyKind::Binary, Vec::new(), false)
+        }
     };
     Opened {
         layers,
@@ -173,8 +227,13 @@ pub fn apply(bytes: &[u8], edits: &[Edit]) -> Result<Vec<u8>, String> {
         contents = match edit {
             Edit::Set { path, value } => match body_kind(&contents) {
                 BodyKind::Json => json::set(&contents, path, value)?,
+                BodyKind::Xml => xml::set(&contents, path, value)?,
                 BodyKind::Ini => ini::set(&contents, path, value)?,
+                BodyKind::Yaml => yaml::set(&contents, path, value)?,
                 BodyKind::Gvas => gvas::set(&contents, path, value)?,
+                BodyKind::Bethesda => {
+                    return Err("Bethesda saves are shown read-only".into());
+                }
                 BodyKind::Binary => {
                     return Err("this file has no named values; edit its bytes instead".into());
                 }
@@ -282,6 +341,84 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn opens_the_new_formats() {
+        // RPG Maker MV: JSON in lz-string Base64.
+        let json = r#"{"gold":250,"party":{"_actors":[1,2]}}"#;
+        let file = lzstring::compress_to_base64(json).into_bytes();
+        let o = open(&file);
+        assert_eq!(o.body, BodyKind::Json);
+        assert_eq!(o.layers.len(), 1);
+        let out = apply(
+            &file,
+            &[Edit::Set {
+                path: "gold".into(),
+                value: "9999".into(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(
+            lzstring::decompress_from_base64(std::str::from_utf8(&out).unwrap()).unwrap(),
+            json.replace("250", "9999")
+        );
+        // RPG Maker MZ: zlib JSON (already handled).
+        let mz = layers::wrap(&[Layer::Zlib], json.as_bytes().to_vec()).unwrap();
+        assert_eq!(open(&mz).body, BodyKind::Json);
+
+        let xml = b"<Save><Gold>5</Gold></Save>";
+        assert_eq!(open(xml).body, BodyKind::Xml);
+        assert_eq!(open(xml).fields[0].path, "Save.Gold");
+        let out = apply(
+            xml,
+            &[Edit::Set {
+                path: "Save.Gold".into(),
+                value: "6".into(),
+            }],
+        )
+        .unwrap();
+        assert_eq!(out, b"<Save><Gold>6</Gold></Save>");
+
+        let yaml = b"gold: 5\nname: Hero\n";
+        assert_eq!(open(yaml).body, BodyKind::Yaml);
+        assert_eq!(open(yaml).body.codec_name(), "yaml");
+
+        let ess = ess::tests::sample(b"TESV_SAVEGAME");
+        let o = open(&ess);
+        assert_eq!(o.body, BodyKind::Bethesda);
+        assert!(o.note.unwrap().contains("Skyrim"));
+        assert!(
+            o.fields
+                .iter()
+                .any(|f| f.path == "Character" && f.value == "Lydia")
+        );
+        assert!(
+            apply(
+                &ess,
+                &[Edit::Set {
+                    path: "Level".into(),
+                    value: "80".into()
+                }]
+            )
+            .is_err()
+        );
+        // Byte edits of the rest still work.
+        assert!(
+            apply(
+                &ess,
+                &[Edit::Patch {
+                    offset: 0,
+                    hex: "54".into()
+                }]
+            )
+            .is_ok()
+        );
+
+        let godot = b"GDEC\x01\x02\x03\x04 encrypted";
+        let o = open(godot);
+        assert_eq!(o.body, BodyKind::Binary);
+        assert!(o.note.unwrap().contains("Godot"));
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.9.0_
+_Last updated: 2026-11-09 — v1.10.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,14 @@ _Last updated: 2026-11-09 — v1.9.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.10.0 Save formats: `codec::xml` (roxmltree, already a dependency of ot-packs; DTDs refused,
+  element text + attributes, CDATA, repeated names `Item[2]`), `codec::yaml` (own block-style
+  scanner: maps, lists, quotes, comments, `---` documents as `doc1.…`; flow / alias / block text
+  read-only; anything else = hex), `codec::lzstring` (bit-identical to the JS library, test vectors
+  from node_modules/lz-string) as `Layer::LzString` (RPG Maker MV), INI: quoted values (GameMaker),
+  `/` in keys, loose section names and Godot multi-line `{`/`[` values (read-only), `codec::ess`
+  (Skyrim LE/SE + Fallout 4 header summary, read-only), "GDEC" Godot encrypted note. Save codes
+  accept `xml` / `yaml`. Tested with files made in the tests only (no real game saves).
 - v1.9.0 Find a value: `ot_core::finder::ValueFinder` (i32 + f32 + f64 at once; typed numbers with
   `,` separators; decimals match within one unit of the last digit; unknown start = one i32 snapshot
   split into i32 + f32 by `Scan::next_as`). Commands `finder_start/next/results/reset` and
@@ -233,7 +241,11 @@ _Last updated: 2026-11-09 — v1.9.0_
 - The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
   through by hand yet (covered by frontend tests and live tests against the testbed).
 - Save editor limits: Unreal saves from UE 5.4+ open as hex; Unreal text values, engine structs,
-  maps and sets are read-only; XML / YAML saves open as hex; files over 64 MB aren't opened.
+  maps and sets are read-only; files over 64 MB aren't opened. XML in UTF-16 opens as hex. YAML
+  with flow collections over several lines, or plain text over several lines, opens as hex.
+  Bethesda saves: only the summary (no edits); Fallout 3 / New Vegas / Oblivion saves open as hex.
+  Godot `store_var` binary saves, GameMaker `ds_map` hex strings and RPG Maker XP-VX Ace (Ruby
+  Marshal) saves open as hex. None of the 1.10.0 formats was tried on a real game's save yet.
 - PlayerPrefs floats are assumed to be REG_QWORD doubles (Unity's Windows format); a game that
   stores numbers differently shows them as raw whole numbers.
 - Wrapper detection only handles a checksum over the whole rest of the file; seeded or partial

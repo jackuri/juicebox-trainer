@@ -4,6 +4,26 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-11-09
+
+### Added
+- **More save formats in the save editor.** These now open as named values you can change, with
+  everything else in the file left exactly as it was:
+  - **XML** saves (common in Unity and XNA games): text inside elements and attributes.
+  - **YAML** saves: `key: value` maps, `- item` lists, quoted text, several documents (Unity's
+    YAML). Lists or maps written on one line, aliases and text over several lines are shown but
+    can't be changed.
+  - **RPG Maker MV** saves (`.rpgsave`, lz-string compressed); written back the same way the game
+    writes them. **RPG Maker MZ** saves (`.rmmzsave`) already opened (zlib JSON).
+  - **GameMaker** INI saves with numbers in quotes (`gold="250.000000"`): the number inside is
+    shown and edited, the quotes are kept.
+  - **Godot** `ConfigFile` saves: `key=value` with Godot values; lists and maps over several lines
+    are shown but can't be changed. Godot saves encrypted by the game say so (they aren't
+    decrypted).
+  - **Skyrim / Skyrim Special Edition and Fallout 4** saves show their summary (character name,
+    level, place, race, play time), read-only.
+- Save codes in packs can use `"codec": "xml"` and `"codec": "yaml"`.
+
 ## [1.9.0] - 2026-11-09
 
 ### Added

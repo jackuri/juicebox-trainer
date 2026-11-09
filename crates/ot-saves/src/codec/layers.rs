@@ -113,10 +113,20 @@ impl B64 {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum Layer {
-    Checksum { algo: Algo, at: At },
+    Checksum {
+        algo: Algo,
+        at: At,
+    },
     Gzip,
     Zlib,
-    Base64 { variant: B64, trailing: String },
+    Base64 {
+        variant: B64,
+        trailing: String,
+    },
+    /// lz-string's Base64 form (RPG Maker MV `.rpgsave`).
+    LzString {
+        trailing: String,
+    },
 }
 
 impl Layer {
@@ -131,6 +141,7 @@ impl Layer {
             Layer::Gzip => "gzip-compressed".into(),
             Layer::Zlib => "zlib-compressed".into(),
             Layer::Base64 { .. } => "Base64 text".into(),
+            Layer::LzString { .. } => "lz-string compressed (RPG Maker MV)".into(),
         }
     }
 
@@ -159,6 +170,17 @@ impl Layer {
             }
             Layer::Base64 { variant, trailing } => {
                 let mut s = variant.encode(inner);
+                s.push_str(trailing);
+                s.into_bytes()
+            }
+            Layer::LzString { trailing } => {
+                let text = std::str::from_utf8(inner).map_err(|_| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "lz-string saves hold text; the edit made it invalid",
+                    )
+                })?;
+                let mut s = super::lzstring::compress_to_base64(text);
                 s.push_str(trailing);
                 s.into_bytes()
             }
@@ -242,7 +264,10 @@ fn base64(bytes: &[u8]) -> Option<(Layer, Vec<u8>)> {
         // accept it if what's inside is recognisably a save.
         let structured = peel_one(&decoded)
             .is_some_and(|(l, _)| !matches!(l, Layer::Checksum { .. }))
-            || matches!(super::body_kind(&decoded), BodyKind::Json | BodyKind::Gvas);
+            || matches!(
+                super::body_kind(&decoded),
+                BodyKind::Json | BodyKind::Xml | BodyKind::Gvas
+            );
         if structured && variant.encode(&decoded) == body {
             return Some((Layer::Base64 { variant, trailing }, decoded));
         }
@@ -250,10 +275,33 @@ fn base64(bytes: &[u8]) -> Option<(Layer, Vec<u8>)> {
     None
 }
 
+fn lzstring(bytes: &[u8]) -> Option<(Layer, Vec<u8>)> {
+    let text = std::str::from_utf8(bytes).ok()?;
+    let body = text.trim_end();
+    if body.len() < 8 {
+        return None;
+    }
+    let inner = super::lzstring::decompress_from_base64(body)?;
+    // Only JSON inside (RPG Maker), and only if writing it back gives the
+    // same text, so nothing is lost on saving.
+    if !matches!(super::body_kind(inner.as_bytes()), BodyKind::Json)
+        || super::lzstring::compress_to_base64(&inner) != body
+    {
+        return None;
+    }
+    Some((
+        Layer::LzString {
+            trailing: text[body.len()..].to_string(),
+        },
+        inner.into_bytes(),
+    ))
+}
+
 fn peel_one(bytes: &[u8]) -> Option<(Layer, Vec<u8>)> {
     gzip(bytes)
         .or_else(|| zlib(bytes))
         .or_else(|| base64(bytes))
+        .or_else(|| lzstring(bytes))
         .or_else(|| checksum(bytes))
 }
 
@@ -263,8 +311,12 @@ pub fn peel(bytes: &[u8]) -> (Vec<Layer>, Vec<u8>) {
     let mut layers = Vec::new();
     let mut current = bytes.to_vec();
     while layers.len() < MAX_LAYERS {
-        // Plain JSON or an Unreal save is never unwrapped further.
-        if matches!(super::body_kind(&current), BodyKind::Json | BodyKind::Gvas) {
+        // Plain JSON, XML or an Unreal or Bethesda save is never unwrapped
+        // further.
+        if matches!(
+            super::body_kind(&current),
+            BodyKind::Json | BodyKind::Xml | BodyKind::Gvas | BodyKind::Bethesda
+        ) {
             break;
         }
         let Some((layer, inner)) = peel_one(&current) else {
@@ -322,6 +374,9 @@ mod tests {
                 },
                 Layer::Gzip,
             ],
+            vec![Layer::LzString {
+                trailing: String::new(),
+            }],
         ] {
             let wrapped = wrap(&layers, JSON.to_vec()).unwrap();
             let (found, inner) = peel(&wrapped);

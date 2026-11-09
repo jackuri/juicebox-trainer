@@ -184,7 +184,7 @@
         "name": { "type": "string", "minLength": 1 },
         "codec": {
           "description": "Format of the save. auto accepts any format OpenTrainer can read.",
-          "enum": ["auto", "json", "ini", "gvas", "playerprefs"]
+          "enum": ["auto", "json", "xml", "ini", "yaml", "gvas", "playerprefs"]
         },
         "file": {
           "description": "Save file (or, for playerprefs, the registry key under HKCU\\Software), starting with a folder placeholder, e.g. {localappdatalow}/Company/Game/save1.json or {playerprefs}/Company/Game.",

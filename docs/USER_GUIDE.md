@@ -167,6 +167,10 @@ You can also click **Back up now**.
   so a restore can be undone.
 - **Edit saves:** open a save file, change a value and click **Save changes**. The game must be closed,
   and the saves are backed up first. **Quick codes** from a game's pack do common edits in one click.
+  Saves OpenTrainer can show as named values: JSON, XML, INI (also GameMaker and Godot settings
+  files), YAML, Unreal Engine saves, Unity PlayerPrefs and RPG Maker MV / MZ saves, also when they
+  are compressed or Base64 text. Skyrim and Fallout 4 saves show their summary (name, level, place)
+  but can't be changed. Anything else opens as bytes (hex).
 
 Steam Cloud can overwrite restored saves. If Steam asks which copy to keep, choose the local one.
 

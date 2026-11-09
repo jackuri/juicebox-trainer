@@ -1000,7 +1000,7 @@ mod tests {
         );
         let n = serde_json::json!(1);
         has_error(
-            &code("xml", "{documents}/a.xml", n.clone()),
+            &code("sqlite3", "{documents}/a.db", n.clone()),
             "saveCodes[0].codec",
         );
         has_error(
