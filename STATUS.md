@@ -61,6 +61,8 @@ _Last updated: 2026-11-09 — v1.7.0_
   large-err). On this PC only Halo MCC has an official no-EAC launch option (`-no-eac`, Steam
   option 2); DBXV2 (START.exe), Elden Ring (start_protected_game.exe) and Dune Awakening (BattlEye)
   always run their anti-cheat and stay blocked.
+  All checks pass (live tests run with no anti-cheat running; while any game's anti-cheat runs,
+  every attach on the PC is refused, tests included).
 - v1.6.0 Hooked pointers: `ot_core::capture` reads a register at a code address with a hardware
   execute breakpoint (attach as debugger, arm DR0 on all threads, resume flag on hits, optional
   `when` register = value, disarm, detach); live-tested on x64 and x86 testbeds. Pack schema
@@ -154,9 +156,6 @@ _Last updated: 2026-11-09 — v1.7.0_
   between your own Steam accounts (PLAN §2.3), a memory viewer (PLAN §2.2).
 
 ## Known issues
-- v1.7.0's live tests (everything that attaches to the testbed) couldn't run: DBXV2 was open with
-  EasyAntiCheat_EOS running, which (correctly) blocks every attach on the PC. Unit, lint, typecheck
-  and frontend tests pass. Re-run `npm run check` with no anti-cheat running before pushing.
 - v1.0.0 – v1.2.1 haven't been installed and clicked through by hand yet (the user saw v1.2.0's
   Games tab and asked for real covers): the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI

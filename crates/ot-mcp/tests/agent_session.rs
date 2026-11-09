@@ -159,8 +159,9 @@ fn agent_finds_gold_and_writes_a_pack() {
 fn guard_refusal_is_final_and_explained() {
     let _s = serial();
     let tmp = TempDir::new("mcp-guard");
-    let exe = tmp.copy_testbed(r"Game\testbed_native.exe");
-    std::fs::create_dir_all(tmp.0.join("Game").join("BattlEye")).unwrap();
+    // An online-only game. (Anti-cheat files alone don't block a running game
+    // since 1.7.0; only anti-cheat that runs does.)
+    let exe = tmp.copy_testbed(r"Game\cs2.exe");
     let game = Testbed::spawn(&exe);
     let mut t = tools(&tmp);
     let e = t.call("attach", &json!({ "pid": game.pid() })).unwrap_err();
