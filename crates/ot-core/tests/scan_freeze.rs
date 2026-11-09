@@ -271,3 +271,70 @@ fn freezer_stops_when_game_exits() {
         Some(Error::ProcessExited { .. })
     )));
 }
+
+#[test]
+fn finder_finds_whole_and_decimal_numbers_without_a_type() {
+    use ot_core::{FindNext, FindStart, ValueFinder};
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let (gold, speed) = (tb.addr("gold"), tb.addr("speed"));
+    let session = AttachedProcess::attach(tb.pid()).unwrap();
+    let ctl = ScanControl::new();
+    let has = |f: &ValueFinder, a: u64, ty: ValueType| {
+        f.hits(f.count())
+            .iter()
+            .any(|h| h.address == a && h.ty == ty)
+    };
+
+    // Gold as the game shows it, with a thousands separator later on.
+    let mut f = ValueFinder::start(&session, FindStart::Number("250".into()), &ctl).unwrap();
+    assert!(has(&f, gold, ValueType::I32), "first search misses gold");
+    tb.send("earn 1000");
+    f.next(&session, FindNext::Number("1,250".into()), &ctl)
+        .unwrap();
+    assert!(has(&f, gold, ValueType::I32), "second search misses gold");
+    assert!(f.count() < 10, "{} places left", f.count());
+    assert_eq!(f.rounds(), 2);
+
+    // Speed 1.0 shown as "1"; then 3.25 shown rounded as "3.3".
+    let mut f = ValueFinder::start(&session, FindStart::Number("1".into()), &ctl).unwrap();
+    assert!(has(&f, speed, ValueType::F32), "first search misses speed");
+    session.write_value(speed, &Value::F32(3.25)).unwrap();
+    f.next(&session, FindNext::Number("3.3".into()), &ctl)
+        .unwrap();
+    assert!(has(&f, speed, ValueType::F32), "second search misses speed");
+    session.write_value(speed, &Value::F32(7.5)).unwrap();
+    f.next(&session, FindNext::Increased, &ctl).unwrap();
+    assert!(has(&f, speed, ValueType::F32), "increased misses speed");
+}
+
+#[test]
+fn finder_without_a_number_reads_memory_both_ways() {
+    use ot_core::{FindNext, FindStart, ValueFinder};
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let (health, speed) = (tb.addr("health"), tb.addr("speed"));
+    let session = AttachedProcess::attach(tb.pid()).unwrap();
+    let ctl = ScanControl::new();
+    let has = |f: &ValueFinder, a: u64, ty: ValueType| {
+        f.hits(f.count())
+            .iter()
+            .any(|h| h.address == a && h.ty == ty)
+    };
+
+    let mut f = ValueFinder::start(&session, FindStart::Unknown, &ctl).unwrap();
+    let start = f.count();
+    assert!(f.hits(10).is_empty(), "nothing to show before a comparison");
+    tb.send("hit 5");
+    session.write_value(speed, &Value::F32(0.5)).unwrap();
+    f.next(&session, FindNext::Decreased, &ctl).unwrap();
+    assert!(has(&f, health, ValueType::I32), "health (whole) missed");
+    assert!(has(&f, speed, ValueType::F32), "speed (decimal) missed");
+    f.next(&session, FindNext::Unchanged, &ctl).unwrap();
+    assert!(has(&f, health, ValueType::I32));
+    assert!(
+        f.count() < start / 100,
+        "only narrowed from {start} to {}",
+        f.count()
+    );
+}

@@ -310,6 +310,10 @@ export default function App() {
                 </div>
                 <SessionTools
                   session={session}
+                  gameName={
+                    games.find((g) => g.pid === session.process.pid)?.name ??
+                    session.process.name.replace(/\.exe$/i, "")
+                  }
                   onShowPacks={() => setView("packs")}
                   onSessionLost={sessionLost}
                   onRefreshModules={() => void refreshModules()}

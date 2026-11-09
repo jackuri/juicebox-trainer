@@ -11,8 +11,8 @@ use ot_core::journal::Recovery;
 use ot_core::pointer::{PointerPath, PointerScanOptions};
 use ot_core::signature::Signature;
 use ot_core::{
-    AttachedProcess, FirstScan, Freezer, Module, NextScan, ProcessInfo, Scan, ScanControl,
-    ScanOptions, Value, ValueType, Verdict,
+    AttachedProcess, FindNext, FindStart, FirstScan, Freezer, Module, NextScan, ProcessInfo, Scan,
+    ScanControl, ScanOptions, Value, ValueFinder, ValueType, Verdict,
 };
 use ot_packs::schema::PackArch;
 use ot_packs::settings::{self, GameSettings, PresetCheat};
@@ -62,6 +62,8 @@ struct Live {
     process: Arc<AttachedProcess>,
     freezer: Freezer,
     scan: Option<Scan>,
+    /// The "Find a value" search (several types at once).
+    finder: Option<ValueFinder>,
     list: Vec<ListEntry>,
     next_id: u64,
     trainer: Option<LoadedTrainer>,
@@ -99,6 +101,7 @@ impl Live {
             process,
             freezer,
             scan: None,
+            finder: None,
             list: Vec::new(),
             next_id: 1,
             trainer: None,
@@ -590,6 +593,209 @@ pub async fn scan_results(
             count: scan.count(),
             hits,
         })
+    })
+}
+
+// ----- find a value (no value types) ------------------------------------------
+
+/// A step of "Find a value", as sent by the UI.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+pub enum FinderStep {
+    Number { value: String },
+    Increased,
+    Decreased,
+    Unchanged,
+    Changed,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinderSummary {
+    pub count: usize,
+    pub rounds: u32,
+}
+
+fn finder_summary(f: &ValueFinder) -> FinderSummary {
+    FinderSummary {
+        count: f.count(),
+        rounds: f.rounds(),
+    }
+}
+
+/// Starts a search for the number the game shows (`None`: no number shown).
+#[tauri::command]
+pub async fn finder_start(
+    number: Option<String>,
+    state: State<'_, AppState>,
+) -> CmdResult<FinderSummary> {
+    let _slot = claim_scan(&state)?;
+    let process = with_live(&state, |l| {
+        l.finder = None;
+        Ok(Arc::clone(&l.process))
+    })?;
+    let start = match number {
+        Some(n) => FindStart::Number(n),
+        None => FindStart::Unknown,
+    };
+    let result = ValueFinder::start(&process, start, &state.scan_control);
+    let finder = state.settle(result.map_err(CommandError::from))?;
+    let out = finder_summary(&finder);
+    if let Some(live) = state.live().as_mut()
+        && Arc::ptr_eq(&live.process, &process)
+    {
+        live.finder = Some(finder);
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn finder_next(step: FinderStep, state: State<'_, AppState>) -> CmdResult<FinderSummary> {
+    let _slot = claim_scan(&state)?;
+    let (process, mut finder) = with_live(&state, |l| {
+        let f = l
+            .finder
+            .take()
+            .ok_or_else(|| CommandError::new("noScan", "start a search first"))?;
+        Ok((Arc::clone(&l.process), f))
+    })?;
+    let step = match step {
+        FinderStep::Number { value } => FindNext::Number(value),
+        FinderStep::Increased => FindNext::Increased,
+        FinderStep::Decreased => FindNext::Decreased,
+        FinderStep::Unchanged => FindNext::Unchanged,
+        FinderStep::Changed => FindNext::Changed,
+    };
+    let result = finder.next(&process, step, &state.scan_control);
+    let out = finder_summary(&finder);
+    // The previous results survive errors and cancels, so always put them back.
+    if let Some(live) = state.live().as_mut()
+        && Arc::ptr_eq(&live.process, &process)
+    {
+        live.finder = Some(finder);
+    }
+    state.settle(result.map_err(CommandError::from))?;
+    Ok(out)
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FinderHitView {
+    pub address: u64,
+    pub ty: ValueType,
+    /// Value at the last search.
+    pub previous: String,
+    /// Value now, if readable.
+    pub current: Option<String>,
+}
+
+#[tauri::command]
+pub async fn finder_results(
+    limit: usize,
+    state: State<'_, AppState>,
+) -> CmdResult<Vec<FinderHitView>> {
+    with_live(&state, |l| {
+        let Some(finder) = &l.finder else {
+            return Ok(Vec::new());
+        };
+        let mut out = Vec::new();
+        for h in finder.hits(limit.min(500)) {
+            let current = match l.process.read_value(h.address, h.ty) {
+                Ok(v) => Some(v.to_string()),
+                Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+                    return Err(e.into());
+                }
+                Err(_) => None,
+            };
+            out.push(FinderHitView {
+                address: h.address,
+                ty: h.ty,
+                previous: h.value.to_string(),
+                current,
+            });
+        }
+        Ok(out)
+    })
+}
+
+#[tauri::command]
+pub async fn finder_reset(state: State<'_, AppState>) -> CmdResult<()> {
+    with_live(&state, |l| {
+        l.finder = None;
+        Ok(())
+    })
+}
+
+/// What saving a found value as a cheat did.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MyCheatSaved {
+    /// The pack's key (for `trainer_load`).
+    pub key: String,
+    pub pack_name: String,
+    pub hotkey: Option<String>,
+    /// The pack is now loaded in the Trainer tab.
+    pub loaded: bool,
+}
+
+/// Saves a found value as a cheat in the game's own pack ("my cheats"). The
+/// path must lead to `expect` right now, so a wrong one is never saved.
+#[tauri::command]
+pub async fn my_cheat_save(
+    game_name: String,
+    cheat: crate::my_cheats::NewCheat,
+    expect: u64,
+    state: State<'_, AppState>,
+) -> CmdResult<MyCheatSaved> {
+    use crate::my_cheats::{GameInfo, add_cheat, pack_id};
+    let fail = |m: String| CommandError::new("myCheat", m);
+    let game = with_live(&state, |l| {
+        let p = &l.process;
+        let base = p.resolve(&format!("{}+0x{:X}", cheat.module, cheat.module_offset))?;
+        let now = p.resolve_chain(base, &cheat.offsets).ok();
+        if now != Some(expect) {
+            return Err(fail(
+                "that path doesn't lead to the value any more; find it again".into(),
+            ));
+        }
+        Ok(GameInfo {
+            name: game_name.clone(),
+            exe: p.info().name.clone(),
+            arch: p.arch(),
+            sha256: p.exe_sha256(),
+        })
+    })?;
+    let dir = store::user_dir()
+        .ok_or_else(|| CommandError::new("noAppData", "%APPDATA% is not set"))?
+        .join(pack_id(&game.exe));
+    let path = dir.join("pack.json");
+    let existing = std::fs::read_to_string(&path).ok();
+    let (text, hotkey) = add_cheat(existing.as_deref(), &game, &cheat).map_err(fail)?;
+    let io = |e: std::io::Error| CommandError::new("io", format!("{}: {e}", dir.display()));
+    std::fs::create_dir_all(&dir).map_err(io)?;
+    if existing.is_some() {
+        let _ = std::fs::copy(&path, dir.join("pack.json.bak"));
+    }
+    let tmp = dir.join("pack.json.tmp");
+    std::fs::write(&tmp, &text).map_err(io)?;
+    std::fs::rename(&tmp, &path).map_err(io)?;
+
+    let found = store::all()
+        .into_iter()
+        .find(|f| f.path.as_deref() == Some(path.as_path()));
+    let key = found.map_or_else(|| path.display().to_string(), |f| f.key);
+    // Show it in the Trainer tab unless another pack is in use there.
+    let current = with_live(&state, |l| Ok(l.trainer.as_ref().map(|t| t.key.clone())))?;
+    let loaded = match current {
+        None => load_key(&state, key.clone()).is_ok(),
+        Some(k) if k == key => load_key(&state, key.clone()).is_ok(),
+        Some(_) => false,
+    };
+    Ok(MyCheatSaved {
+        key,
+        pack_name: format!("{} (my cheats)", game.name.trim()),
+        hotkey,
+        loaded,
     })
 }
 

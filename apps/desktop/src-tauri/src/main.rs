@@ -9,6 +9,7 @@ mod gamepad;
 mod github;
 mod hotkeys;
 mod library;
+mod my_cheats;
 mod overlay;
 mod remote;
 mod saves;
@@ -146,6 +147,11 @@ fn main() {
             commands::scan_progress,
             commands::scan_reset,
             commands::scan_results,
+            commands::finder_start,
+            commands::finder_next,
+            commands::finder_results,
+            commands::finder_reset,
+            commands::my_cheat_save,
             commands::address_list,
             commands::address_add,
             commands::address_remove,

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0] - 2026-11-09
+
+### Added
+- **Find a value** in the Cheats tab: a guided helper that finds a number in the game without value
+  types or addresses. You type the number the game shows (or say "went up / went down" for a bar);
+  it searches whole numbers and decimals at once, accepts rounded and `1,250`-style numbers, then
+  tries each place it found and asks "Does it show 625 now?", putting your real number back after
+  each try. Found values can be kept, set once, or saved as a cheat with a free hotkey in your own
+  pack for the game ("*Game* (my cheats)"). A value that moves each time the game starts is saved
+  after a restart: OpenTrainer looks for pointer paths to it, you find it once more, and only a
+  path that still leads to it is saved.
+- Scanner results update their values live (every second while the Scanner is open).
+
 ## [1.8.1] - 2026-11-09
 
 ### Fixed

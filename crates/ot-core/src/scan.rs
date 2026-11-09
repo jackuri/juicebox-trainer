@@ -296,6 +296,62 @@ impl Scan {
         Ok(())
     }
 
+    /// Narrows a copy of this scan that reads its slots as `ty`, a type of the
+    /// same size (an unknown-value scan as `i32` can go on as `f32`). This
+    /// scan is left as it was.
+    pub fn next_as(
+        &self,
+        process: &AttachedProcess,
+        ty: ValueType,
+        mode: NextScan,
+        control: &ScanControl,
+    ) -> Result<Scan> {
+        if ty.size(self.arch) != self.ty.size(self.arch) {
+            return Err(Error::InvalidValue {
+                input: format!("a {} scan read as {ty}", self.ty),
+                ty,
+            });
+        }
+        let mut copy = Scan {
+            ty,
+            arch: self.arch,
+            options: self.options,
+            blocks: Vec::new(),
+            count: self.count,
+            rounds: self.rounds,
+        };
+        // Borrow the blocks for the narrowing instead of cloning them.
+        let size = ty.size(self.arch);
+        match &mode {
+            NextScan::Exact(v) => check_type(v, ty)?,
+            NextScan::Between(a, b) => {
+                check_type(a, ty)?;
+                check_type(b, ty)?;
+            }
+            _ => {}
+        }
+        let total: u64 = self.blocks.iter().map(|b| b.read_span(size).1 as u64).sum();
+        control.begin(total);
+        let tol = tolerance(ty, self.options);
+        let step = self.step();
+        let arch = self.arch;
+        copy.blocks = dispatch!(
+            ty,
+            arch,
+            next_typed,
+            process,
+            &self.blocks,
+            &mode,
+            arch,
+            step,
+            tol,
+            control
+        )?;
+        copy.count = copy.blocks.iter().map(|b| b.count).sum();
+        copy.rounds += 1;
+        Ok(copy)
+    }
+
     pub fn value_type(&self) -> ValueType {
         self.ty
     }

@@ -132,6 +132,49 @@ export interface ListEntry {
   frozen: boolean;
 }
 
+// ----- find a value (mirror commands.rs finder_* / my_cheat_save) -----
+
+export type FinderStep =
+  | { kind: "number"; value: string }
+  | { kind: "increased" }
+  | { kind: "decreased" }
+  | { kind: "unchanged" }
+  | { kind: "changed" };
+
+export interface FinderSummary {
+  count: number;
+  rounds: number;
+}
+
+export interface FinderHit {
+  address: number;
+  ty: ValueType;
+  /** Value at the last search. */
+  previous: string;
+  /** Value now, if readable. */
+  current: string | null;
+}
+
+/** A found value to save as a cheat (a module address, then pointer offsets). */
+export interface NewCheat {
+  name: string;
+  ty: ValueType;
+  value: string;
+  /** Keep it at `value` (a switch) rather than set it once (a button). */
+  keep: boolean;
+  module: string;
+  moduleOffset: number;
+  offsets: number[];
+}
+
+export interface MyCheatSaved {
+  key: string;
+  packName: string;
+  hotkey: string | null;
+  /** Now loaded in the Trainer tab. */
+  loaded: boolean;
+}
+
 // ----- packs + trainer (mirror ot-packs and commands.rs) -----
 
 export type PackArch = "x86" | "x64";
@@ -845,6 +888,13 @@ export const api = {
     invoke<ReadResult>("read_value", { address, ty }),
   writeValue: (address: string, ty: ValueType, value: string) =>
     invoke<ReadResult>("write_value", { address, ty, value }),
+
+  finderStart: (number: string | null) => invoke<FinderSummary>("finder_start", { number }),
+  finderNext: (step: FinderStep) => invoke<FinderSummary>("finder_next", { step }),
+  finderResults: (limit: number) => invoke<FinderHit[]>("finder_results", { limit }),
+  finderReset: () => invoke<void>("finder_reset"),
+  myCheatSave: (gameName: string, cheat: NewCheat, expect: number) =>
+    invoke<MyCheatSaved>("my_cheat_save", { gameName, cheat, expect }),
 
   scanFirst: (ty: ValueType, mode: ScanMode, options: ScanOptions) =>
     invoke<ScanSummary>("scan_first", { ty, mode, options }),

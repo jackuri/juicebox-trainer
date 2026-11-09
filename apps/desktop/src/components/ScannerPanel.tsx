@@ -32,7 +32,12 @@ const NEXT_KINDS: { kind: NextScanKind; label: string }[] = [
 
 const RESULT_LIMIT = 200;
 
+/** How often shown values are re-read while the Scanner is open. */
+const LIVE_REFRESH_MS = 1000;
+
 interface Props {
+  /** The Scanner is on screen (values update live only then). */
+  active?: boolean;
   onAddToList: (address: number, ty: ValueType) => void;
   /** Look for pointer paths to this address (Pointers tab). */
   onFindPointers?: (address: number, ty: ValueType) => void;
@@ -43,7 +48,7 @@ function needsValue(kind: string) {
   return kind === "exact" || kind === "between";
 }
 
-export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Props) {
+export function ScannerPanel({ active = true, onAddToList, onFindPointers, onSessionLost }: Props) {
   const [ty, setTy] = useState<ValueType>("i32");
   const [firstKind, setFirstKind] = useState<FirstScanKind>("exact");
   const [nextKind, setNextKind] = useState<NextScanKind>("exact");
@@ -68,6 +73,22 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
     }, 150);
     return () => clearInterval(timer);
   }, [running]);
+
+  // Keep the shown values current while the player watches.
+  const live = active && summary !== null && !running && hits.length > 0;
+  useEffect(() => {
+    if (!live) return;
+    const timer = setInterval(() => {
+      api.scanResults(0, RESULT_LIMIT).then(
+        (r) => setHits(r.hits),
+        (e) => {
+          const err = toCommandError(e);
+          if (isSessionLost(err)) onSessionLost(err);
+        },
+      );
+    }, LIVE_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [live, onSessionLost]);
 
   function fail(e: unknown) {
     const err = toCommandError(e);
@@ -248,9 +269,7 @@ export function ScannerPanel({ onAddToList, onFindPointers, onSessionLost }: Pro
             <span>scan {summary.rounds}</span>
             <span>{summary.ty}</span>
             {summary.count > RESULT_LIMIT && <span>showing first {RESULT_LIMIT}</span>}
-            <button className="ml-auto rounded bg-zinc-800 px-2 py-0.5 hover:bg-zinc-700" onClick={() => void loadResults()}>
-              Refresh values
-            </button>
+            <span className="ml-auto text-zinc-500">Values update live</span>
           </div>
           {hits.length > 0 && (
             <div className="max-h-64 overflow-y-auto rounded-xl bg-zinc-900/70 ring-1 ring-zinc-800">

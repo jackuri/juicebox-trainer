@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ScannerPanel } from "./ScannerPanel";
 
@@ -43,6 +43,21 @@ beforeEach(() => {
 });
 
 describe("ScannerPanel", () => {
+  it("updates shown values live while it's on screen, not when hidden", async () => {
+    const view = render(<ScannerPanel onAddToList={vi.fn()} onSessionLost={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Scan value"), { target: { value: "250" } });
+    fireEvent.click(screen.getByRole("button", { name: "First scan" }));
+    await screen.findByTestId("scan-count");
+    const reads = () => invoke.mock.calls.filter(([c]) => c === "scan_results").length;
+    const before = reads();
+    await waitFor(() => expect(reads()).toBeGreaterThan(before), { timeout: 2500 });
+
+    view.rerender(<ScannerPanel active={false} onAddToList={vi.fn()} onSessionLost={vi.fn()} />);
+    const hidden = reads();
+    await new Promise((r) => setTimeout(r, 1300));
+    expect(reads()).toBe(hidden);
+  });
+
   it("runs a first exact scan, then narrows with a next scan", async () => {
     const onAdd = vi.fn();
     render(<ScannerPanel onAddToList={onAdd} onSessionLost={vi.fn()} />);

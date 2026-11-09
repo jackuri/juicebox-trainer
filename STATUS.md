@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.8.1_
+_Last updated: 2026-11-09 — v1.9.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,17 @@ _Last updated: 2026-11-09 — v1.8.1_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.9.0 Find a value: `ot_core::finder::ValueFinder` (i32 + f32 + f64 at once; typed numbers with
+  `,` separators; decimals match within one unit of the last digit; unknown start = one i32 snapshot
+  split into i32 + f32 by `Scan::next_as`). Commands `finder_start/next/results/reset` and
+  `my_cheat_save` (writes `packs\mine-<exe>\pack.json`, next free F-key, build sha, checks the path
+  leads to the found address, loads it if no other pack is loaded). UI: Cheats → "Find a value" tab
+  (tries each place with a test number and restores the real one; Keep/Set; Use it now = address
+  list + freeze; Save = static module address, or pointer scan → restart → find again → filter).
+  Pending save kept in localStorage; pointer results only live while OpenTrainer stays open.
+  Scanner values refresh every 1 s while visible. Real-app test (release build + testbed via
+  DevTools) passed: found gold, kept 9999, saved after restart as `testbed_native.exe+0x49200`
+  `[0x10, 0x10, 0xC]`, the Trainer toggle held it.
 - v1.8.1 One entry per running game: `running_games` keeps one process per game (pack exe, else
   most memory via `ot_core::memory_in_use`, else biggest exe, else lowest PID); helpers stay under
   "Show all running programs". The Play button's `pick()` still uses pack exe / biggest exe (memory

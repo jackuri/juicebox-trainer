@@ -68,6 +68,29 @@ Or do it yourself:
 When you close the game, unload the pack, detach or close OpenTrainer, every change goes back to how
 the game had it. If OpenTrainer ever crashes, it undoes leftover changes the next time it starts.
 
+### No pack for your game? Find a value
+
+Attach to the game, then open **Find a value** (next to Trainer). It finds a number for you by
+asking simple questions, with no value types or memory addresses:
+
+1. Pick what to change (**Gold**, **Health**, **Ammo**, or type a name).
+2. Type the number the game shows now (`1250` or `1,250`), then **Search**. No number on screen,
+   like a health bar? Click **There's no number on screen**, then say whether it **went down** or
+   **went up** each time you change it.
+3. Change it in the game (spend some gold, take a hit) and type the new number. Repeat until only a
+   few places are left. OpenTrainer then tries them one by one and asks **Does it show 625 now?**
+   Answer **Yes** or **No**. Your real number is put back after each try. Some games only redraw
+   the number when something happens: open a menu or move, then look again.
+4. Found it? Choose **Keep it at** or **Set it once to** and a number, then:
+   - **Use it now**: works right away, until you close the game (it's in the address list below).
+   - **Save as a cheat (with a hotkey)**: adds it to your own pack for this game, "*Game* (my
+     cheats)", with the next free key (`F1`, `F2`, …). If the value moves each time the game starts,
+     OpenTrainer asks you to restart the game and find it once more, then click **Finish saving**.
+     Keep OpenTrainer open while you do that.
+
+The old tools (**Scanner**, **Pointers** and so on) are still there for experts. Scanner results now
+update their values live.
+
 ### Make cheats yours
 
 - **★ Favourites:** click the star to put a cheat at the top.

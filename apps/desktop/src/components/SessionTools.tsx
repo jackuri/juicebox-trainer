@@ -10,6 +10,7 @@ import {
   type ValueType,
 } from "../lib/ipc";
 import { AddressList } from "./AddressList";
+import { FindValuePanel } from "./FindValuePanel";
 import { MemoryPanel } from "./MemoryPanel";
 import { ModuleTable } from "./ModuleTable";
 import { PointerPanel, type PointerRequest } from "./PointerPanel";
@@ -17,11 +18,13 @@ import { ScannerPanel } from "./ScannerPanel";
 import { SignaturePanel } from "./SignaturePanel";
 import { TrainerPanel } from "./TrainerPanel";
 
-const TABS = ["Trainer", "Scanner", "Pointers", "Signatures", "Read / write", "Modules"] as const;
+const TABS = ["Trainer", "Find a value", "Scanner", "Pointers", "Signatures", "Read / write", "Modules"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
   session: SessionInfo;
+  /** The game's name (from the library), for packs made here. */
+  gameName?: string;
   onSessionLost: (e: CommandError) => void;
   onRefreshModules: () => void;
   /** Opens the Packs tab. */
@@ -29,10 +32,10 @@ interface Props {
 }
 
 /**
- * Tools shown while attached: trainer (packs), scanner, pointer scanner,
+ * Tools shown while attached: trainer (packs), Find a value (guided), scanner, pointer scanner,
  * signature maker, read/write, modules, address list.
  */
-export function SessionTools({ session, onSessionLost, onRefreshModules, onShowPacks }: Props) {
+export function SessionTools({ session, gameName, onSessionLost, onRefreshModules, onShowPacks }: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [pointerRequest, setPointerRequest] = useState<PointerRequest | null>(null);
@@ -69,8 +72,18 @@ export function SessionTools({ session, onSessionLost, onRefreshModules, onShowP
       <div hidden={tab !== "Trainer"}>
         <TrainerPanel session={session} onSessionLost={onSessionLost} onShowPacks={onShowPacks} />
       </div>
+      <div hidden={tab !== "Find a value"}>
+        <FindValuePanel
+          session={session}
+          gameName={gameName ?? session.process.name.replace(/\.exe$/i, "")}
+          onSessionLost={onSessionLost}
+          onListChanged={() => void api.addressList().then(setEntries, () => undefined)}
+          onShowTrainer={() => setTab("Trainer")}
+        />
+      </div>
       <div hidden={tab !== "Scanner"}>
         <ScannerPanel
+          active={tab === "Scanner"}
           onAddToList={(a, t) => void addToList(a, t)}
           onFindPointers={(address, ty) => {
             setPointerRequest({ address, ty });

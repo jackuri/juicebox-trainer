@@ -12,6 +12,7 @@ pub mod code;
 pub mod dotnet;
 pub mod engine;
 pub mod error;
+pub mod finder;
 pub mod freeze;
 pub mod guard;
 pub mod hash;
@@ -31,6 +32,7 @@ pub mod writes;
 
 pub use aob::Pattern;
 pub use error::{Error, Result};
+pub use finder::{FindNext, FindStart, FoundValue, ValueFinder};
 pub use freeze::Freezer;
 pub use guard::{Finding, FindingKind, Verdict};
 pub use memory::Region;
