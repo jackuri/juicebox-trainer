@@ -122,10 +122,15 @@ is **declarative pack data**, never arbitrary native code executed by the app.
 
 ### 3.1 Anti-cheat guard (ot-core, non-bypassable)
 Before any attach/write, block if any of these are true:
-- `um scan --json` reports `anti_cheat` non-empty for the install.
 - A known anti-cheat process/service/driver is running or loaded in the target (EasyAntiCheat, BEService /
   BattlEye, vgc / vgk, EA Javelin, Ricochet, ACE, nProtect GameGuard, XIGNCODE, mhyprot, etc.).
 - The game is on the built-in online-only / live-service list.
+- A check could not run (fail closed).
+- For changing files of a game that isn't running (save restore/edit): anti-cheat files in the install.
+Anti-cheat files in the install of a *running* game are a note, not a block (from 1.7.0): games with an
+official no-anti-cheat mode (e.g. Halo MCC "Anti-Cheat Disabled") run with none of it active. The
+session re-checks every 5 s and blocks for good if it starts. OpenTrainer never starts a game without its
+anti-cheat, and never tells players how to get around one.
 When blocked: show why, offer save backups only (no save edits for online-progression games). There is no
 setting, flag or env var that turns this off.
 
@@ -249,6 +254,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 1.0.0 | Release | Installer (NSIS, per-user, `.otpack` file association), signing-ready release workflow (unsigned until a certificate exists), auto-update (off until the repo is public), user / developer / release docs, `.otpack` import/export, community pack list (GitHub repo index), AI engine downloaded on first use. The repo stays private for now (user's choice) |
 | 1.1.0 | Polish | "Browse…" pickers for games and save folders, plain `pack.json` import, auto-load the only pack on attach, "Find pointers" from scanner results, "Copy as pack cheat" for pointer paths. Added after 1.0.0 from STATUS follow-ups (no new dependencies) |
 | 1.2.0 | Look | New look in the style of modern trainer apps (user's request: "like Wand / WeMod"): sidebar, navy + blue-violet theme, cheat cards with big switches and key caps, game cards with generated covers, new icon colours. Own design; no other app's branding or art |
+| 1.7.0 | Official no-anti-cheat modes | guard judges a running game by what is active; anti-cheat files alone are a note (re-checked every 5 s); Games list and attach message explain it |
 | 1.6.0 | Hooked pointers | `ot_core::capture` (hardware execute breakpoint, read one register, optional condition, detach), pack `address.capture`, trainer reads on use / refreshes held values, `ct_script` turns pointer-grab hooks into captures; per-script name scopes |
 | 1.5.0 | Smarter tables | `ct_script`: reads table scripts as text (never runs them): Lua RIP pointers and aobscanmodule symbols → aob addresses, define/label numbers and offset math, byte-swap scripts → patch cheats; children of non-number entries |
 | 1.4.2 | Hardening | Security review fixes: table number overflow and node limit, sharing permission checked by origin, PR text escaped, install = preview, credential null check, updater without zip, workflow hardening; group-header addresses; crash-reporter filter |

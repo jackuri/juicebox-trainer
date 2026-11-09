@@ -3,8 +3,15 @@
 OpenTrainer gives you cheats in **single-player PC games**: infinite health, more gold, faster
 movement and so on. It also backs up and edits your saves, and can make new cheats with AI.
 
-It never works in online or multiplayer games, or in any game with anti-cheat. It checks every game
-first and refuses those. That can't be switched off.
+It never works in online or multiplayer games, or while a game's anti-cheat is running. It checks
+every game first and refuses those. That can't be switched off.
+
+Some games come with anti-cheat but have an official way to play without it, like Halo: The Master
+Chief Collection ("Anti-Cheat Disabled" when you press Play in Steam). Started that way, nothing of
+the anti-cheat runs and OpenTrainer can attach. It checks again every few seconds and stops if the
+anti-cheat starts. Games whose anti-cheat always runs (for example Elden Ring, Dragon Ball
+Xenoverse 2 or Dune: Awakening started normally) stay refused. OpenTrainer never switches anti-cheat
+off or gets around it.
 
 ## Install
 
@@ -186,8 +193,9 @@ new versions are on the releases page.
 
 ## Something isn't working
 
-- **"Anti-cheat found" / the game is refused:** this is on purpose. OpenTrainer doesn't work with
-  those games.
+- **"Anti-cheat found" / the game is refused:** this is on purpose. OpenTrainer doesn't work while
+  anti-cheat runs. If the game's maker offers a way to play without anti-cheat, start it that way.
+  Note that a running anti-cheat from *another* game also blocks: close that game first.
 - **A cheat shows as failed:** the game was probably updated. Try **Try to repair**, or make a new
   pack with the AI helper.
 - **The overlay doesn't show:** switch the game to windowed or borderless.

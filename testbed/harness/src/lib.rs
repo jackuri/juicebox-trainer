@@ -186,7 +186,7 @@ impl Drop for TempDir {
 
 pub fn blocked(err: Error) -> ot_core::Verdict {
     match err {
-        Error::Blocked(v) => v,
+        Error::Blocked(v) => *v,
         other => panic!("expected Blocked, got {other:?}"),
     }
 }

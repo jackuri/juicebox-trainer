@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0] - 2026-11-09
+
+### Changed
+- **Games that come with anti-cheat but can be played without it.** The guard now judges a running
+  game by what is actually running. Anti-cheat files in the game's folder no longer block on their
+  own: when the game was started through an official no-anti-cheat option (Halo: The Master Chief
+  Collection's "Anti-Cheat Disabled"), nothing of it runs and you can attach. Anti-cheat that is
+  running still always blocks, re-checked every 5 seconds; there is still no off switch, and
+  OpenTrainer never turns anti-cheat off or gets around it. Changing a game's files while it isn't
+  running (save restore) still refuses games with anti-cheat files.
+- Games list: such games say "Has Easy Anti-Cheat: works only when the game runs without it"
+  instead of "not supported". The attach message says when anti-cheat comes with the game but isn't
+  running, and when it is running, that some games have an official way to play without it.
+
 ## [1.6.0] - 2026-11-09
 
 ### Added

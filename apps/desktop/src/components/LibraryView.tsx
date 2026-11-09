@@ -145,6 +145,10 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
               <p className="flex flex-col gap-0.5 text-xs text-zinc-500">
                 {g.blocked ? (
                   <span className="text-amber-400">Online / anti-cheat ({g.blocked.replace(/^anti-cheat found:? ?/, "") || "found"}): not supported</span>
+                ) : g.antiCheat && !g.pack ? (
+                  <span className="text-amber-300" title="OpenTrainer checks when the game runs and only attaches while its anti-cheat isn't running">
+                    Has {g.antiCheat}: works only when the game runs without it
+                  </span>
                 ) : g.pack ? (
                   <span className="text-emerald-300">
                     Pack: {g.pack.name}
@@ -152,6 +156,9 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
                   </span>
                 ) : (
                   <span>No pack yet</span>
+                )}
+                {g.antiCheat && g.pack && (
+                  <span className="text-amber-300">Has {g.antiCheat}: works only when the game runs without it</span>
                 )}
                 {g.autoPreset && <span className="text-sky-300">Starts with: {g.autoPreset}</span>}
                 {g.launch.kind === "manual" && !g.blocked && <span>You start it yourself; OpenTrainer waits for it</span>}

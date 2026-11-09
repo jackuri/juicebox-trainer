@@ -486,7 +486,7 @@ pub async fn ai_start(
         let verdict = ot_core::guard::check(request.pid);
         if !verdict.allowed {
             let mut e = CommandError::new("blocked", verdict.to_string());
-            e.verdict = Some(verdict);
+            e.verdict = Some(Box::new(verdict));
             return Err(e);
         }
         // The helper attaches on its own; the app lets go of the game first.

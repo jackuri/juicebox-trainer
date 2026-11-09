@@ -160,28 +160,47 @@ fn guard_blocks_while_anticheat_process_runs() {
 }
 
 #[test]
-fn guard_blocks_game_with_anticheat_folder() {
+fn game_with_anticheat_folder_attaches_only_while_it_is_not_running() {
     let _g = serial();
     let dir = TempDir::new("battleye-marker");
     std::fs::create_dir_all(dir.0.join("MyGame").join("BattlEye")).unwrap();
     let tb = Testbed::spawn(&dir.copy_testbed(r"MyGame\testbed_native.exe"));
 
-    let v = blocked(AttachedProcess::attach(tb.pid()).unwrap_err());
+    // Shipped with the game but not running (an official no-anti-cheat mode).
+    let v = ot_core::guard::check(tb.pid());
+    assert!(v.allowed, "{v}");
     assert!(
-        v.findings
+        v.notes
             .iter()
             .any(|f| f.kind == FindingKind::InstallMarker && f.product == "BattlEye")
     );
+    AttachedProcess::attach(tb.pid()).expect("nothing of the anti-cheat runs");
+
+    // Running, it blocks.
+    let fake = Testbed::spawn(&dir.copy_testbed("BEService.exe"));
+    let v = blocked(AttachedProcess::attach(tb.pid()).unwrap_err());
+    assert!(v.findings.iter().any(|f| f.kind == FindingKind::Process));
+    assert!(
+        v.findings
+            .iter()
+            .any(|f| f.kind == FindingKind::InstallMarker)
+    );
+    drop(fake);
 }
 
 #[test]
-fn guard_blocks_marker_above_unreal_style_binaries_folder() {
+fn anticheat_folder_above_unreal_style_binaries_folder_is_seen() {
     let _g = serial();
     let dir = TempDir::new("eac-unreal-layout");
     std::fs::create_dir_all(dir.0.join("Game").join("EasyAntiCheat")).unwrap();
-    let tb = Testbed::spawn(&dir.copy_testbed(r"Game\Binaries\Win64\testbed_native.exe"));
+    let exe = dir.copy_testbed(r"Game\Binaries\Win64\testbed_native.exe");
+    let tb = Testbed::spawn(&exe);
 
-    let v = blocked(AttachedProcess::attach(tb.pid()).unwrap_err());
+    let v = ot_core::guard::check(tb.pid());
+    assert!(v.notes.iter().any(|f| f.kind == FindingKind::InstallMarker));
+    // Changing the game's files while it isn't running stays blocked.
+    let v = ot_core::guard::check_install(&exe);
+    assert!(!v.allowed);
     assert!(
         v.findings
             .iter()

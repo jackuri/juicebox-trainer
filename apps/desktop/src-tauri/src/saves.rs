@@ -26,7 +26,7 @@ impl From<ot_saves::Error> for CommandError {
         let kind = e.kind();
         let message = e.to_string();
         let verdict = match e {
-            ot_saves::Error::Blocked(v) => Some(*v),
+            ot_saves::Error::Blocked(v) => Some(v),
             _ => None,
         };
         let mut err = CommandError::new(kind, message);

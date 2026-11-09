@@ -4,10 +4,15 @@
 //! It blocks when any of these is true:
 //! - a known anti-cheat process, service or kernel driver is running;
 //! - a known anti-cheat module is loaded in the target;
-//! - the target's install folder contains an anti-cheat marker (so we catch
-//!   anti-cheat that only starts with the game's launcher);
 //! - the target is on the built-in online-only list;
 //! - any of the checks above could not be run ("fail closed").
+//!
+//! Anti-cheat files in the game's folder (an install marker) block changing a
+//! game that isn't running ([`check_install`]). For a running game they are
+//! only a note: some games ship anti-cheat but can be played without it (an
+//! official "anti-cheat disabled" launch option), and then nothing of it is
+//! running. If it starts later, the session's periodic re-check blocks it for
+//! good.
 //!
 //! There is no setting, flag, feature or environment variable that turns this
 //! off, and the signature list is compiled into the binary. A test in this
@@ -69,7 +74,12 @@ pub struct Verdict {
     /// Target exe name.
     pub target: String,
     pub allowed: bool,
+    /// Why it blocked (empty when allowed).
     pub findings: Vec<Finding>,
+    /// Anti-cheat that is installed with the game but not running (only on an
+    /// allowed running game).
+    #[serde(default)]
+    pub notes: Vec<Finding>,
     /// Version of the built-in signature list used.
     pub signatures_version: u32,
 }
@@ -77,7 +87,17 @@ pub struct Verdict {
 impl fmt::Display for Verdict {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if self.allowed {
-            return write!(f, "{} (pid {}): no anti-cheat found", self.target, self.pid);
+            if self.notes.is_empty() {
+                return write!(f, "{} (pid {}): no anti-cheat found", self.target, self.pid);
+            }
+            let names: Vec<&str> = self.notes.iter().map(|n| n.product.as_str()).collect();
+            return write!(
+                f,
+                "{} (pid {}): {} installed but not running",
+                self.target,
+                self.pid,
+                names.join(", ")
+            );
         }
         write!(f, "{} (pid {}): ", self.target, self.pid)?;
         for (i, finding) in self.findings.iter().enumerate() {
@@ -94,13 +114,25 @@ impl fmt::Display for Verdict {
 /// a check that can't run becomes an [`FindingKind::Unverifiable`] finding.
 pub fn check(pid: u32) -> Verdict {
     let snapshot = collect::collect(pid);
-    let findings = evaluate(&snapshot, signatures());
+    let (findings, notes) = running_decision(evaluate(&snapshot, signatures()));
     Verdict {
         pid,
         target: snapshot.target_name.clone(),
         allowed: findings.is_empty(),
         findings,
+        notes,
         signatures_version: signatures().version,
+    }
+}
+
+/// For a running game, anti-cheat files alone do not block. Returns (what
+/// blocks, notes). Anything else found blocks, and then the files are listed
+/// with it.
+fn running_decision(found: Vec<Finding>) -> (Vec<Finding>, Vec<Finding>) {
+    if found.iter().all(|f| f.kind == FindingKind::InstallMarker) {
+        (Vec::new(), found)
+    } else {
+        (found, Vec::new())
     }
 }
 
@@ -129,6 +161,7 @@ pub fn check_install(exe: &Path) -> Verdict {
         target: s.target_name,
         allowed: findings.is_empty(),
         findings,
+        notes: Vec::new(),
         signatures_version: signatures().version,
     }
 }
@@ -317,6 +350,37 @@ mod tests {
     }
 
     #[test]
+    fn running_game_with_only_anticheat_files_is_allowed_with_a_note() {
+        let mut s = clean();
+        s.install_entries.push("EasyAntiCheat".into());
+        let (block, notes) = running_decision(evaluate(&s, signatures()));
+        assert!(block.is_empty());
+        assert_eq!(kinds(&notes), vec![FindingKind::InstallMarker]);
+
+        // The anti-cheat running (here its service) blocks, files listed too.
+        s.services.push("EasyAntiCheat_EOS".into());
+        let (block, notes) = running_decision(evaluate(&s, signatures()));
+        assert_eq!(
+            kinds(&block),
+            vec![FindingKind::Service, FindingKind::InstallMarker]
+        );
+        assert!(notes.is_empty());
+
+        // So does a failed check, or an online-only game.
+        for change in [0, 1] {
+            let mut s = clean();
+            s.install_entries.push("BattlEye".into());
+            if change == 0 {
+                s.errors.push("could not list modules".into());
+            } else {
+                s.target_name = "cs2.exe".into();
+            }
+            let (block, _) = running_decision(evaluate(&s, signatures()));
+            assert!(block.len() == 2, "{block:?}");
+        }
+    }
+
+    #[test]
     fn online_only_game_blocks() {
         let mut s = clean();
         s.target_name = "CS2.exe".into();
@@ -386,11 +450,26 @@ mod tests {
                 product: "Riot Vanguard".into(),
                 detail: "vgk.sys".into(),
             }],
+            notes: vec![],
             signatures_version: 1,
         };
         assert_eq!(
             v.to_string(),
             "game.exe (pid 7): Riot Vanguard — driver loaded: vgk.sys"
+        );
+        let noted = Verdict {
+            allowed: true,
+            findings: vec![],
+            notes: vec![Finding {
+                kind: FindingKind::InstallMarker,
+                product: "Easy Anti-Cheat".into(),
+                detail: "EasyAntiCheat".into(),
+            }],
+            ..v
+        };
+        assert_eq!(
+            noted.to_string(),
+            "game.exe (pid 7): Easy Anti-Cheat installed but not running"
         );
     }
 

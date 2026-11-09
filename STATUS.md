@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.6.0_
+_Last updated: 2026-11-09 — v1.7.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,14 @@ _Last updated: 2026-11-09 — v1.6.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.7.0 Official no-anti-cheat modes: `guard::check` (running game) treats install markers alone as
+  `Verdict.notes` (allowed); anything live (process/service/driver/module), online-only or a failed
+  check still blocks, listing the markers too. `check_install` (saves, Games list) unchanged; the
+  Games list shows marker-only games as "Has X: works only when the game runs without it" and lets
+  Play try (the attach decides). `Error::Blocked` / `CommandError.verdict` are boxed (clippy
+  large-err). On this PC only Halo MCC has an official no-EAC launch option (`-no-eac`, Steam
+  option 2); DBXV2 (START.exe), Elden Ring (start_protected_game.exe) and Dune Awakening (BattlEye)
+  always run their anti-cheat and stay blocked.
 - v1.6.0 Hooked pointers: `ot_core::capture` reads a register at a code address with a hardware
   execute breakpoint (attach as debugger, arm DR0 on all threads, resume flag on hits, optional
   `when` register = value, disarm, detach); live-tested on x64 and x86 testbeds. Pack schema
@@ -130,7 +138,7 @@ _Last updated: 2026-11-09 — v1.6.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.6.0 are pushed and tagged (v1.6.0 is Latest, in-app updates on). The community list has its first real shared pack (Species Unknown, merged by the user).
+- v1.1.0 – v1.6.0 are pushed and tagged (v1.6.0 is Latest, in-app updates on). v1.7.0 is committed locally. The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
@@ -146,6 +154,9 @@ _Last updated: 2026-11-09 — v1.6.0_
   between your own Steam accounts (PLAN §2.3), a memory viewer (PLAN §2.2).
 
 ## Known issues
+- v1.7.0's live tests (everything that attaches to the testbed) couldn't run: DBXV2 was open with
+  EasyAntiCheat_EOS running, which (correctly) blocks every attach on the PC. Unit, lint, typecheck
+  and frontend tests pass. Re-run `npm run check` with no anti-cheat running before pushing.
 - v1.0.0 – v1.2.1 haven't been installed and clicked through by hand yet (the user saw v1.2.0's
   Games tab and asked for real covers): the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI

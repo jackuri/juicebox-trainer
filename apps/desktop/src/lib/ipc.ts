@@ -39,6 +39,8 @@ export interface Verdict {
   target: string;
   allowed: boolean;
   findings: Finding[];
+  /** Anti-cheat installed with the game but not running (allowed games only). */
+  notes?: Finding[];
   signaturesVersion: number;
 }
 
@@ -262,6 +264,8 @@ export interface LibraryGame {
   autoPreset: string | null;
   /** Why the anti-cheat guard blocks it. */
   blocked: string | null;
+  /** Anti-cheat that comes with the game; works only while it isn't running. */
+  antiCheat: string | null;
   /** A cover picture is on this PC (`libraryCover`): wide artwork, or an icon / logo. */
   cover: "art" | "icon" | null;
 }

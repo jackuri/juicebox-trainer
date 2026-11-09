@@ -59,6 +59,10 @@ pub struct LibraryGame {
     pub auto_preset: Option<String>,
     /// Why the anti-cheat guard blocks this game, if it does.
     pub blocked: Option<String>,
+    /// Anti-cheat that comes with the game (its files are in the game folder).
+    /// Not a block: attaching works only while none of it is running, which
+    /// the guard checks when the game runs.
+    pub anti_cheat: Option<String>,
     /// A cover picture is available (`library_cover`), and how to draw it.
     pub cover: Option<CoverKind>,
     #[serde(skip)]
@@ -127,7 +131,22 @@ fn describe(
         .cloned()
         .unwrap_or_else(|| Path::new(&install.folder).join("game.exe"));
     let verdict = ot_core::guard::check_install(&probe);
-    let blocked = (!verdict.allowed).then(|| {
+    // Only anti-cheat files: the guard decides once the game runs.
+    let files_only = !verdict.allowed
+        && verdict
+            .findings
+            .iter()
+            .all(|f| f.kind == ot_core::FindingKind::InstallMarker);
+    let anti_cheat = files_only.then(|| {
+        let mut names: Vec<&str> = verdict
+            .findings
+            .iter()
+            .map(|f| f.product.as_str())
+            .collect();
+        names.dedup();
+        names.join(", ")
+    });
+    let blocked = (!verdict.allowed && !files_only).then(|| {
         let names: Vec<&str> = verdict
             .findings
             .iter()
@@ -152,6 +171,7 @@ fn describe(
         presets,
         auto_preset,
         blocked,
+        anti_cheat,
         cover: cover_source.as_ref().map(|(k, _)| *k),
         cover_source: cover_source.map(|(_, s)| s),
     }

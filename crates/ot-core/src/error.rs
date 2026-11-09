@@ -19,7 +19,7 @@ pub enum Error {
 
     /// The anti-cheat guard refused. There is no way to override this.
     #[error("blocked by the anti-cheat guard: {0}")]
-    Blocked(Verdict),
+    Blocked(Box<Verdict>),
 
     #[error(
         "access denied to process {pid}. If the game runs as administrator, restart OpenTrainer \

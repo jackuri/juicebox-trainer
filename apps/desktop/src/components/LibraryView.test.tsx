@@ -24,6 +24,7 @@ function game(over: Partial<LibraryGame>): LibraryGame {
     presets: [],
     autoPreset: null,
     blocked: null,
+    antiCheat: null,
     cover: null,
     ...over,
   };
@@ -48,7 +49,8 @@ beforeEach(() => {
             autoPreset: "Story mode",
             presets: ["Story mode"],
           }),
-          game({ id: "steam:2", name: "Online Shooter", blocked: "anti-cheat found: EasyAntiCheat" }),
+          game({ id: "steam:2", name: "Online Shooter", blocked: "anti-cheat found: Counter-Strike 2" }),
+          game({ id: "steam:3", name: "Collection", antiCheat: "Easy Anti-Cheat" }),
           game({ id: "xbox:x", name: "Xbox Game", store: "xbox", launch: { kind: "manual" } }),
         ]);
       case "library_play":
@@ -70,8 +72,13 @@ describe("LibraryView", () => {
     expect(within(tb).getByRole("button", { name: "Play OpenTrainer Testbed" })).toHaveTextContent("Play with cheats");
 
     const online = screen.getByTestId("game-steam:2");
-    expect(within(online).getByText(/EasyAntiCheat\): not supported/)).toBeInTheDocument();
+    expect(within(online).getByText(/Counter-Strike 2\): not supported/)).toBeInTheDocument();
     expect(within(online).getByRole("button", { name: "Play Online Shooter" })).toBeDisabled();
+
+    // Anti-cheat that only comes with the game: playable, with a note.
+    const ac = screen.getByTestId("game-steam:3");
+    expect(within(ac).getByText("Has Easy Anti-Cheat: works only when the game runs without it")).toBeInTheDocument();
+    expect(within(ac).getByRole("button", { name: "Play Collection" })).toBeEnabled();
 
     const xbox = screen.getByTestId("game-xbox:x");
     expect(within(xbox).getByText(/You start it yourself/)).toBeInTheDocument();

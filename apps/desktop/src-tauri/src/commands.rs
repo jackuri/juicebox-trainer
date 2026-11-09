@@ -151,7 +151,7 @@ pub struct CommandError {
     pub kind: &'static str,
     pub message: String,
     /// Present when the anti-cheat guard blocked.
-    pub verdict: Option<Verdict>,
+    pub verdict: Option<Box<Verdict>>,
 }
 
 impl CommandError {
@@ -1553,11 +1553,12 @@ mod tests {
             target: "game.exe".into(),
             allowed: false,
             findings: vec![],
+            notes: vec![],
             signatures_version: 1,
         };
-        let e = CommandError::from(ot_core::Error::Blocked(verdict.clone()));
+        let e = CommandError::from(ot_core::Error::Blocked(Box::new(verdict.clone())));
         assert_eq!(e.kind, "blocked");
-        assert_eq!(e.verdict, Some(verdict));
+        assert_eq!(e.verdict, Some(Box::new(verdict)));
         assert!(e.is_fatal());
         assert!(!CommandError::from(ot_core::Error::Cancelled).is_fatal());
     }

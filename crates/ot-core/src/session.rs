@@ -61,7 +61,7 @@ impl AttachedProcess {
         let verdict = guard::check(pid);
         if !verdict.allowed {
             warn!(pid, target = %verdict.target, "attach blocked by guard: {verdict}");
-            return Err(Error::Blocked(verdict));
+            return Err(Error::Blocked(Box::new(verdict)));
         }
         let handle = process::open(
             pid,
@@ -84,6 +84,12 @@ impl AttachedProcess {
             .unwrap_or(0);
         let modules = modules::modules_of(pid, arch)?;
         let started = process::start_time_of(&handle);
+        if !verdict.notes.is_empty() {
+            info!(
+                pid,
+                "{verdict}; re-checked every {GUARD_RECHECK_INTERVAL:?}"
+            );
+        }
         info!(pid, %name, %arch, modules = modules.len(), "attached");
         Ok(Self {
             handle,
@@ -169,14 +175,14 @@ impl AttachedProcess {
                 "guard blocked an attached session: {verdict}"
             );
             *lock(&self.blocked) = Some(verdict.clone());
-            Err(Error::Blocked(verdict))
+            Err(Error::Blocked(Box::new(verdict)))
         }
     }
 
     /// Gate in front of every memory operation.
     fn gate(&self) -> Result<()> {
         if let Some(v) = lock(&self.blocked).clone() {
-            return Err(Error::Blocked(v));
+            return Err(Error::Blocked(Box::new(v)));
         }
         if !self.is_alive() {
             return Err(Error::ProcessExited { pid: self.pid() });
