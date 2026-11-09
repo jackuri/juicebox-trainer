@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.11.0_
+_Last updated: 2026-11-09 — v1.12.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,10 @@ _Last updated: 2026-11-09 — v1.11.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.12.0 Memory viewer: `AttachedProcess::{read_partial, region_at, edit_bytes}` + `ByteEdit`,
+  commands `memory_view` (max 4096 bytes) / `memory_edit`, `MemoryViewer` tab ("Memory") and a ⌗
+  button in the address list. Live test against the testbed (x64 + x86): partial read across a
+  region gap, data edit seen by the game, header refused, code edit restored on detach.
 - v1.11.0 Account copy: `ot_saves::accounts` (accounts, view, plan, copy, rewrite_ids),
   `Reason::BeforeAccountCopy`, `Library::add_folder_as`, commands `saves_accounts`,
   `saves_account_plan`, `saves_account_copy`, `AccountCopyPanel` in Save backups (hidden unless the
@@ -243,6 +247,8 @@ _Last updated: 2026-11-09 — v1.11.0_
 - The AI helper needs Node.js and, for the subscription, a signed-in Claude Code on the PC. API keys
   are read from the `ANTHROPIC_API_KEY` environment variable; the app doesn't store keys.
 - The Agent SDK's Windows engine is about 330 MB in `node_modules` (and in CI installs).
+- The memory viewer hasn't been tried in the real app or on a real game yet (unit + testbed
+  tests only). It shows 256 bytes; a pointer is shown as a JavaScript number (fine below 2^53).
 - The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
   through by hand yet (covered by frontend tests and live tests against the testbed).
 - Save editor limits: Unreal saves from UE 5.4+ open as hex; Unreal text values, engine structs,

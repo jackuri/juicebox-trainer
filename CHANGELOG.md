@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-11-09
+
+### Added
+- **Memory viewer** (Cheats → **Memory** tab, for experts): the game's memory as 16 bytes a row with
+  the text next to them, updated every second; bytes that changed light up and memory that can't
+  be read shows `??`. Type an address (`0x…`, `game.exe+0x…` or a pointer path), page up and down,
+  and see whether the memory is readable, writable or code and which module it is in. Click a byte
+  to see the 8/16/32/64-bit numbers, float and double it starts, and the pointer it holds (with
+  **Go there**). **Write bytes** changes it: data is written straight away; game code is changed
+  the same checked way as a cheat's patch and put back when you detach; read-only memory is
+  refused. **Add to address list** keeps it with a type of your choice, and the address list has a
+  ⌗ button that opens an entry in the viewer.
+
 ## [1.11.0] - 2026-11-09
 
 ### Added

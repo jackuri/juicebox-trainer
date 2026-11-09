@@ -141,6 +141,8 @@ fn main() {
             commands::refresh_modules,
             commands::read_value,
             commands::write_value,
+            commands::memory_view,
+            commands::memory_edit,
             commands::scan_first,
             commands::scan_next,
             commands::scan_cancel,

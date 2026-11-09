@@ -368,6 +368,79 @@ pub async fn write_value(
     })
 }
 
+// ----- memory viewer ----------------------------------------------------------
+
+/// Bytes the memory viewer shows at most at once.
+const MAX_VIEW: u32 = 4096;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryView {
+    pub address: u64,
+    pub bytes: Vec<u8>,
+    /// Per byte: could it be read?
+    pub readable: Vec<bool>,
+    /// The memory region of the first byte.
+    pub region: Option<ot_core::Region>,
+    /// `game.exe+0x1F0` if the first byte is in a module.
+    pub module: Option<String>,
+}
+
+fn module_label(p: &AttachedProcess, address: u64) -> Option<String> {
+    p.modules()
+        .into_iter()
+        .find(|m| m.base <= address && address < m.end())
+        .map(|m| format!("{}+0x{:X}", m.name, address - m.base))
+}
+
+/// Reads `len` bytes at an address for the memory viewer; unreadable pages
+/// are marked rather than failing the whole read.
+#[tauri::command]
+pub async fn memory_view(
+    address: String,
+    len: u32,
+    state: State<'_, AppState>,
+) -> CmdResult<MemoryView> {
+    with_live(&state, |l| {
+        let p = &l.process;
+        let a = p.resolve(&address)?;
+        let (bytes, readable) = p.read_partial(a, len.clamp(1, MAX_VIEW) as usize)?;
+        Ok(MemoryView {
+            address: a,
+            bytes,
+            readable,
+            region: p.region_at(a)?,
+            module: module_label(p, a),
+        })
+    })
+}
+
+/// Changes bytes from the memory viewer (`hex` like "E8 03 00 00"). Code is
+/// changed through the journal and put back on detach.
+#[tauri::command]
+pub async fn memory_edit(
+    address: String,
+    hex: String,
+    state: State<'_, AppState>,
+) -> CmdResult<ot_core::ByteEdit> {
+    let clean: String = hex.chars().filter(|c| !c.is_whitespace()).collect();
+    if clean.is_empty() || !clean.len().is_multiple_of(2) {
+        return Err(CommandError::new(
+            "badBytes",
+            "enter whole bytes in hex, like 0A FF 10",
+        ));
+    }
+    let data = (0..clean.len())
+        .step_by(2)
+        .map(|i| u8::from_str_radix(&clean[i..i + 2], 16))
+        .collect::<Result<Vec<u8>, _>>()
+        .map_err(|_| CommandError::new("badBytes", format!("{hex:?} isn't hex")))?;
+    with_live(&state, |l| {
+        let a = l.process.resolve(&address)?;
+        Ok(l.process.edit_bytes(a, &data)?)
+    })
+}
+
 // ----- scanner ----------------------------------------------------------------
 
 /// Scan mode as sent by the UI. Values are text, parsed for the scan's type.

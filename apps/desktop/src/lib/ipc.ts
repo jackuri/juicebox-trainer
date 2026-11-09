@@ -77,6 +77,29 @@ export interface ReadResult {
   bytes: string;
 }
 
+/** A memory region (ot_core::Region). */
+export interface MemoryRegion {
+  base: number;
+  size: number;
+  protect: number;
+  readable: boolean;
+  writable: boolean;
+  executable: boolean;
+  image: boolean;
+}
+
+/** Bytes for the memory viewer (commands.rs memory_view). */
+export interface MemoryView {
+  address: number;
+  bytes: number[];
+  readable: boolean[];
+  region: MemoryRegion | null;
+  module: string | null;
+}
+
+/** What a memory viewer edit did. */
+export type ByteEdit = "unchanged" | "data" | "code";
+
 export type FirstScanKind = "exact" | "between" | "unknown";
 export type NextScanKind =
   | "exact"
@@ -946,6 +969,8 @@ export const api = {
     invoke<ReadResult>("read_value", { address, ty }),
   writeValue: (address: string, ty: ValueType, value: string) =>
     invoke<ReadResult>("write_value", { address, ty, value }),
+  memoryView: (address: string, len: number) => invoke<MemoryView>("memory_view", { address, len }),
+  memoryEdit: (address: string, hex: string) => invoke<ByteEdit>("memory_edit", { address, hex }),
 
   finderStart: (number: string | null) => invoke<FinderSummary>("finder_start", { number }),
   finderNext: (step: FinderStep) => invoke<FinderSummary>("finder_next", { step }),

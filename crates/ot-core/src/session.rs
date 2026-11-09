@@ -612,6 +612,114 @@ impl AttachedProcess {
         }
         Ok(out)
     }
+
+    /// The committed region holding `address`, if any.
+    pub fn region_at(&self, address: u64) -> Result<Option<Region>> {
+        self.gate()?;
+        if address >= self.arch().address_limit() {
+            return Ok(None);
+        }
+        let mut mbi = MEMORY_BASIC_INFORMATION::default();
+        // SAFETY: `mbi` is a valid out-buffer of the size we pass.
+        let n = unsafe {
+            VirtualQueryEx(
+                self.handle.raw(),
+                Some(address as usize as *const c_void),
+                &mut mbi,
+                size_of::<MEMORY_BASIC_INFORMATION>(),
+            )
+        };
+        if n == 0 || mbi.State != MEM_COMMIT {
+            return Ok(None);
+        }
+        let (readable, writable, executable) = decode_protect(mbi.Protect.0);
+        Ok(Some(Region {
+            base: mbi.BaseAddress as u64,
+            size: mbi.RegionSize as u64,
+            protect: mbi.Protect.0,
+            readable,
+            writable,
+            executable,
+            image: mbi.Type == MEM_IMAGE,
+        }))
+    }
+
+    /// Reads `len` bytes at `address` wherever it can, page by page (for the
+    /// memory viewer). Bytes on pages that can't be read are 0 and marked
+    /// `false` in the second list.
+    pub fn read_partial(&self, address: u64, len: usize) -> Result<(Vec<u8>, Vec<bool>)> {
+        self.gate()?;
+        self.check_range(address, len)?;
+        let mut bytes = vec![0u8; len];
+        let mut ok = vec![false; len];
+        let mut at = 0usize;
+        while at < len {
+            let addr = address + at as u64;
+            let page_end = (addr | (PAGE_SIZE - 1)) + 1;
+            let n = usize::try_from(page_end - addr)
+                .unwrap_or(len)
+                .min(len - at);
+            let chunk = &mut bytes[at..at + n];
+            if self.read_into(addr, chunk).is_ok() {
+                ok[at..at + n].fill(true);
+            } else {
+                chunk.fill(0);
+            }
+            at += n;
+        }
+        Ok((bytes, ok))
+    }
+
+    /// Changes bytes the player typed in the memory viewer. Data is written
+    /// directly; code (an executable region) goes through
+    /// [`apply_code`](Self::apply_code), so it is checked, journaled and put
+    /// back on detach like a cheat's patch. Read-only memory is refused.
+    pub fn edit_bytes(&self, address: u64, data: &[u8]) -> Result<ByteEdit> {
+        if data.is_empty() || data.len() > MAX_EDIT {
+            return Err(Error::PatchRejected(format!(
+                "change between 1 and {MAX_EDIT} bytes at a time"
+            )));
+        }
+        let region = self
+            .region_at(address)?
+            .filter(|r| r.readable && address + data.len() as u64 <= r.base + r.size)
+            .ok_or(Error::Read {
+                address,
+                len: data.len(),
+            })?;
+        let current = self.read_bytes(address, data.len())?;
+        if current == data {
+            return Ok(ByteEdit::Unchanged);
+        }
+        if region.executable {
+            self.apply_code(address, &current, data)?;
+            return Ok(ByteEdit::Code);
+        }
+        if !region.writable {
+            return Err(Error::PatchRejected(
+                "this memory is read-only, so it can't be changed".into(),
+            ));
+        }
+        self.write_bytes(address, data)?;
+        Ok(ByteEdit::Data)
+    }
+}
+
+/// Page size used to split reads.
+const PAGE_SIZE: u64 = 0x1000;
+/// Bytes the memory viewer changes at most at once.
+pub const MAX_EDIT: usize = 64;
+
+/// What [`AttachedProcess::edit_bytes`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ByteEdit {
+    /// The bytes already had that value.
+    Unchanged,
+    /// Data was written.
+    Data,
+    /// Code was changed; it is put back when OpenTrainer detaches.
+    Code,
 }
 
 /// Matches of `pattern` in an image read by [`AttachedProcess::module_image`].

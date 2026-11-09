@@ -39,7 +39,7 @@ pub use memory::Region;
 pub use modules::Module;
 pub use process::{Arch, ProcessInfo, list_processes, memory_in_use};
 pub use scan::{FirstScan, Hit, NextScan, Scan, ScanControl, ScanOptions};
-pub use session::AttachedProcess;
+pub use session::{AttachedProcess, ByteEdit};
 pub use value::{Value, ValueType};
 
 /// Version of this crate (the workspace version).

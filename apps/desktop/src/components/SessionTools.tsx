@@ -12,13 +12,23 @@ import {
 import { AddressList } from "./AddressList";
 import { FindValuePanel } from "./FindValuePanel";
 import { MemoryPanel } from "./MemoryPanel";
+import { MemoryViewer } from "./MemoryViewer";
 import { ModuleTable } from "./ModuleTable";
 import { PointerPanel, type PointerRequest } from "./PointerPanel";
 import { ScannerPanel } from "./ScannerPanel";
 import { SignaturePanel } from "./SignaturePanel";
 import { TrainerPanel } from "./TrainerPanel";
 
-const TABS = ["Trainer", "Find a value", "Scanner", "Pointers", "Signatures", "Read / write", "Modules"] as const;
+const TABS = [
+  "Trainer",
+  "Find a value",
+  "Scanner",
+  "Pointers",
+  "Signatures",
+  "Read / write",
+  "Memory",
+  "Modules",
+] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -33,12 +43,13 @@ interface Props {
 
 /**
  * Tools shown while attached: trainer (packs), Find a value (guided), scanner, pointer scanner,
- * signature maker, read/write, modules, address list.
+ * signature maker, read/write, memory viewer, modules, address list.
  */
 export function SessionTools({ session, gameName, onSessionLost, onRefreshModules, onShowPacks }: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [pointerRequest, setPointerRequest] = useState<PointerRequest | null>(null);
+  const [memoryRequest, setMemoryRequest] = useState<{ address: string; n: number } | null>(null);
 
   async function addToList(address: number | string, ty: ValueType) {
     try {
@@ -105,11 +116,28 @@ export function SessionTools({ session, gameName, onSessionLost, onRefreshModule
       <div hidden={tab !== "Read / write"}>
         <MemoryPanel onSessionLost={onSessionLost} />
       </div>
+      <div hidden={tab !== "Memory"}>
+        <MemoryViewer
+          active={tab === "Memory"}
+          arch={session.process.arch}
+          request={memoryRequest}
+          onAddToList={(a, t) => void addToList(a, t)}
+          onSessionLost={onSessionLost}
+        />
+      </div>
       <div hidden={tab !== "Modules"} className="h-80">
         <ModuleTable modules={session.modules} onRefresh={onRefreshModules} />
       </div>
 
-      <AddressList entries={entries} onChange={setEntries} onSessionLost={onSessionLost} />
+      <AddressList
+        entries={entries}
+        onChange={setEntries}
+        onSessionLost={onSessionLost}
+        onViewMemory={(address) => {
+          setMemoryRequest((r) => ({ address, n: (r?.n ?? 0) + 1 }));
+          setTab("Memory");
+        }}
+      />
     </div>
   );
 }

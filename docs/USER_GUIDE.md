@@ -89,7 +89,10 @@ asking simple questions, with no value types or memory addresses:
      Keep OpenTrainer open while you do that.
 
 The old tools (**Scanner**, **Pointers** and so on) are still there for experts. Scanner results now
-update their values live.
+update their values live. **Memory** shows the game's memory as a grid of bytes, updated every
+second (changed bytes light up). Click a byte to see the numbers it starts, change it, follow a
+pointer or add it to the address list. The ⌗ button in the address list opens an entry there.
+Changes to the game's code are put back when you detach.
 
 ### Make cheats yours
 

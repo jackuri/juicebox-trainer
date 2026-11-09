@@ -16,10 +16,12 @@ interface Props {
   entries: ListEntry[];
   onChange: (entries: ListEntry[]) => void;
   onSessionLost: (e: CommandError) => void;
+  /** Opens an address in the memory viewer. */
+  onViewMemory?: (address: string) => void;
 }
 
 /** Address list with live values and freeze toggles. Polls the backend. */
-export function AddressList({ entries, onChange, onSessionLost }: Props) {
+export function AddressList({ entries, onChange, onSessionLost, onViewMemory }: Props) {
   const [address, setAddress] = useState("");
   const [ty, setTy] = useState<ValueType>("i32");
   const [label, setLabel] = useState("");
@@ -133,7 +135,17 @@ export function AddressList({ entries, onChange, onSessionLost }: Props) {
                   />
                   {e.error && <span className="ml-1 text-red-400" title={e.error}>!</span>}
                 </td>
-                <td className="px-2 py-1 text-right">
+                <td className="whitespace-nowrap px-2 py-1 text-right">
+                  {onViewMemory && (
+                    <button
+                      className="mr-2 text-zinc-500 hover:text-zinc-200"
+                      aria-label={`View ${e.label || hex(e.address)} in memory`}
+                      title="View in the memory viewer"
+                      onClick={() => onViewMemory(hex(e.address))}
+                    >
+                      ⌗
+                    </button>
+                  )}
                   <button
                     className="text-zinc-500 hover:text-red-400"
                     aria-label={`Remove ${e.label || hex(e.address)}`}
