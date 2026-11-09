@@ -58,6 +58,11 @@ _Last updated: 2026-11-09 — v1.13.0_
   Fields `Table[rowid].Column` (names quoted like JSON keys when odd), one-cell UPDATE with
   triggers/views off, WAL header bytes kept, `-wal` with data blocks edits (editor note). Save code
   codec `sqlite`. Tested with databases made in the tests only.
+- Real-app test of the 1.13.0 release build (DevTools port + testbed, 25/25 passed): memory viewer
+  (module label, live refresh + highlight, inspector, write seen by the game, read-only header
+  refused), XML / YAML / SQLite saves opened and edited through the real IPC, SQLite file still
+  valid afterwards, editor shows the SQLite save, account view answers. Installer:
+  `release-out/OpenTrainer_1.13.0_x64-setup.exe`.
 - v1.12.0 Memory viewer: `AttachedProcess::{read_partial, region_at, edit_bytes}` + `ByteEdit`,
   commands `memory_view` (max 4096 bytes) / `memory_edit`, `MemoryViewer` tab ("Memory") and a ⌗
   button in the address list. Live test against the testbed (x64 + x86): partial read across a
