@@ -2,8 +2,8 @@
 //!
 //! A file is opened by removing its wrappers (checksums, gzip, zlib, Base64,
 //! lz-string, see [`layers`]) and recognising what's inside: JSON, XML, INI
-//! text (also GameMaker and Godot), YAML, an Unreal save, or the summary of a
-//! Bethesda save (read-only). Anything else is shown as hex. Nothing is ever deserialised into
+//! text (also GameMaker and Godot), YAML, an Unreal save, a SQLite database,
+//! or the summary of a Bethesda save (read-only). Anything else is shown as hex. Nothing is ever deserialised into
 //! objects or run (no BinaryFormatter, no pickle).
 //!
 //! Saving applies [`Edit`]s to the inside and puts the wrappers back, with
@@ -16,6 +16,7 @@ pub mod ini;
 pub mod json;
 pub mod layers;
 pub mod lzstring;
+pub mod sqlite;
 pub mod xml;
 pub mod yaml;
 
@@ -69,6 +70,7 @@ pub enum BodyKind {
     Ini,
     Yaml,
     Gvas,
+    Sqlite,
     /// Skyrim / Fallout 4: a read-only summary.
     Bethesda,
     Binary,
@@ -82,6 +84,7 @@ impl BodyKind {
             BodyKind::Ini => "INI text",
             BodyKind::Yaml => "YAML",
             BodyKind::Gvas => "Unreal save (GVAS)",
+            BodyKind::Sqlite => "SQLite database",
             BodyKind::Bethesda => "Bethesda save",
             BodyKind::Binary => "Binary (hex)",
         }
@@ -95,6 +98,7 @@ impl BodyKind {
             BodyKind::Ini => "ini",
             BodyKind::Yaml => "yaml",
             BodyKind::Gvas => "gvas",
+            BodyKind::Sqlite => "sqlite",
             BodyKind::Bethesda => "ess",
             BodyKind::Binary => "hex",
         }
@@ -107,6 +111,9 @@ pub(crate) fn body_kind(b: &[u8]) -> BodyKind {
     }
     if ess::is_bethesda(b) {
         return BodyKind::Bethesda;
+    }
+    if sqlite::is_sqlite(b) {
+        return BodyKind::Sqlite;
     }
     if json::parse(b).is_ok() {
         return BodyKind::Json;
@@ -143,7 +150,18 @@ pub struct Opened {
 pub fn open(bytes: &[u8]) -> Opened {
     let (layers, contents) = layers::peel(bytes);
     let mut note = None;
+    let mut direct: Option<Vec<Field>> = None;
     let (body, spots, truncated) = match body_kind(&contents) {
+        BodyKind::Sqlite => match sqlite::parse(&contents) {
+            Ok((fields, t)) => {
+                direct = Some(fields);
+                (BodyKind::Sqlite, Vec::new(), t)
+            }
+            Err(e) => {
+                note = Some(format!("SQLite database that can't be read: {e}"));
+                (BodyKind::Binary, Vec::new(), false)
+            }
+        },
         BodyKind::Json => match json::parse(&contents) {
             Ok((s, t)) => (BodyKind::Json, s, t),
             Err(e) => {
@@ -197,7 +215,7 @@ pub fn open(bytes: &[u8]) -> Opened {
     Opened {
         layers,
         body,
-        fields: spots.into_iter().map(|s| s.field).collect(),
+        fields: direct.unwrap_or_else(|| spots.into_iter().map(|s| s.field).collect()),
         truncated,
         body_len: contents.len() as u64,
         note,
@@ -231,6 +249,7 @@ pub fn apply(bytes: &[u8], edits: &[Edit]) -> Result<Vec<u8>, String> {
                 BodyKind::Ini => ini::set(&contents, path, value)?,
                 BodyKind::Yaml => yaml::set(&contents, path, value)?,
                 BodyKind::Gvas => gvas::set(&contents, path, value)?,
+                BodyKind::Sqlite => sqlite::set(&contents, path, value)?,
                 BodyKind::Bethesda => {
                     return Err("Bethesda saves are shown read-only".into());
                 }
@@ -414,6 +433,29 @@ mod tests {
             )
             .is_ok()
         );
+
+        let db = sqlite::tests::sample(false);
+        let o = open(&db);
+        assert_eq!(o.body, BodyKind::Sqlite);
+        assert_eq!(o.body.codec_name(), "sqlite");
+        assert!(o.fields.iter().any(|f| f.path == "Player[1].Gold"));
+        let out = apply(
+            &db,
+            &[Edit::Set {
+                path: "Player[1].Gold".into(),
+                value: "7".into(),
+            }],
+        )
+        .unwrap();
+        assert!(
+            open(&out)
+                .fields
+                .iter()
+                .any(|f| f.path == "Player[1].Gold" && f.value == "7")
+        );
+        // A zlib-compressed database is unwrapped and wrapped again.
+        let packed = layers::wrap(&[Layer::Zlib], db.clone()).unwrap();
+        assert_eq!(open(&packed).body, BodyKind::Sqlite);
 
         let godot = b"GDEC\x01\x02\x03\x04 encrypted";
         let o = open(godot);

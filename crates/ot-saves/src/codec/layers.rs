@@ -266,7 +266,7 @@ fn base64(bytes: &[u8]) -> Option<(Layer, Vec<u8>)> {
             .is_some_and(|(l, _)| !matches!(l, Layer::Checksum { .. }))
             || matches!(
                 super::body_kind(&decoded),
-                BodyKind::Json | BodyKind::Xml | BodyKind::Gvas
+                BodyKind::Json | BodyKind::Xml | BodyKind::Gvas | BodyKind::Sqlite
             );
         if structured && variant.encode(&decoded) == body {
             return Some((Layer::Base64 { variant, trailing }, decoded));
@@ -315,7 +315,7 @@ pub fn peel(bytes: &[u8]) -> (Vec<Layer>, Vec<u8>) {
         // further.
         if matches!(
             super::body_kind(&current),
-            BodyKind::Json | BodyKind::Xml | BodyKind::Gvas | BodyKind::Bethesda
+            BodyKind::Json | BodyKind::Xml | BodyKind::Gvas | BodyKind::Sqlite | BodyKind::Bethesda
         ) {
             break;
         }

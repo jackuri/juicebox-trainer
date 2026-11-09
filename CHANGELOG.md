@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-11-09
+
+### Added
+- **SQLite saves** in the save editor: games that keep their save as a small database
+  (`.db`, `.sqlite`, often with other names) now open as a list of values, one per cell,
+  `Table[row].Column` (for example `Player[1].Gold`). Numbers and text can be changed; each edit
+  changes only that one cell (the database's own triggers don't run) and the database is written
+  back, also inside gzip / zlib wrappers. Blobs are shown (size and first bytes) but not changed.
+  Tables without row ids are not listed. If the game left changes in a `-wal` file, OpenTrainer
+  says so and won't edit until the game has been started and closed normally.
+  The database is opened in memory from the file's bytes, in SQLite's defensive mode with the
+  file's own code untrusted and no extensions.
+- Save codes in packs can use `"codec": "sqlite"` (`"path": "Player[1].Gold"`).
+
+### Changed
+- Uses the `rusqlite` library (MIT) with SQLite (public domain) built in. Building OpenTrainer from
+  source now needs Rust 1.89 or newer.
+
 ## [1.12.0] - 2026-11-09
 
 ### Added

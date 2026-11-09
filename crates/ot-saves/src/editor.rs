@@ -136,6 +136,27 @@ fn read(full: &Path) -> Result<Vec<u8>> {
     std::fs::read(full).map_err(|e| Error::io("can't read", full, e))
 }
 
+/// A SQLite save with changes still in its `-wal` file (the game didn't
+/// finish writing them into the database). Editing it would lose them.
+fn unsaved_wal(full: &Path, bytes: &[u8]) -> Option<String> {
+    if !crate::codec::sqlite::is_sqlite(bytes) {
+        return None;
+    }
+    let mut wal = full.as_os_str().to_owned();
+    wal.push("-wal");
+    let size = std::fs::metadata(PathBuf::from(&wal)).map_or(0, |m| m.len());
+    (size > 0).then(|| {
+        let name = full
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        format!(
+            "The game hasn't finished writing this database: {name}-wal still holds changes. \
+             Start the game and close it normally, then try again."
+        )
+    })
+}
+
 /// Opens a save for viewing.
 pub fn open(game: &Game, folder: &str, path: &str) -> Result<FileView> {
     match target(game, folder, path)? {
@@ -156,7 +177,9 @@ pub fn open(game: &Game, folder: &str, path: &str) -> Result<FileView> {
             })
         }
         Target::File(full) => {
-            let o = codec::open(&read(&full)?);
+            let bytes = read(&full)?;
+            let o = codec::open(&bytes);
+            let note = unsaved_wal(&full, &bytes).or(o.note);
             Ok(FileView {
                 folder: folder.to_string(),
                 path: path.to_string(),
@@ -166,7 +189,7 @@ pub fn open(game: &Game, folder: &str, path: &str) -> Result<FileView> {
                 fields: o.fields,
                 truncated: o.truncated,
                 body_len: o.body_len,
-                note: o.note,
+                note,
                 registry: false,
             })
         }
@@ -224,6 +247,9 @@ pub(crate) fn save_unchecked(
         match target(game, folder, path)? {
             Target::File(full) => {
                 let old = read(&full)?;
+                if let Some(why) = unsaved_wal(&full, &old) {
+                    return Err(Error::Edit(why));
+                }
                 let new = codec::apply(&old, edits).map_err(Error::Edit)?;
                 let changed = new != old;
                 (Box::new(move || write_atomic(&full, &new)), changed)
@@ -378,6 +404,46 @@ mod tests {
         assert!(open(&g, &folder, "../outside.txt").is_err());
         assert!(open(&g, &base.to_string_lossy(), "saves/data.bin").is_err());
         assert!(open(&g, &folder, "missing.sav").is_err());
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn sqlite_saves_with_unsaved_changes_are_not_edited() {
+        let base = crate::test_dir("editor-sqlite");
+        let saves = base.join("saves");
+        std::fs::create_dir_all(&saves).unwrap();
+        std::fs::write(
+            saves.join("game.db"),
+            crate::codec::sqlite::tests::sample(true),
+        )
+        .unwrap();
+        let folder = saves.to_string_lossy().into_owned();
+        let g = game(std::slice::from_ref(&folder));
+        let store = Store::new(base.join("store"));
+        let edit = Edit::Set {
+            path: "Player[1].Gold".into(),
+            value: "1000".into(),
+        };
+        let v = open(&g, &folder, "game.db").unwrap();
+        assert_eq!(v.codec, "sqlite");
+        assert!(v.note.is_none());
+        assert!(
+            save_unchecked(&g, &store, &folder, "game.db", std::slice::from_ref(&edit))
+                .unwrap()
+                .changed
+        );
+        std::fs::write(saves.join("game.db-wal"), b"pending").unwrap();
+        assert!(
+            open(&g, &folder, "game.db")
+                .unwrap()
+                .note
+                .unwrap()
+                .contains("-wal")
+        );
+        assert!(matches!(
+            save_unchecked(&g, &store, &folder, "game.db", &[edit]),
+            Err(Error::Edit(_))
+        ));
         std::fs::remove_dir_all(&base).unwrap();
     }
 

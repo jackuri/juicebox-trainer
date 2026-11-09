@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.12.0_
+_Last updated: 2026-11-09 — v1.13.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,11 @@ _Last updated: 2026-11-09 — v1.12.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.13.0 SQLite saves: `codec::sqlite` with `rusqlite` 0.41.1 (`bundled`, `serialize`, no default
+  features; the user asked for it on 2026-11-09). Workspace `rust-version` is now 1.89 (rusqlite's).
+  Fields `Table[rowid].Column` (names quoted like JSON keys when odd), one-cell UPDATE with
+  triggers/views off, WAL header bytes kept, `-wal` with data blocks edits (editor note). Save code
+  codec `sqlite`. Tested with databases made in the tests only.
 - v1.12.0 Memory viewer: `AttachedProcess::{read_partial, region_at, edit_bytes}` + `ByteEdit`,
   commands `memory_view` (max 4096 bytes) / `memory_edit`, `MemoryViewer` tab ("Memory") and a ⌗
   button in the address list. Live test against the testbed (x64 + x86): partial read across a
@@ -176,7 +181,8 @@ _Last updated: 2026-11-09 — v1.12.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.9.0 are pushed and tagged (v1.9.0 is Latest, in-app updates on). The community list has its first real shared pack (Species Unknown, merged by the user).
+- v1.1.0 – v1.9.0 are pushed and tagged (v1.9.0 is Latest, in-app updates on). v1.10.0 – v1.13.0
+  are committed locally only (not pushed or tagged yet; waiting for the user). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
@@ -185,11 +191,10 @@ _Last updated: 2026-11-09 — v1.12.0_
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
   (SignPath works now that the repo is public; Microsoft Trusted Signing about $10/month). The
   updater key still has to be added as the `TAURI_SIGNING_PRIVATE_KEY` secret by the user.
-- SQLite saves: moved out of v0.7.0 (needs the large rusqlite library; the user chose to wait).
 - Code caves: dropped from v0.5.0. They need a design review before they come back.
-- The roadmap (PLAN §6) is done through 1.1.0. Left for the user to choose: SQLite saves, code
-  caves, more save formats (XML / YAML editing, Bethesda, RPG Maker, GameMaker, Godot), moving saves
-  between your own Steam accounts (PLAN §2.3), a memory viewer (PLAN §2.2).
+- The roadmap (PLAN §6) is done through 1.13.0. Left for the user to choose: code caves, moving
+  saves between PCs, Bethesda save editing (beyond the summary), Ren'Py / .NET BinaryFormatter
+  structural readers (PLAN §2.3), LZ4 wrappers.
 
 ## Known issues
 - v1.0.0 – v1.2.1 haven't been installed and clicked through by hand yet (the user saw v1.2.0's
@@ -251,6 +256,8 @@ _Last updated: 2026-11-09 — v1.12.0_
   tests only). It shows 256 bytes; a pointer is shown as a JavaScript number (fine below 2^53).
 - The Save backups view (incl. the editor), Pointers and Signatures tabs haven't been clicked
   through by hand yet (covered by frontend tests and live tests against the testbed).
+- SQLite: WITHOUT ROWID and virtual tables aren't listed; blobs can't be edited; encrypted
+  databases (SQLCipher) open as hex; databases over 64 MB aren't opened.
 - Save editor limits: Unreal saves from UE 5.4+ open as hex; Unreal text values, engine structs,
   maps and sets are read-only; files over 64 MB aren't opened. XML in UTF-16 opens as hex. YAML
   with flow collections over several lines, or plain text over several lines, opens as hex.

@@ -28,7 +28,16 @@ pub const PLACEHOLDERS: &[&str] = &[
 ];
 
 /// Codec names a save code may use.
-pub const CODECS: &[&str] = &["auto", "json", "xml", "ini", "yaml", "gvas", "playerprefs"];
+pub const CODECS: &[&str] = &[
+    "auto",
+    "json",
+    "xml",
+    "ini",
+    "yaml",
+    "gvas",
+    "sqlite",
+    "playerprefs",
+];
 
 fn bad(why: impl Into<String>) -> Error {
     Error::Edit(why.into())

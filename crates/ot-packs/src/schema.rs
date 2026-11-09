@@ -285,7 +285,16 @@ pub const SAVE_PLACEHOLDERS: &[&str] = &[
 ];
 
 /// Save code formats. Keep in sync with `ot_saves::quick::CODECS`.
-pub const SAVE_CODECS: &[&str] = &["auto", "json", "xml", "ini", "yaml", "gvas", "playerprefs"];
+pub const SAVE_CODECS: &[&str] = &[
+    "auto",
+    "json",
+    "xml",
+    "ini",
+    "yaml",
+    "gvas",
+    "sqlite",
+    "playerprefs",
+];
 
 /// A named save-file edit, applied from the Save backups view.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
