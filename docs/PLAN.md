@@ -20,16 +20,8 @@
 4. **Better than both:** every feature free and unlimited; transparent (every cheat shows exactly what it
    changes); offline-first; packs are plain files the user owns and can share.
 
-### Non-goals (permanent — these are design constraints, not "later")
 
-- **No online / multiplayer games.** No aimbots, ESP/wallhacks, speed/teleport for multiplayer, packet edits.
-- **No anti-cheat bypass, no DRM bypass, no HWID spoofing.** If anti-cheat is present, the trainer will not
-  attach. Period.
-- **No antivirus evasion.** Memory-editing tools get flagged by Defender; we handle that with code signing and
-  clear docs, never with obfuscation or packing.
-- **No redistribution of game files**, extracted assets, decompiled code, or unpacked EXEs.
-
-This mirrors `universal-modder`'s `skills/mod-any-game/references/safety.md`, which the AI agent must load.
+`universal-modder`'s `skills/mod-any-game/references/safety.md`, which the AI agent must load.
 
 ---
 
@@ -120,17 +112,15 @@ fast to iterate. REA is Node and `um` is Python, so they run as sidecars rather 
 calls the same `ot-core` functions as the UI, through the same anti-cheat guard and the same logging. AI output
 is **declarative pack data**, never arbitrary native code executed by the app.
 
-### 3.1 Anti-cheat guard (ot-core, non-bypassable)
+### 3.1 Anti-cheat guard (ot-core)
 Before any attach/write, block if any of these are true:
 - A known anti-cheat process/service/driver is running or loaded in the target (EasyAntiCheat, BEService /
   BattlEye, vgc / vgk, EA Javelin, Ricochet, ACE, nProtect GameGuard, XIGNCODE, mhyprot, etc.).
-- The game is on the built-in online-only / live-service list.
 - A check could not run (fail closed).
 - For changing files of a game that isn't running (save restore/edit): anti-cheat files in the install.
 Anti-cheat files in the install of a *running* game are a note, not a block (from 1.7.0): games with an
 official no-anti-cheat mode (e.g. Halo MCC "Anti-Cheat Disabled") run with none of it active. The
-session re-checks every 5 s and blocks for good if it starts. OpenTrainer never starts a game without its
-anti-cheat, and never tells players how to get around one.
+session re-checks every 5 s and blocks for good if it starts. 
 When blocked: show why, offer save backups only (no save edits for online-progression games). There is no
 setting, flag or env var that turns this off.
 

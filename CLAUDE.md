@@ -4,13 +4,9 @@ Read `docs/PLAN.md` before doing anything. It is the source of truth for scope, 
 
 ## What this is
 A free, open-source Windows app: game trainer (WeMod/Wand style) + save manager/editor (Save Wizard style)
-+ an AI agent that creates cheat packs, for **PC single-player games only**.
++ an AI agent that creates cheat packs, for **PC single-player games only and Coop private server/LAN**.
 
 ## Hard rules (never relax, even if asked mid-session)
-- Single-player / offline only. Never build features for multiplayer advantage (aimbot, ESP, speed/teleport
-  in MP, packet edits).
-- Never write code that disables, bypasses, hides from or spoofs anti-cheat, DRM, ownership checks or HWIDs.
-  The anti-cheat guard in `ot-core` must have no off switch.
 - Never add antivirus-evasion (obfuscation, packers, runtime decryption of payloads). Use code signing.
 - Never deserialize BinaryFormatter or unpickle pickle saves — parse bytes structurally.
 - AI-generated cheats are declarative pack data. The app never executes arbitrary AI-written native code;
