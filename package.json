@@ -1,6 +1,6 @@
 {
   "name": "opentrainer",
-  "version": "1.8.0",
+  "version": "1.8.1",
   "private": true,
   "description": "Free, open-source trainer + save editor for PC single-player games.",
   "license": "MIT",

@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-11-09
+
+### Fixed
+- **Each game is listed once when picking a running game.** Games that start a launcher, web views
+  and other helpers from their folder (Mecha BREAK showed nine entries) now appear once, as their
+  main program: the one its cheat pack is made for, else the one using the most memory. The
+  helpers are still under **Show all running programs** if you need one.
+
 ## [1.8.0] - 2026-11-09
 
 ### Added

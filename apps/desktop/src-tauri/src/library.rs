@@ -433,8 +433,45 @@ fn norm_path(p: &str) -> String {
 
 /// Which running programs are games: the exe lives in an installed game's
 /// folder (the deepest one wins), or a cheat pack is made for that exe name.
-/// Crash reporters and Windows' own programs are left out.
+/// Crash reporters and Windows' own programs are left out. Each game is
+/// listed once, by its main program: the one a cheat pack is made for, else
+/// the one using the most memory, else the biggest exe (`weigh` gives both),
+/// so launchers, web views and other helpers in its folder don't fill the
+/// list. (Exe size alone misleads: a Unity game's exe is a tiny stub.)
 fn match_running(
+    procs: &[ot_core::ProcessInfo],
+    installs: &[Install],
+    pack_games: &HashMap<String, String>,
+    weigh: impl Fn(&ot_core::ProcessInfo) -> (u64, u64),
+) -> Vec<RunningGame> {
+    let by_pid: HashMap<u32, &ot_core::ProcessInfo> = procs.iter().map(|p| (p.pid, p)).collect();
+    type Rank = (bool, (u64, u64), std::cmp::Reverse<u32>);
+    let mut best: HashMap<String, (Rank, RunningGame)> = HashMap::new();
+    for g in match_all_running(procs, installs, pack_games) {
+        let p = by_pid[&g.pid];
+        let has_pack = pack_games.contains_key(&p.name.to_lowercase());
+        // Lowest PID wins a tie (usually the first one started).
+        let rank = (has_pack, weigh(p), std::cmp::Reverse(g.pid));
+        let key = g
+            .library_id
+            .clone()
+            .unwrap_or_else(|| format!("pack:{}", g.name.to_lowercase()));
+        if best.get(&key).is_none_or(|(cur, _)| rank > *cur) {
+            best.insert(key, (rank, g));
+        }
+    }
+    let mut out: Vec<RunningGame> = best.into_values().map(|(_, g)| g).collect();
+    out.sort_by_key(|g| (g.name.to_lowercase(), g.pid));
+    out
+}
+
+/// Size of an exe on disk (0 if unreadable).
+fn file_size(path: &str) -> u64 {
+    std::fs::metadata(path).map_or(0, |m| m.len())
+}
+
+/// Every running program that belongs to a game (see [`match_running`]).
+fn match_all_running(
     procs: &[ot_core::ProcessInfo],
     installs: &[Install],
     pack_games: &HashMap<String, String>,
@@ -506,7 +543,12 @@ pub async fn running_games() -> CmdResult<Vec<RunningGame>> {
             .into_iter()
             .map(|(exe, (pack, _))| (exe, pack.name))
             .collect();
-        Ok(match_running(&procs, &all_installs(), &pack_games))
+        Ok(match_running(&procs, &all_installs(), &pack_games, |p| {
+            (
+                ot_core::memory_in_use(p.pid).unwrap_or(0),
+                p.exe_path.as_deref().map_or(0, file_size),
+            )
+        }))
     })
     .await
     .map_err(blocking_err)?
@@ -522,12 +564,7 @@ fn pick(procs: &[ot_core::ProcessInfo], pack_exe: Option<&str>) -> Option<u32> {
     }
     procs
         .iter()
-        .max_by_key(|p| {
-            p.exe_path
-                .as_ref()
-                .and_then(|e| std::fs::metadata(e).ok())
-                .map_or(0, |m| m.len())
-        })
+        .max_by_key(|p| p.exe_path.as_deref().map_or(0, file_size))
         .map(|p| p.pid)
 }
 
@@ -753,7 +790,7 @@ mod tests {
             proc(16, "notepad.exe", Some(r"C:\Windows\notepad.exe")),
             proc(17, "System", None),
         ];
-        let got = match_running(&procs, &installs, &packs);
+        let got = match_all_running(&procs, &installs, &packs);
         let want = [
             (10, "Big Game", Some("steam:1")),
             (19, "Big Game", Some("steam:1")),
@@ -765,6 +802,67 @@ mod tests {
             .map(|g| (g.pid, g.name.as_str(), g.library_id.as_deref()))
             .collect();
         assert_eq!(got, want);
+    }
+
+    #[test]
+    fn each_running_game_is_listed_once_by_its_main_program() {
+        let installs = [
+            install("steam:1", "Mech Game", r"D:\Games\Mech Game"),
+            install("steam:2", "Packed Game", r"D:\Games\Packed"),
+        ];
+        let packs = HashMap::from([("packed.exe".to_string(), "Packed Game".to_string())]);
+        let procs = [
+            // A launcher and several web-view helpers next to the game.
+            proc(
+                2060,
+                "xcefev2.exe",
+                Some(r"D:\Games\Mech Game\cef\xcefev2.exe"),
+            ),
+            proc(
+                5080,
+                "Launcher.exe",
+                Some(r"D:\Games\Mech Game\Launcher.exe"),
+            ),
+            proc(
+                6728,
+                "MechGame.exe",
+                Some(r"D:\Games\Mech Game\MechGame.exe"),
+            ),
+            proc(
+                8380,
+                "xcefev2.exe",
+                Some(r"D:\Games\Mech Game\cef\xcefev2.exe"),
+            ),
+            // The pack's exe wins even though the other one is bigger.
+            proc(30, "big.exe", Some(r"D:\Games\Packed\big.exe")),
+            proc(31, "packed.exe", Some(r"D:\Games\Packed\packed.exe")),
+        ];
+        // (memory in use, exe size). Like Unity games, the game's own exe is
+        // a small stub, smaller than its launcher; memory tells them apart.
+        let weigh = |p: &ot_core::ProcessInfo| match p.name.as_str() {
+            "MechGame.exe" => (3_000_000_000, 700_000),
+            "Launcher.exe" => (90_000_000, 5_000_000),
+            "big.exe" => (2_000_000_000, 80_000_000),
+            "packed.exe" => (500_000_000, 1_000_000),
+            _ => (60_000_000, 1_700_000),
+        };
+        let got: Vec<(u32, String)> = match_running(&procs, &installs, &packs, weigh)
+            .into_iter()
+            .map(|g| (g.pid, g.name))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                (6728, "Mech Game".to_string()),
+                (31, "Packed Game".to_string())
+            ]
+        );
+        // Memory unknown (protected game): the biggest exe.
+        let got = match_running(&procs[..4], &installs, &packs, |p| (0, weigh(p).1));
+        assert_eq!(got.iter().map(|g| g.pid).collect::<Vec<_>>(), [5080]);
+        // Nothing known: the first one started is kept.
+        let got = match_running(&procs[..4], &installs, &packs, |_| (0, 0));
+        assert_eq!(got.iter().map(|g| g.pid).collect::<Vec<_>>(), [2060]);
     }
 
     #[test]

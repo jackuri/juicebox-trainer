@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.8.0_
+_Last updated: 2026-11-09 — v1.8.1_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,10 @@ _Last updated: 2026-11-09 — v1.8.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.8.1 One entry per running game: `running_games` keeps one process per game (pack exe, else
+  most memory via `ot_core::memory_in_use`, else biggest exe, else lowest PID); helpers stay under
+  "Show all running programs". The Play button's `pick()` still uses pack exe / biggest exe (memory
+  is too low 4 s after launch to judge); a Unity game's tiny stub exe may lose to its launcher there.
 - v1.8.0 Hide games: `library_set_hidden(id, hidden)` keeps hidden ids in
   `%APPDATA%\OpenTrainer\hidden-games.json` (broken file = nothing hidden); `LibraryGame.hidden`;
   Games tab Hide / Unhide buttons, "Show hidden (N)" switch, "Hidden" badge, all-hidden message.

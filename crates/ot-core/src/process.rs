@@ -8,6 +8,7 @@ use windows::Win32::Foundation::{FILETIME, WAIT_TIMEOUT};
 use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
+use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
 use windows::Win32::System::SystemInformation::{
     IMAGE_FILE_MACHINE, IMAGE_FILE_MACHINE_AMD64, IMAGE_FILE_MACHINE_ARM64,
     IMAGE_FILE_MACHINE_I386, IMAGE_FILE_MACHINE_UNKNOWN,
@@ -140,6 +141,19 @@ pub fn list_processes() -> Result<Vec<ProcessInfo>> {
     Ok(list)
 }
 
+/// How much memory a process is using right now (its working set), in bytes.
+/// `None` when it can't be asked (protected, or gone).
+pub fn memory_in_use(pid: u32) -> Option<u64> {
+    let h = open_query(pid).ok()?;
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: `counters` is a correctly sized, writable PROCESS_MEMORY_COUNTERS.
+    unsafe { GetProcessMemoryInfo(h.raw(), &mut counters, counters.cb) }.ok()?;
+    Some(counters.WorkingSetSize as u64)
+}
+
 /// Opens a process with the given rights.
 pub(crate) fn open(pid: u32, access: PROCESS_ACCESS_RIGHTS) -> Result<OwnedHandle> {
     // SAFETY: plain Win32 call; the handle is owned by the returned value.
@@ -267,6 +281,12 @@ mod tests {
         let entry = list.iter().find(|p| p.pid == me).expect("own pid listed");
         assert_eq!(entry.arch, Arch::X64);
         assert!(entry.exe_path.is_some());
+    }
+
+    #[test]
+    fn reads_memory_in_use() {
+        assert!(memory_in_use(std::process::id()).is_some_and(|m| m > 0));
+        assert_eq!(memory_in_use(0), None);
     }
 
     #[test]

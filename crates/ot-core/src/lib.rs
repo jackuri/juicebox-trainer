@@ -35,7 +35,7 @@ pub use freeze::Freezer;
 pub use guard::{Finding, FindingKind, Verdict};
 pub use memory::Region;
 pub use modules::Module;
-pub use process::{Arch, ProcessInfo, list_processes};
+pub use process::{Arch, ProcessInfo, list_processes, memory_in_use};
 pub use scan::{FirstScan, Hit, NextScan, Scan, ScanControl, ScanOptions};
 pub use session::AttachedProcess;
 pub use value::{Value, ValueType};
