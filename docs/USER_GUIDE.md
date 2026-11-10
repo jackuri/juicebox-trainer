@@ -42,6 +42,7 @@ attached to, if any.
 | **Packs** | Your cheat packs, sharing them, and packs from other players |
 | **Save backups** | Back up, compare, restore and edit saves |
 | **Make a trainer (AI)** | Let the AI helper find cheats for a game with you |
+| **Themes** | Change how OpenTrainer looks |
 | **About** | Version, updates, this guide |
 
 ## Use cheats
@@ -210,6 +211,13 @@ What it needs:
 The helper can only use OpenTrainer's guarded tools. It can't run programs or read your files. It
 refuses games with anti-cheat, and its test changes are undone when it stops. You set the most it
 may spend. Every step is logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
+
+## Themes
+
+Open **Themes** and click a look. It changes straight away and is remembered next time; the in-game
+overlay follows. **OpenTrainer** is the standard look. There are game-inspired ones (Retro Arcade,
+Next-Gen Blue, Console Green, Pocket LCD, Visor HUD, Wasteland Terminal, Amber Terminal, Inferno)
+and a light one, **Daylight**.
 
 ## Updates
 

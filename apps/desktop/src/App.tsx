@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { AboutView } from "./components/AboutView";
+import { ThemeView } from "./components/ThemeView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
 import { Icon, Logo } from "./components/Icon";
@@ -25,7 +26,7 @@ import {
   type Verdict,
 } from "./lib/ipc";
 
-type View = "games" | "cheats" | "packs" | "saves" | "ai" | "about";
+type View = "games" | "cheats" | "packs" | "saves" | "ai" | "themes" | "about";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -161,6 +162,7 @@ export default function App() {
               ["packs", "Packs", "packs"],
               ["saves", "Save backups", "saves"],
               ["ai", "Make a trainer (AI)", "ai"],
+              ["themes", "Themes", "themes"],
               ["about", "About", "about"],
             ] as const
           ).map(([v, label, icon]) => (
@@ -170,7 +172,7 @@ export default function App() {
               onClick={() => setView(v)}
               className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                 view === v
-                  ? "bg-zinc-800/80 text-white"
+                  ? "bg-zinc-800/80 text-bright"
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
               }`}
             >
@@ -238,6 +240,8 @@ export default function App() {
         <PacksView openPath={openPath} onOpened={opened} onShowCheats={() => setView("cheats")} />
       ) : view === "about" ? (
         <AboutView />
+      ) : view === "themes" ? (
+        <ThemeView />
       ) : view === "ai" ? (
         <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (

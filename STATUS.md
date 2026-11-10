@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.13.0_
+_Last updated: 2026-11-09 — v1.14.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,17 @@ _Last updated: 2026-11-09 — v1.13.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- v1.14.0 Themes (user request 2026-11-09: game-themed looks, current one as default): Themes tab
+  (`ThemeView`, live preview cards each with their own `data-theme`), `lib/theme.ts` (list,
+  localStorage `opentrainer.theme`, storage-event sync for the overlay), `themes.css` (10 blocks:
+  zinc + emerald scales and extras; the scales were made from a few anchor colours by OKLab
+  mixing). Names are generic on purpose (no Halo / Fallout / PlayStation / Xbox / Game Boy names
+  or logos). `text-white` in UI chrome is now `text-bright` (dark in light themes).
+- Real-app test of the 1.14.0 release build (DevTools port, 34/34 passed): Themes tab, 10 live
+  previews, each theme applied + saved + right colour scheme, remembered after a reload, scanlines
+  in the terminal theme; screenshots of Themes / Games / Save backups in every theme looked right.
+  The test put the saved theme back to the default. Installer:
+  `release-out/OpenTrainer_1.14.0_x64-setup.exe`.
 - v1.13.0 SQLite saves: `codec::sqlite` with `rusqlite` 0.41.1 (`bundled`, `serialize`, no default
   features; the user asked for it on 2026-11-09). Workspace `rust-version` is now 1.89 (rusqlite's).
   Fields `Table[rowid].Column` (names quoted like JSON keys when odd), one-cell UPDATE with
@@ -186,6 +197,7 @@ _Last updated: 2026-11-09 — v1.13.0_
   works.
 
 ## In progress
+- v1.14.0 is committed locally only (not pushed or tagged yet; waiting for the user).
 - Pushed through v1.13.0; v1.13.0 is tagged and Latest (in-app updates on). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs

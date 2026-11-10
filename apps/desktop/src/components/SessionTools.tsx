@@ -71,7 +71,7 @@ export function SessionTools({ session, gameName, onSessionLost, onRefreshModule
             aria-selected={tab === t}
             onClick={() => setTab(t)}
             className={`rounded-lg px-3.5 py-1.5 text-sm font-medium transition-colors ${
-              tab === t ? "bg-zinc-800 text-white shadow ring-1 ring-zinc-700" : "text-zinc-400 hover:text-zinc-100"
+              tab === t ? "bg-zinc-800 text-bright shadow ring-1 ring-zinc-700" : "text-zinc-400 hover:text-zinc-100"
             }`}
           >
             {t}

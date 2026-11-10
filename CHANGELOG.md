@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.14.0] - 2026-11-09
+
+### Added
+- **Themes**: a new **Themes** tab changes how OpenTrainer looks. Ten looks, each shown as a live
+  preview: OpenTrainer (the standard look, still the default), Retro Arcade, Next-Gen Blue,
+  Console Green, Pocket LCD (light, blocky), Visor HUD, Wasteland Terminal and Amber Terminal
+  (monospace text, glow and scanlines), Inferno and Daylight (light). The choice is shown at once,
+  remembered, and followed by the in-game overlay. The themes are our own designs; they don't use
+  any game's or console maker's logos, names or fonts.
+
+### Changed
+- Colours, corners, fonts, the main buttons and the logo now come from the theme
+  (`apps/desktop/src/themes.css`, picked with `data-theme`).
+
 ## [1.13.0] - 2026-11-09
 
 ### Added

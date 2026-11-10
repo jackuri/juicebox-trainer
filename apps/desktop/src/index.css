@@ -1,9 +1,11 @@
 @import "tailwindcss";
+@import "./themes.css";
 
 /*
  * OpenTrainer's look (v1.2.0): a deep navy app with one bright accent, big rounded cards and
  * pill switches, in the style of modern game-trainer apps. Every screen uses Tailwind's `zinc`
- * (greys) and `emerald` (accent) names, so they are re-tinted here in one place.
+ * (greys) and `emerald` (accent) names, so they are re-tinted here in one place. These are the
+ * default theme's values; themes.css has every theme (v1.14.0), picked with `data-theme`.
  */
 @theme {
   /* Cool, slightly blue greys. 950 is the app background, 900 cards, 800 raised controls. */
@@ -33,12 +35,13 @@
   --color-emerald-950: #1e1c4f;
 
   --color-ink: #0a0c13;
+  /* The strongest text (selected items). White in dark themes. */
+  --color-bright: #ffffff;
   --font-sans: "Segoe UI Variable Text", "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
 }
 
-:root {
-  color-scheme: dark;
-}
+/* color-scheme and the theme extras (--accent-from, --glow-1 …) come from themes.css;
+   <html> always has a data-theme (index.html starts with "default"). */
 
 html,
 body,
@@ -48,10 +51,26 @@ body,
 
 body {
   @apply bg-zinc-950 text-zinc-100 antialiased;
-  font-family: var(--font-sans);
-  background-image: radial-gradient(1200px 500px at 100% -10%, rgb(79 70 216 / 0.16), transparent 60%),
-    radial-gradient(900px 400px at -10% 110%, rgb(34 140 220 / 0.08), transparent 60%);
+  background-image: radial-gradient(1200px 500px at 100% -10%, var(--glow-1), transparent 60%),
+    radial-gradient(900px 400px at -10% 110%, var(--glow-2), transparent 60%);
   background-attachment: fixed;
+}
+
+/* The theme's font and text glow (also inside the theme picker's preview cards). */
+body,
+[data-theme] {
+  font-family: var(--font-sans);
+  text-shadow: var(--text-glow);
+}
+
+/* CRT scanlines for the terminal themes (invisible when --scanlines is 0). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgb(0 0 0 / var(--scanlines)) 0 1px, transparent 1px 3px);
 }
 
 /* Checkboxes, radio buttons and sliders in the accent colour. */
@@ -69,11 +88,12 @@ input[type="range"] {
 
 /* Primary actions: the accent as a soft gradient. */
 @utility btn-accent {
-  background-image: linear-gradient(135deg, #6a63ff 0%, #4f8bff 100%);
-  color: #fff;
-  box-shadow: 0 6px 20px -8px rgb(95 87 240 / 0.7);
+  background-image: linear-gradient(135deg, var(--accent-from) 0%, var(--accent-to) 100%);
+  color: var(--accent-text);
+  text-shadow: none;
+  box-shadow: 0 6px 20px -8px var(--accent-glow);
   &:hover:not(:disabled) {
-    background-image: linear-gradient(135deg, #7b75ff 0%, #61a0ff 100%);
+    filter: brightness(1.12);
   }
   &:disabled {
     box-shadow: none;
@@ -99,4 +119,7 @@ html.overlay,
 html.overlay body {
   background: transparent;
   background-image: none;
+}
+html.overlay body::after {
+  display: none;
 }

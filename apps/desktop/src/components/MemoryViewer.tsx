@@ -229,7 +229,7 @@ export function MemoryViewer({ active, arch, request, onAddToList, onSessionLost
                         const ok = view.readable[i];
                         const cls =
                           i === selected
-                            ? "bg-emerald-700 text-white"
+                            ? "bg-emerald-700 text-bright"
                             : changed.has(i)
                               ? "text-amber-300"
                               : ok

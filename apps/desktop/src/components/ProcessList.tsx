@@ -33,7 +33,7 @@ export function ProcessList({ processes, games, selectedPid, loading, onSelect, 
         onClick={() => onSelect(p)}
         className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-colors ${
           p.pid === selectedPid
-            ? "bg-emerald-950/60 text-white ring-1 ring-emerald-800/80"
+            ? "bg-emerald-950/60 text-bright ring-1 ring-emerald-800/80"
             : "text-zinc-300 hover:bg-zinc-900"
         }`}
       >

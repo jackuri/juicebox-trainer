@@ -279,7 +279,7 @@ function HexView({ gameId, file, size, onPatch }: HexProps) {
               return (
                 <button
                   key={i}
-                  className={`px-0.5 ${at === selected ? "bg-emerald-800 text-white" : "hover:bg-zinc-800"}`}
+                  className={`px-0.5 ${at === selected ? "bg-emerald-800 text-bright" : "hover:bg-zinc-800"}`}
                   aria-label={`Byte at 0x${at.toString(16).toUpperCase()}`}
                   onClick={() => setSelected(at)}
                 >
