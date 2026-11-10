@@ -1,6 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildOptions, OT_TOOLS, type QueryFn, runSession, shortName } from "./agent.js";
+import { buildOptions, LOCAL_TOOLS, OT_TOOLS, type QueryFn, runSession, shortName } from "./agent.js";
 import { AskBridge, NoteBox } from "./bridge.js";
 import { kickoff, SYSTEM_PROMPT } from "./prompt.js";
 import { encode, MAX_NOTE, type Outbound, parseInbound, type StartMessage } from "./protocol.js";
@@ -80,7 +80,12 @@ describe("options", () => {
     for (const t of o.allowedTools ?? []) {
       expect(t).toMatch(/^mcp__(ot|ui)__/);
     }
-    expect(o.mcpServers?.ot).toEqual({ type: "stdio", command: mcp.command, args: ["--mcp"] });
+    expect(o.mcpServers?.ot).toEqual({
+      type: "stdio",
+      command: mcp.command,
+      args: ["--mcp"],
+      env: { OT_MCP_TOOLS: OT_TOOLS.join(",") },
+    });
     expect(o.model).toBe("claude-opus-5-5");
     expect(o.maxBudgetUsd).toBe(5);
     // The subscription backend never uses a stray API key.
@@ -165,6 +170,31 @@ describe("explain a save", () => {
       JSON.stringify({ type: "start", task: "explainSave", backup: "9", game: { pid: 0, name: "g.exe", exe: "C:/g.exe" } }),
     );
     expect(m).toMatchObject({ task: "explainSave", backup: "9" });
+  });
+});
+
+describe("tool sets (v1.21.0)", () => {
+  const listed = (o: ReturnType<typeof buildOptions>) =>
+    String((o.mcpServers?.ot as { env?: Record<string, string> }).env?.OT_MCP_TOOLS).split(",");
+
+  it("gives local models a smaller set and their own prompt", () => {
+    const o = buildOptions({ ...start, backend: "local", model: "qwen3-coder" }, mcp, io(), new AbortController(), "1.21.0");
+    expect(listed(o)).toEqual([...LOCAL_TOOLS]);
+    expect(listed(o)).not.toContain("unreal_find");
+    expect(o.allowedTools).toContain("mcp__ot__read_struct");
+    expect(o.allowedTools).not.toContain("mcp__ot__unreal_find");
+    expect(String(o.systemPrompt)).toContain("Steps for each cheat");
+  });
+
+  it("leaves out the game pictures when the player says no", () => {
+    const yes = buildOptions(start, mcp, io(), new AbortController(), "1.21.0");
+    expect(listed(yes)).toContain("game_screenshot");
+    expect(String(yes.systemPrompt)).toContain("known_cheats");
+    expect(String(yes.systemPrompt)).toContain("read_struct");
+    const no = buildOptions({ ...start, pictures: false }, mcp, io(), new AbortController(), "1.21.0");
+    expect(listed(no)).not.toContain("game_screenshot");
+    expect(no.allowedTools).not.toContain("mcp__ot__game_screenshot");
+    expect(parseInbound(JSON.stringify({ type: "start", game: { pid: 1, name: "g" }, pictures: false }))).toMatchObject({ pictures: false });
   });
 });
 

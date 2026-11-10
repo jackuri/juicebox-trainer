@@ -164,6 +164,19 @@ describe("AiView", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Open Web games");
   });
 
+  it("can use the cheaper model and keep the game window private", async () => {
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
+    fireEvent.click(screen.getByLabelText(/Cheaper and faster/));
+    fireEvent.click(screen.getByRole("checkbox", { name: /look at the game window/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_start", {
+        request: expect.objectContaining({ model: "claude-sonnet-5-5", pictures: false }) as unknown,
+      }),
+    );
+  });
+
   it("can cancel while running", async () => {
     invoke.mockImplementation((cmd: string) =>
       cmd === "ai_status"

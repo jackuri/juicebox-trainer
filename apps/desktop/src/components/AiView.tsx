@@ -44,7 +44,14 @@ interface Settings {
   model: string;
   analysisCommand: string;
   analysisArgs: string;
+  /** The helper may look at the game window (v1.21.0). */
+  pictures: boolean;
+  /** Claude backends: the best model, or a cheaper and faster one. */
+  quality: "best" | "cheaper";
 }
+
+/** The cheaper Claude model (the best one is the helper's default). */
+export const CHEAPER_MODEL = "claude-sonnet-5-5";
 
 const DEFAULTS: Settings = {
   backend: "subscription",
@@ -53,6 +60,8 @@ const DEFAULTS: Settings = {
   model: "",
   analysisCommand: "",
   analysisArgs: "",
+  pictures: true,
+  quality: "best",
 };
 
 const SETTINGS_KEY = "opentrainer.ai.settings";
@@ -156,7 +165,8 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
         backend,
         maxBudgetUsd: Number(budget) || 5,
         localUrl: backend === "local" ? settings.localUrl : undefined,
-        model: backend === "local" ? settings.model : undefined,
+        model: backend === "local" ? settings.model : settings.quality === "cheaper" ? CHEAPER_MODEL : undefined,
+        pictures: settings.pictures ? undefined : false,
         analysisCommand: web ? undefined : settings.analysisCommand.trim() || undefined,
         analysisArgs: settings.analysisArgs.split(" ").filter(Boolean),
       });
@@ -362,6 +372,34 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
               </div>
             )}
           </fieldset>
+          {backend !== "local" && (
+            <fieldset className="flex flex-col gap-1 text-sm">
+              <legend className="mb-1">How hard it tries</legend>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={settings.quality === "best"} onChange={() => update({ quality: "best" })} />
+                Best results (Claude Opus)
+              </label>
+              <label className="flex items-center gap-2">
+                <input type="radio" checked={settings.quality === "cheaper"} onChange={() => update({ quality: "cheaper" })} />
+                Cheaper and faster (Claude Sonnet): fine for simple games
+              </label>
+            </fieldset>
+          )}
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-1"
+              checked={settings.pictures}
+              onChange={(e) => update({ pictures: e.target.checked })}
+            />
+            <span>
+              Let the helper look at the game window, so it can read numbers itself and you&apos;re asked less.
+              <span className="block text-xs text-zinc-500">
+                Only that window, only while it works. The pictures go to the AI you picked and aren&apos;t
+                saved.
+              </span>
+            </span>
+          </label>
           {kind === "pc" && (
           <details className="text-sm">
             <summary className="cursor-pointer text-zinc-400">Advanced: code analysis tool (optional)</summary>

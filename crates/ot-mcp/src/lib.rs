@@ -8,6 +8,7 @@
 //!
 //! Run as `ot-mcp` (this crate's binary) or `opentrainer-desktop --mcp`.
 
+pub mod extra;
 pub mod protocol;
 pub mod tools;
 pub mod web;

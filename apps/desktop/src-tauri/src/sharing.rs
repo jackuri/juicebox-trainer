@@ -507,6 +507,13 @@ async fn index(state: &SharingState, refresh: bool) -> CmdResult<Cached> {
         .map_err(|e| CommandError::new("offline", e))?;
     let (index, skipped) =
         community::parse_index(&bytes).map_err(|e| CommandError::new("badIndex", e))?;
+    // A copy for the AI helper (`known_cheats`); only a list that parsed.
+    if let Some(path) = community::cache_path() {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let _ = std::fs::write(&path, &bytes);
+    }
     let cached = Cached {
         at: Instant::now(),
         url,

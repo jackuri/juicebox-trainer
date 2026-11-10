@@ -1056,6 +1056,8 @@ export interface AiStartRequest {
   task?: "trainer" | "explainSave" | "webTrainer";
   /** For "webTrainer": the web game's id (it must be the one open in the game window). */
   webGame?: string;
+  /** false: the helper may not look at the game window (v1.21.0). */
+  pictures?: boolean;
   exe?: string;
   backup?: string;
   wishes: string[];

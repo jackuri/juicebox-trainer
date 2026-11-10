@@ -4,6 +4,28 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.21.0] - 2026-11-10
+
+### Added
+- **The AI helper can look at the game.** It takes pictures of the game's window (only that
+  window, never saved) to read numbers and check cheats itself, so it asks you less. Untick **Let
+  the helper look at the game window** to turn it off. Some full-screen games can't be pictured.
+- **More cheats from each find.** After it finds a value, the helper looks at the values next to
+  it (max health next to health, ammo, stamina), in PC games and web games.
+- **It checks what's known first:** your installed packs for the game, what the community list
+  has (packs, table links, web cheats), and short notes earlier sessions kept about the game and
+  its engine. At the end it keeps a note of what worked (`%LOCALAPPDATA%\OpenTrainer\ai-notes`).
+- **Best results or cheaper:** choose Claude Opus (best) or Claude Sonnet (cheaper and faster).
+- **A benchmark for the AI helper** (`node scripts/ai-bench.mjs`): runs it on the test game with
+  a simulated player and checks the saved cheats on a freshly started game, for the score,
+  questions asked, cost and time.
+
+### Changed
+- The helper only saves cheats it tried in the game during the session.
+- Free local AIs get a smaller set of tools and shorter instructions, so they go wrong less often.
+- Each session only sees the tools it can use (smaller instructions, lower cost).
+- For money and other amounts the helper makes a cheat you can set to a number.
+
 ## [1.20.0] - 2026-11-10
 
 ### Added

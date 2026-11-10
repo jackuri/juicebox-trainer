@@ -44,6 +44,8 @@ export interface StartMessage {
   localUrl?: string;
   /** Optional static-analysis tool server. */
   analysis?: AnalysisServer;
+  /** The helper may look at the game window (v1.21.0; on unless false). */
+  pictures?: boolean;
 }
 
 export type Inbound =
@@ -102,6 +104,7 @@ export function parseInbound(line: string): Inbound | null {
         backup: typeof m.backup === "string" ? m.backup : undefined,
         localUrl: typeof m.localUrl === "string" ? m.localUrl : undefined,
         analysis: parseAnalysis(m.analysis),
+        pictures: m.pictures === false ? false : undefined,
       };
     }
     case "answer":

@@ -21,6 +21,17 @@ pub const FORMAT: u32 = 1;
 /// The index refuses to load above this size.
 pub const MAX_INDEX_BYTES: u64 = 2 << 20;
 
+/// Where the app keeps the last community list it downloaded
+/// (`%LOCALAPPDATA%\OpenTrainer\community-index.json`, v1.21.0), so the AI
+/// helper can see what's already shared for a game without going online.
+pub fn cache_path() -> Option<std::path::PathBuf> {
+    std::env::var_os("LOCALAPPDATA").map(|d| {
+        std::path::PathBuf::from(d)
+            .join("OpenTrainer")
+            .join("community-index.json")
+    })
+}
+
 /// `index.json`. Unknown fields are ignored so newer lists still load.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

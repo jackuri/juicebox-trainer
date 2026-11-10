@@ -526,6 +526,79 @@
         }),
       };
     },
+    /** The values next to a place, for the AI helper (v1.21.0): in a memory, the numbers
+     * around it; for a JavaScript value, the other numbers in its object (and one level down). */
+    near({ target }) {
+      if (!target || (target.k !== "m" && target.k !== "j")) throw new Error("give a place");
+      const plausibleInt = (v) => v !== 0 && Math.abs(v) <= 10000000;
+      const plausibleFloat = (v) => Number.isFinite(v) && v !== 0 && Math.abs(v) >= 0.001 && Math.abs(v) <= 10000000;
+      const round = (v) => Math.round(v * 1000) / 1000;
+      if (target.k === "m") {
+        const buf = bufferOf(target.mem);
+        const dv = new DataView(buf);
+        const from = Math.max(0, (target.off - 32) & ~3);
+        const to = Math.min(buf.byteLength - 4, target.off + 96);
+        const rows = [];
+        for (let o = from; o <= to; o += 4) {
+          const i = dv.getInt32(o, true);
+          const f = dv.getFloat32(o, true);
+          const row = { offset: (o >= target.off ? "+" : "-") + "0x" + Math.abs(o - target.off).toString(16).toUpperCase(), off: o };
+          if (plausibleInt(i)) row.i32 = i;
+          else if (plausibleFloat(f)) row.f32 = round(f);
+          if (o % 8 === 0 && o + 8 <= buf.byteLength) {
+            const d = dv.getFloat64(o, true);
+            if (plausibleFloat(d)) row.f64 = round(d);
+          }
+          if (o === target.off) row.hint = "the value you found";
+          if (Object.keys(row).length > 2 || o === target.off) rows.push(row);
+        }
+        return { memory: target.mem, rows, tip: "A place next to it is the same target with off and t changed." };
+      }
+      const path = target.path.map(String);
+      const { obj } = resolve(path);
+      const parent = path.slice(0, -1);
+      const out = [];
+      const add = (o, p) => {
+        let keys;
+        try {
+          keys = Object.keys(o);
+        } catch {
+          return;
+        }
+        for (const key of keys) {
+          if (out.length >= 60) return;
+          let d;
+          try {
+            d = Object.getOwnPropertyDescriptor(o, key);
+          } catch {
+            continue;
+          }
+          if (!d || !("value" in d)) continue; // never call getters
+          if (typeof d.value === "number" && Number.isFinite(d.value)) {
+            const t = { k: "j", path: p.concat(key) };
+            out.push({ where: where(t), target: t, value: d.value });
+          }
+        }
+      };
+      add(obj, parent);
+      let keys = [];
+      try {
+        keys = Object.keys(obj);
+      } catch {
+        // Nothing more.
+      }
+      for (const key of keys) {
+        let d;
+        try {
+          d = Object.getOwnPropertyDescriptor(obj, key);
+        } catch {
+          continue;
+        }
+        const v = d && "value" in d ? d.value : null;
+        if (v && typeof v === "object" && !isNode(v) && v !== window && !ArrayBuffer.isView(v)) add(v, parent.concat(key));
+      }
+      return { values: out };
+    },
     /** What's locked (also by a key) and which keys list is in use. */
     state() {
       return { locks: [...locks.keys()], keysTag };
@@ -533,7 +606,7 @@
   };
 
   const agent = {
-    version: 3,
+    version: 4,
     callJson(method, args) {
       try {
         const f = Object.prototype.hasOwnProperty.call(methods, method) ? methods[method] : null;

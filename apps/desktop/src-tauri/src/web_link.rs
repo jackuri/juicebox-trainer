@@ -40,7 +40,7 @@ use crate::web::{WebCheat, WebGame};
 
 /// The page calls the AI helper may make.
 pub const AI_CALLS: &[&str] = &[
-    "info", "names", "find", "next", "results", "read", "set", "lock", "unlock",
+    "info", "names", "find", "next", "results", "read", "set", "lock", "unlock", "near",
 ];
 /// Longest request (a list of cheats is the biggest).
 const MAX_LINE: u64 = 1 << 20;
@@ -52,6 +52,8 @@ pub trait Game: Send + Sync + 'static {
     fn page_url(&self) -> Option<String>;
     fn call(&self, method: &str, args: &Value) -> Result<Value, String>;
     fn add_cheats(&self, id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String>;
+    /// A picture of the game window: `{ png (base64), width, height }`.
+    fn screenshot(&self) -> Result<Value, String>;
 }
 
 #[derive(Deserialize)]
@@ -148,6 +150,8 @@ impl Session {
         let open = self.check_window()?;
         match req.call.as_str() {
             "game" => Ok(json!({ "id": open.id, "name": open.name, "url": open.url })),
+            // A picture of the game window only (v1.21.0).
+            "screenshot" => self.game.screenshot(),
             // The tool server undid everything itself.
             "reverted" => {
                 self.journal().clear();
@@ -322,6 +326,20 @@ impl Game for AppGame {
         let _ = self.0.emit("web-cheats-changed", id);
         Ok(r)
     }
+    fn screenshot(&self) -> Result<Value, String> {
+        use base64::Engine as _;
+        let w = self
+            .0
+            .get_webview_window(crate::web::LABEL)
+            .ok_or("the game window is closed")?;
+        let hwnd = w.hwnd().map_err(|e| e.to_string())?;
+        let shot = ot_core::screen::capture_window(hwnd.0 as isize, ot_core::screen::MAX_SIDE)?;
+        Ok(json!({
+            "png": base64::engine::general_purpose::STANDARD.encode(&shot.png),
+            "width": shot.width,
+            "height": shot.height,
+        }))
+    }
 }
 
 /// Starts the link to the app's game window.
@@ -392,6 +410,9 @@ mod tests {
         fn add_cheats(&self, _id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String> {
             self.saved.lock().unwrap().extend_from_slice(cheats);
             Ok((cheats.len(), 0))
+        }
+        fn screenshot(&self) -> Result<Value, String> {
+            Ok(json!({ "png": "iVBORw0KGgo=", "width": 2, "height": 1 }))
         }
     }
 

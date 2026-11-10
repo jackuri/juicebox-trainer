@@ -13,6 +13,8 @@ fn tools(tmp: &TempDir) -> Tools {
         packs_dir: Some(tmp.0.join("packs")),
         saves_root: Some(tmp.0.join("saves")),
         web: None,
+        only: None,
+        notes_dir: Some(tmp.0.join("notes")),
     })
 }
 
@@ -64,6 +66,45 @@ fn agent_finds_gold_and_writes_a_pack() {
     assert_eq!(game.send("state")["gold"], 12345);
     call(&mut t, "revert_all", json!({}));
     assert_eq!(game.send("state")["gold"].as_i64().unwrap(), gold + 37);
+
+    // The values next to health: max health, ammo and gold sit with it (v1.21.0).
+    let hp_at = format!("0x{:X}", game.addr("health"));
+    let near = call(
+        &mut t,
+        "read_struct",
+        json!({ "address": hp_at, "before": 0, "after": 24 }),
+    );
+    let rows = near["rows"].as_array().unwrap();
+    let row = |o: &str| {
+        rows.iter()
+            .find(|r| r["offset"] == o)
+            .cloned()
+            .unwrap_or_default()
+    };
+    let st = game.send("state");
+    assert_eq!(row("+0x0")["i32"], st["health"], "{near}");
+    assert_eq!(row("+0x4")["i32"], st["max_health"], "{near}");
+    assert_eq!(row("+0xC")["i32"], st["gold"], "{near}");
+    assert!(
+        row("+0x10")["f32"].is_number(),
+        "speed is a decimal: {near}"
+    );
+
+    // What's known, and a note for next time.
+    let known = call(&mut t, "known_cheats", json!({}));
+    assert_eq!(known["exe"], "testbed_native.exe");
+    call(
+        &mut t,
+        "note_save",
+        json!({ "text": "gold is an i32 next to health" }),
+    );
+    let known = call(&mut t, "known_cheats", json!({}));
+    assert_eq!(
+        known["notesFromEarlierSessions"]["exe:testbed_native.exe"][0]["text"],
+        "gold is an i32 next to health"
+    );
+    // A console game has no window to picture.
+    assert!(t.call("game_screenshot", &json!({})).is_err());
 
     // Make it survive a restart: a pointer path from the exe.
     let ptr = call(
@@ -223,7 +264,14 @@ fn agent_makes_a_code_cheat_with_find_what_writes() {
     call(&mut t, "pack_write", json!({ "pack": pack }));
     let mut more = pack.clone();
     more["cheats"] = json!([{ "id": "gold", "name": "Set gold", "ui": "number",
-        "impl": { "kind": "value", "type": "i32", "address": { "base": "testbed_native.exe+0x10" } } }]);
+        "impl": { "kind": "value", "type": "i32", "address": {
+            "base": game.ready["chain"]["root"],
+            "offsets": [game.ready["chain"]["offsets"][0], game.ready["chain"]["offsets"][1], game.ready["chain"]["fields"]["gold"]] } } }]);
+    // A cheat never tried in the game isn't saved.
+    let refused = t.call("pack_write", &json!({ "pack": more })).unwrap_err();
+    assert!(refused.contains("Not tried yet: Set gold"), "{refused}");
+    call(&mut t, "pack_try", json!({ "pack": more }));
+    call(&mut t, "cheat_set", json!({ "id": "gold", "value": "500" }));
     let second = call(&mut t, "pack_write", json!({ "pack": more }));
     assert_eq!(second["keptFromEarlier"], json!(["Infinite health"]));
     assert_eq!(second["cheats"], 2);

@@ -23,6 +23,7 @@ pub mod modules;
 pub mod pointer;
 pub mod process;
 pub mod scan;
+pub mod screen;
 pub mod session;
 pub mod signature;
 pub mod unreal;

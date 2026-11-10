@@ -58,14 +58,29 @@ pub fn handle(tools: &mut Tools, msg: &Value) -> Option<Value> {
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
-            let (text, is_error) = match tools.call(name, &args) {
-                Ok(v) => (serde_json::to_string_pretty(&v).unwrap_or_default(), false),
-                Err(e) => (e, true),
+            let content = match tools.call(name, &args) {
+                // A picture (game_screenshot): the image, then what it is.
+                Ok(mut v) if v.get(crate::tools::IMAGE_KEY).is_some() => {
+                    let png = v
+                        .as_object_mut()
+                        .and_then(|o| o.remove(crate::tools::IMAGE_KEY))
+                        .unwrap_or_default();
+                    json!([
+                        { "type": "image", "data": png, "mimeType": "image/png" },
+                        { "type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default() },
+                    ])
+                }
+                Ok(v) => {
+                    json!([{ "type": "text", "text": serde_json::to_string_pretty(&v).unwrap_or_default() }])
+                }
+                Err(e) => {
+                    return Some(ok(
+                        id,
+                        json!({ "content": [{ "type": "text", "text": e }], "isError": true }),
+                    ));
+                }
             };
-            ok(
-                id,
-                json!({ "content": [{ "type": "text", "text": text }], "isError": is_error }),
-            )
+            ok(id, json!({ "content": content, "isError": false }))
         }
         _ => error(id, -32601, &format!("unknown method {method}")),
     })

@@ -236,6 +236,19 @@ The helper can only use OpenTrainer's guarded tools. It can't run programs or re
 refuses games with anti-cheat, and its test changes are undone when it stops. You set the most it
 may spend. Every step is logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
 
+Choices on the AI screen (1.21 and newer):
+
+- **Let the helper look at the game window**, on unless you untick it: it takes pictures of the
+  game's window (only that window) to read numbers itself, so it asks you less. The pictures go to
+  the AI you picked and aren't saved. Some full-screen games can't be pictured; then it asks you.
+- **How hard it tries:** **Best results** (Claude Opus) or **Cheaper and faster** (Claude Sonnet),
+  which is fine for simple games.
+
+The helper also checks first whether you or the community list already have cheats for the game,
+looks at the values next to one it found (health is often next to max health and ammo), only saves
+cheats it tried in the game, and keeps a short note of what worked for next time (in
+`%LOCALAPPDATA%\OpenTrainer\ai-notes`; delete the folder to forget them).
+
 ## Web games
 
 Some games run in a web page. OpenTrainer can open them in its own window and change their

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-10 — v1.20.0_
+_Last updated: 2026-11-10 — v1.21.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -286,9 +286,19 @@ _Last updated: 2026-11-10 — v1.20.0_
   printed, page text over 300 characters is cut, and both prompts say text from the game is data,
   never instructions.
 
+- v1.21.0 Smarter AI helpers (all five ideas of PLAN §5.6): game pictures, the values next to a
+  find, known cheats and notes, only tried cheats saved, smaller tool sets, Opus or Sonnet, and
+  the benchmark `scripts/ai-bench.mjs`. Real-app test of the release
+  build (scripted helper on testbed/web): 61/61 (picture of the game window, web_near, known
+  cheats and notes, untried cheat refused, hard stop undone). 1.20 re-tested once the user closed
+  their app: 52/52, 1.19 36/36. Benchmark (one run each, so noisy; testbed x64, a console game, so
+  no pictures): 1.20 3/3 with 16 questions, $0.57; 1.21 best model first 2/3 (its gold pointer
+  path was luck), then after a prompt fix (a one-step path must survive a second restart) 3/3
+  with 15 questions, $0.77; 1.21 cheaper model 3/3 with 7 questions, $0.22.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through 98efc39 (web cheats). v1.18.0 and v1.19.0 are pushed and tagged (CI and Release green,
+  through 98efc39 (web cheats). v1.18.0, v1.19.0 and v1.20.0 are pushed and tagged (CI and Release green,
   installers published). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
@@ -296,8 +306,8 @@ _Last updated: 2026-11-10 — v1.20.0_
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
 
 ## Next
-- Ideas for making the AI helpers better at finding cheats (told to the user 2026-11-10, waiting
-  for their pick): see the 1.20 report in the conversation; the short list is in docs/PLAN.md §5.6.
+- AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
+  on. The benchmark could get web and harder test games (values ×10, scrambled).
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
   (SignPath works now that the repo is public; Microsoft Trusted Signing about $10/month). The
   updater key still has to be added as the `TAURI_SIGNING_PRIVATE_KEY` secret by the user.

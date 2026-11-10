@@ -406,6 +406,7 @@ pub fn web_close(app: AppHandle, state: State<'_, WebState>) {
 /// The helper calls OpenTrainer may make.
 const CALLS: &[&str] = &[
     "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state", "names",
+    "near",
 ];
 
 /// The script that runs one call in the game page and returns its JSON.

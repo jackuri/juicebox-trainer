@@ -447,6 +447,9 @@ pub struct AiStartRequest {
     pub analysis_command: Option<String>,
     #[serde(default)]
     pub analysis_args: Vec<String>,
+    /// `false`: the helper may not look at the game window (v1.21.0).
+    #[serde(default)]
+    pub pictures: Option<bool>,
 }
 
 fn push(transcript: &Mutex<Vec<Value>>, app: &AppHandle, event: Value) {
@@ -628,6 +631,7 @@ pub async fn ai_start(
             .filter(|c| !c.trim().is_empty())
             .map(|command| json!({ "command": command, "args": request.analysis_args })),
         "maxBudgetUsd": request.max_budget_usd.clamp(0.5, 50.0),
+        "pictures": request.pictures != Some(false),
     });
     state.send(&start)
 }

@@ -6,7 +6,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
+import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools ot-mcp offers (crates/ot-mcp/src/tools.rs). */
@@ -37,7 +37,33 @@ export const OT_TOOLS = [
   "watch_writes_start",
   "watch_writes_stop",
   "pack_heal",
+  "game_screenshot",
+  "read_struct",
+  "known_cheats",
+  "note_save",
 ] as const;
+
+/** A smaller set for local models (v1.21.0): the basic steps only. */
+export const LOCAL_TOOLS = [
+  "list_processes",
+  "attach",
+  "game_info",
+  "scan_first",
+  "scan_next",
+  "read",
+  "write_test",
+  "read_struct",
+  "pack_validate",
+  "pack_try",
+  "cheat_set",
+  "revert_all",
+  "pack_write",
+  "known_cheats",
+  "note_save",
+] as const;
+
+/** The tools that show the AI a picture of the game window. */
+export const PICTURE_TOOLS = ["game_screenshot", "web_screenshot"] as const;
 
 /** The web game tools (v1.20.0), through the app's link to its game window. */
 export const WEB_TOOLS = [
@@ -50,7 +76,11 @@ export const WEB_TOOLS = [
   "web_set",
   "web_lock",
   "web_unlock",
+  "web_near",
+  "web_screenshot",
   "web_cheats_save",
+  "known_cheats",
+  "note_save",
   "revert_all",
 ] as const;
 
@@ -151,6 +181,12 @@ export function buildOptions(
       : undefined;
   delete env.OT_WEB_LINK;
   delete env.OT_WEB_TOKEN;
+  // The tool server lists only this session's tools (smaller context, v1.21.0).
+  const pictures = start.pictures !== false;
+  const keep = (list: readonly string[]) =>
+    list.filter((t) => pictures || !(PICTURE_TOOLS as readonly string[]).includes(t));
+  const tools = keep(explain ? EXPLAIN_TOOLS : web ? WEB_TOOLS : local ? LOCAL_TOOLS : OT_TOOLS);
+  const serverEnv: Record<string, string> = { ...(link ?? {}), OT_MCP_TOOLS: tools.join(",") };
 
   return {
     model: start.model ?? DEFAULT_MODEL,
@@ -160,21 +196,23 @@ export function buildOptions(
       ? EXPLAIN_SAVE_PROMPT
       : web
         ? WEB_PROMPT
-        : analysis
+        : local
+          ? LOCAL_PROMPT
+          : analysis
         ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}`
         : SYSTEM_PROMPT,
     tools: [],
     mcpServers: {
-      ot: { type: "stdio", command: mcp.command, args: mcp.args, ...(link ? { env: link } : {}) },
+      ot: { type: "stdio", command: mcp.command, args: mcp.args, env: serverEnv },
       ui,
       ...(analysis ? { rea: { type: "stdio" as const, command: analysis.command, args: analysis.args } } : {}),
     },
     allowedTools: explain
-      ? EXPLAIN_TOOLS.map((t) => `mcp__ot__${t}`)
+      ? tools.map((t) => `mcp__ot__${t}`)
       : web
-        ? [...WEB_TOOLS.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"]
+        ? [...tools.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"]
         : [
-          ...OT_TOOLS.map((t) => `mcp__ot__${t}`),
+          ...tools.map((t) => `mcp__ot__${t}`),
           "mcp__ui__ask_player",
           // Every tool of the player's analysis server (server-level rule).
           ...(analysis ? ["mcp__rea"] : []),
@@ -230,6 +268,12 @@ const ACTIVITY: Record<string, string> = {
   web_lock: "Testing a lock",
   web_unlock: "Stopping a test lock",
   web_cheats_save: "Saving the cheats",
+  web_near: "Looking at the values next to it",
+  web_screenshot: "Looking at the game",
+  game_screenshot: "Looking at the game",
+  read_struct: "Looking at the values next to it",
+  known_cheats: "Checking what's already known",
+  note_save: "Keeping a note for next time",
 };
 
 /** `mcp__ot__scan_first` → `scan_first`. */
