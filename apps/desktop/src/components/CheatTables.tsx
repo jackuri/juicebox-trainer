@@ -104,6 +104,8 @@ export function DownloadedTables({
   const [hidden, setHidden] = useState(dismissed);
 
   const load = useCallback(() => {
+    // Only while OpenTrainer is on screen.
+    if (document.hidden) return;
     api.tablesRecent().then((list) => setTables(Array.isArray(list) ? list : []), () => undefined);
   }, []);
 

@@ -3,7 +3,6 @@ import {
   api,
   type DeviceCode,
   type GithubStatus,
-  LICENCE_MIT,
   LICENCE_PERMISSION,
   type PackSummary,
   type SharedPack,
@@ -81,7 +80,8 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     setError(null);
     setSharing(true);
     try {
-      const licence = terms === "mit" ? LICENCE_MIT : terms === "permission" ? LICENCE_PERMISSION : otherTerms.trim();
+      // MIT is the list's default: it isn't written into the pack, so older OpenTrainer versions can still read it.
+      const licence = terms === "mit" ? undefined : terms === "permission" ? LICENCE_PERMISSION : otherTerms.trim();
       const fromMaker = fromSomeoneElse ? madeBy === "me" : !pack.ai;
       setShared(
         link

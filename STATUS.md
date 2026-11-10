@@ -72,6 +72,12 @@ _Last updated: 2026-11-09 — v1.17.0_
   a credited table pack (author = maker's name) was called "a file" in the share dialog; now a
   pack whose credit names a `.CT` file counts as a table. Test pack removed. Installer:
   `release-out/OpenTrainer_1.17.0_x64-setup.exe`.
+- Before releasing 1.17.0 (the user asked to run and check everything first): all real-app tests
+  from 1.13 to 1.17 re-run on the 1.17 build, 101/101 passed (memory viewer + XML / YAML / SQLite
+  saves 25, themes 34, Downloads tables 14, table links 14, credit and terms 14). Review fixes:
+  MIT is no longer written into shared packs (it's the default; older versions can still read
+  them, only packs with other terms or the maker badge need 1.17); the Downloads check pauses
+  while OpenTrainer is hidden.
 - v1.17.0 Creator invitations (cheat-library plan step 3; the user chose "let makers choose"
   their terms): `schema::Source` `licence` / `support` / `from_maker`, `SUPPORT_SITES`,
   `is_support_url`; `github::{Terms, with_terms}` and terms lines in the PR text; community `Entry`
@@ -242,8 +248,8 @@ _Last updated: 2026-11-09 — v1.17.0_
 
 ## In progress
 - Pushed through v1.16.0; v1.16.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through 6c30cda (table links). v1.17.0 and community repo 79b222e are committed locally only
-  (not pushed or tagged yet; waiting for the user). v1.10.0 – v1.12.0 were
+  through 6c30cda (table links). v1.17.0 and community repo 79b222e: pushed and tagged on
+  2026-11-09 (see the release notes). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and

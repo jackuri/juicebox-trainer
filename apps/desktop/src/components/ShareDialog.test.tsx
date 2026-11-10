@@ -72,7 +72,7 @@ describe("ShareDialog", () => {
         note: "Steam, v1.2",
         permission: false,
         // An AI-made pack: no maker badge; MIT by default.
-        terms: { fromMaker: false, licence: "MIT", support: undefined },
+        terms: { fromMaker: false, licence: undefined, support: undefined },
       }),
     );
     expect(await screen.findByText(/Sent! A maintainer will check it/)).toBeInTheDocument();
