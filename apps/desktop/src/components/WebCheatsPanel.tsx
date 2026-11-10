@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, toCommandError, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { keyFromEvent } from "../lib/keys";
+import { keysFor, lockId, where } from "../lib/webCheats";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const field = "rounded-lg bg-zinc-950 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
@@ -11,8 +13,6 @@ const num = (s: string): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 const show = (v: number | undefined) => (v === undefined || Number.isNaN(v) ? "?" : Number.isInteger(v) ? String(v) : v.toFixed(3));
-const where = (t: WebTarget) => (t.k === "m" ? `memory ${t.mem + 1} at 0x${t.off.toString(16).toUpperCase()} (${t.t})` : t.path.join("."));
-
 /** Find, change and lock numbers in the open web game; the player's saved cheats for it. */
 export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () => void }) {
   const [info, setInfo] = useState<WebInfo | null>(null);
@@ -27,12 +27,15 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
   const [naming, setNaming] = useState<{ target: WebTarget; name: string; value: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const keys = useMemo(() => keysFor(cheats), [cheats]);
   const cheatsRef = useRef(cheats);
   const searchRef = useRef(search);
+  const keysRef = useRef(keys);
   useEffect(() => {
     cheatsRef.current = cheats;
     searchRef.current = search;
-  }, [cheats, search]);
+    keysRef.current = keys;
+  }, [cheats, search, keys]);
 
   // Wait for the game page (and OpenTrainer's helper in it) to be ready.
   useEffect(() => {
@@ -70,6 +73,16 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
       if (document.hidden) return;
       // Games often make their memory after the page loads (or after a level starts): look again.
       if (++ticks % 3 === 0) api.webInfo().then(setInfo, () => undefined);
+      // What's locked (keys in the game lock things too), and the keys, again after the page reloads.
+      api.webState().then(
+        (st) => {
+          if (!st || !Array.isArray(st.locks)) return;
+          setLocked(new Set(st.locks));
+          const k = keysRef.current;
+          if (st.keysTag !== k.tag) api.webKeys(k.list, k.tag).catch((e: unknown) => setError(toCommandError(e).message));
+        },
+        () => undefined,
+      );
       const list = cheatsRef.current;
       if (list.length) {
         api.webRead(list.map((c) => c.target)).then(
@@ -216,7 +229,7 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
         ) : (
           <ul className="flex flex-col gap-1">
             {cheats.map((c, i) => {
-              const id = `${c.name}|${where(c.target)}`;
+              const id = lockId(c);
               const on = locked.has(id);
               const typed = num(inputs[i] ?? "");
               return (
@@ -270,6 +283,39 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
                   >
                     {on ? "Locked" : "Lock"}
                   </button>
+                  <input
+                    aria-label={`Key for ${c.name}`}
+                    className={`${field} w-24 cursor-pointer text-center text-xs`}
+                    readOnly
+                    placeholder="Key"
+                    title="Click, then press a key. Backspace: no key."
+                    value={c.key ?? ""}
+                    onKeyDown={(e) => {
+                      if (e.key === "Tab") return;
+                      e.preventDefault();
+                      const box = e.currentTarget;
+                      if (e.key === "Escape") return box.blur();
+                      const k = e.key === "Backspace" ? null : keyFromEvent(e);
+                      if (k === null && e.key !== "Backspace") return;
+                      box.blur();
+                      void run(() => saveCheats(cheats.map((x, j) => (j === i ? { ...x, key: k, keyDoes: k ? (x.keyDoes ?? "lock") : null } : x))));
+                    }}
+                  />
+                  {c.key && (
+                    <select
+                      aria-label={`What the key for ${c.name} does`}
+                      className={`${field} text-xs`}
+                      value={c.keyDoes ?? "lock"}
+                      onChange={(e) =>
+                        void run(() => saveCheats(cheats.map((x, j) => (j === i ? { ...x, keyDoes: e.target.value as "lock" | "set" } : x))))
+                      }
+                    >
+                      <option value="lock">Lock / unlock</option>
+                      <option value="set" disabled={c.value == null}>
+                        Set to {c.value ?? "…"}
+                      </option>
+                    </select>
+                  )}
                   <button
                     className="text-xs text-zinc-500 hover:text-red-300"
                     aria-label={`Remove ${c.name}`}
@@ -293,7 +339,8 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
           </ul>
         )}
         <p className="text-xs text-zinc-500">
-          Cheats are found again by where they were. If the game changes (an update, or a new level that moves things), find them again.
+          Keys work while the game window is in front: a key locks or unlocks its cheat (or sets it), and a note in the corner of the game
+          says so. Cheats are found again by where they were. If the game changes (an update, or a new level that moves things), find them again.
         </p>
       </div>
     </section>

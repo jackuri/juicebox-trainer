@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::schema::{Pack, PackArch};
 use crate::store::MAX_PACK_BYTES;
 use crate::validate::{Issue, is_slug, parse};
+use crate::web::{WebPack, check_pack};
 
 /// Where the app reads the list from.
 pub const INDEX_URL: &str =
@@ -32,6 +33,18 @@ pub struct Index {
     /// links: the tables themselves stay on the maker's site.
     #[serde(default)]
     pub tables: Vec<TableLink>,
+    /// Cheats for web games (v1.19.0), whole (they're small). Read one by one
+    /// so a broken or newer entry is left out instead of failing the list.
+    #[serde(default, deserialize_with = "lenient_web")]
+    pub web: Vec<WebPack>,
+}
+
+fn lenient_web<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<WebPack>, D::Error> {
+    let raw: Vec<serde_json::Value> = Vec::deserialize(d)?;
+    Ok(raw
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect())
 }
 
 /// Sites table links may point to. A link elsewhere is left out of the list.
@@ -217,6 +230,28 @@ pub fn parse_index(bytes: &[u8]) -> Result<(Index, Vec<String>), String> {
             .cmp(&b.game.to_lowercase())
             .then_with(|| a.title.cmp(&b.title))
     });
+    let mut seen = std::collections::BTreeSet::new();
+    index.web = std::mem::take(&mut index.web)
+        .into_iter()
+        .filter_map(|p| {
+            let checked = check_pack(&p, true).and_then(|c| {
+                if seen.insert(c.id.clone()) {
+                    Ok(c)
+                } else {
+                    Err("listed twice".into())
+                }
+            });
+            checked
+                .map_err(|why| skipped.push(format!("web {}: {why}", p.id)))
+                .ok()
+        })
+        .collect();
+    index.web.sort_by(|a, b| {
+        a.game
+            .to_lowercase()
+            .cmp(&b.game.to_lowercase())
+            .then_with(|| a.id.cmp(&b.id))
+    });
     Ok((index, skipped))
 }
 
@@ -296,6 +331,7 @@ mod tests {
             updated: Some("2026-11-07".into()),
             packs: vec![good.clone(), bad_id, bad_sha, twice],
             tables: Vec::new(),
+            web: Vec::new(),
         };
         let mut json = serde_json::to_value(&index).unwrap();
         json["futureField"] = serde_json::json!(true);
@@ -377,6 +413,39 @@ mod tests {
         // An older list without links still loads.
         let (old, _) = parse_index(br#"{"format":1,"packs":[]}"#).unwrap();
         assert!(old.tables.is_empty());
+        assert!(old.web.is_empty());
+    }
+
+    #[test]
+    fn reads_web_cheats_and_skips_bad_ones() {
+        let web = |id: &str, game: &str, url: &str| {
+            serde_json::json!({
+                "format": 1, "id": id, "game": game, "url": url, "by": "Sam",
+                "cheats": [{ "name": "Gold", "target": { "k": "j", "path": ["game", "gold"] }, "value": 999 }],
+            })
+        };
+        let json = serde_json::json!({
+            "format": 1,
+            "packs": [],
+            "web": [
+                web("zed-1", "Zed", "https://zed.example/"),
+                web("alpha-1", "alpha", "https://alpha.example/play"),
+                web("local-1", "Local", "http://127.0.0.1:8080/"),
+                web("zed-1", "Zed again", "https://zed.example/2"),
+                { "format": 1, "id": "broken" },
+                web("future-1", "Future", "https://future.example/").as_object().map(|o| {
+                    let mut o = o.clone();
+                    o.insert("format".into(), 2.into());
+                    serde_json::Value::Object(o)
+                }).unwrap(),
+            ],
+        });
+        let (read, skipped) = parse_index(json.to_string().as_bytes()).unwrap();
+        let ids: Vec<&str> = read.web.iter().map(|w| w.id.as_str()).collect();
+        assert_eq!(ids, ["alpha-1", "zed-1"]);
+        assert_eq!(read.web[1].game, "Zed");
+        // The local game, the second zed-1 and the newer format are named; the broken one is just left out.
+        assert_eq!(skipped.len(), 3, "{skipped:?}");
     }
 
     #[test]

@@ -251,6 +251,22 @@ numbers.
    left.
 4. Click **Add to my cheats** and name it. Now you can **Set** it to any number or **Lock** it.
    Your cheats are saved for that game.
+5. To use a key while you play, click the **Key** box next to a cheat and press a key (for example
+   F1). While the game window is in front, the key locks or unlocks the cheat; choose **Set to…**
+   to set it once instead. A note in the corner of the game says what the key did. Backspace in
+   the Key box removes the key.
+
+### Sharing web cheats
+
+- **With friends:** click **Share** next to the game, then **Save to a file**. Send the file to your
+  friend. They open **Web games**, click **Open a cheats file**, check what's in it and click
+  **Add to my web games**.
+- **With everyone:** click **Share**, then **Share with everyone…** (you sign in to GitHub once). A
+  maintainer checks the cheats before they're listed.
+- **Getting cheats:** under **Web cheats from the community**, click **Get these cheats**.
+
+Only add cheat files from people you trust. Web cheats aren't listed for competitive games
+(ranked, PvP, leaderboards) or games with items that can be traded for real money.
 
 **Play fair:** only use cheats alone or in a private game with friends you invited, never with
 strangers or in public matches. Other players can report you and sites can ban accounts.

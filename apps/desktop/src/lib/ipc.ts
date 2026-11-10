@@ -263,6 +263,44 @@ export interface WebCheat {
   name: string;
   target: WebTarget;
   value?: number | null;
+  /** A key that works while the game window is in front (v1.19.0). */
+  key?: string | null;
+  /** What the key does: lock / unlock (the default), or set the value once. */
+  keyDoes?: "lock" | "set" | null;
+}
+
+/** A web game's cheats as a file or on the community list (v1.19.0). */
+export interface WebPack {
+  format: number;
+  id: string;
+  game: string;
+  url: string;
+  by: string;
+  notes?: string | null;
+  added?: string | null;
+  cheats: WebCheat[];
+}
+
+export interface WebInstalled {
+  game: WebGame;
+  added: number;
+  skipped: number;
+}
+
+/** What the helper in the game page has locked, and which list of keys it uses. */
+export interface WebState {
+  locks: string[];
+  keysTag: string;
+}
+
+/** One cheat's key, for the helper in the game page. */
+export interface WebKey {
+  id: string;
+  name: string;
+  key: string;
+  does: "lock" | "set";
+  target: WebTarget;
+  value: number | null;
 }
 
 export interface WebHit {
@@ -566,6 +604,8 @@ export interface CommunityList {
   packs: CommunityPack[];
   /** Links to Cheat Engine tables on their makers' pages (empty from older lists). */
   tables?: TableLink[];
+  /** Cheats for web games (v1.19.0; empty from older lists). */
+  web?: WebPack[];
   skipped: string[];
 }
 
@@ -1152,6 +1192,13 @@ export const api = {
   webSet: (target: WebTarget, value: number) => invoke<{ value: number }>("web_call", { method: "set", args: { target, value } }),
   webLock: (id: string, target: WebTarget, value: number) => invoke<unknown>("web_call", { method: "lock", args: { id, target, value } }),
   webUnlock: (id?: string) => invoke<unknown>("web_call", { method: "unlock", args: { id: id ?? null } }),
+  webKeys: (list: WebKey[], tag: string) => invoke<unknown>("web_call", { method: "keys", args: { list, tag } }),
+  webState: () => invoke<WebState>("web_call", { method: "state", args: null }),
+  webExport: (id: string, by: string, notes: string | null) => invoke<string | null>("web_export", { id, by, notes }),
+  webPickFile: () => invoke<string | null>("web_pick_file"),
+  webReadFile: (path: string) => invoke<WebPack>("web_read_file", { path }),
+  webInstall: (pack: WebPack) => invoke<WebInstalled>("web_install", { pack }),
+  communityShareWeb: (id: string, by: string, notes: string | null) => invoke<SharedPack>("community_share_web", { id, by, notes }),
   /** Opens a search for the game's Cheat Engine tables in the browser. */
   tablesSearch: (site: "fearless" | "web", game: string) => invoke<void>("tables_search", { site, game }),
   /** Cheat Engine tables downloaded in the last 30 days, newest first. */

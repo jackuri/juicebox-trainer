@@ -19,6 +19,7 @@ pub mod share;
 pub mod store;
 pub mod trainer;
 pub mod validate;
+pub mod web;
 
 pub use hotkey::Hotkey;
 pub use pad::PadChord;

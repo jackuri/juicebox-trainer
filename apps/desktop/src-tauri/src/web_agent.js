@@ -332,6 +332,110 @@
     }
   }, 100);
 
+  // ----- keys (v1.19.0) ------------------------------------------------------------------------
+  // The player's keys for their cheats work while the game window is in front. They're listened
+  // for here, before the game's own handlers, and the game doesn't see a key that belongs to a cheat.
+  const NUMPAD = { NumpadAdd: "Num+", NumpadSubtract: "Num-", NumpadMultiply: "Num*", NumpadDivide: "Num/", NumpadDecimal: "Num." };
+  const NAMED = {
+    ArrowUp: "Up",
+    ArrowDown: "Down",
+    ArrowLeft: "Left",
+    ArrowRight: "Right",
+    PageUp: "PageUp",
+    PageDown: "PageDown",
+    Home: "Home",
+    End: "End",
+    Insert: "Insert",
+    Delete: "Delete",
+    Pause: "Pause",
+    Space: "Space",
+  };
+  /** Same names as OpenTrainer's key boxes (`Ctrl+F1`, `Num5`, `G`). */
+  function keyText(e) {
+    const c = String(e.code || "");
+    let key = null;
+    if (/^F([1-9]|1\d|2[0-4])$/.test(c)) key = c;
+    else if (/^Numpad\d$/.test(c)) key = "Num" + c.slice(6);
+    else if (NUMPAD[c]) key = NUMPAD[c];
+    else if (/^Key[A-Z]$/.test(c)) key = c.slice(3);
+    else if (/^Digit\d$/.test(c)) key = c.slice(5);
+    else if (NAMED[c]) key = NAMED[c];
+    if (!key) return null;
+    return [e.ctrlKey && "Ctrl", e.altKey && "Alt", e.shiftKey && "Shift", key].filter(Boolean).join("+");
+  }
+  const typing = (el) => !!el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName || ""));
+
+  /** key text -> [{ id, name, does, target, value }] */
+  let keys = new Map();
+  let keysTag = "";
+
+  // A short note in the corner of the game ("Health locked"), so the player sees the key worked.
+  let note = null;
+  let noteTimer = 0;
+  function show(text) {
+    try {
+      if (!note) {
+        const host = document.createElement("div");
+        const root = host.attachShadow({ mode: "closed" });
+        note = document.createElement("div");
+        root.appendChild(note);
+        const s = host.style;
+        s.position = "fixed";
+        s.right = "16px";
+        s.bottom = "16px";
+        s.zIndex = "2147483647";
+        s.pointerEvents = "none";
+        const n = note.style;
+        n.font = "600 14px system-ui, sans-serif";
+        n.color = "#ecfdf5";
+        n.background = "rgba(6, 78, 59, 0.92)";
+        n.padding = "8px 12px";
+        n.borderRadius = "10px";
+        n.boxShadow = "0 4px 16px rgba(0,0,0,.4)";
+        note.host = host;
+      }
+      note.textContent = "OpenTrainer: " + text;
+      if (!note.host.isConnected) (document.body || document.documentElement).appendChild(note.host);
+      note.host.style.display = "block";
+      clearTimeout(noteTimer);
+      noteTimer = setTimeout(() => {
+        note.host.style.display = "none";
+      }, 1600);
+    } catch {
+      // No page to show it on yet.
+    }
+  }
+
+  function onKey(e) {
+    if (!keys.size || e.repeat) return;
+    const text = keyText(e);
+    const list = text && keys.get(text);
+    if (!list) return;
+    // A plain letter or digit typed into a box (a chat) is the player typing, not a cheat.
+    if (typing(e.target) && !e.ctrlKey && !e.altKey && !/^(F\d+|Num)/.test(text.split("+").pop())) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    for (const k of list) {
+      try {
+        if (k.does === "set") {
+          writeTarget(k.target, k.value);
+          show(`${k.name} set to ${k.value}`);
+        } else if (locks.has(k.id)) {
+          locks.delete(k.id);
+          show(`${k.name} unlocked`);
+        } else {
+          const value = typeof k.value === "number" ? k.value : readTarget(k.target);
+          writeTarget(k.target, value);
+          locks.set(k.id, { target: k.target, value });
+          show(`${k.name} locked`);
+        }
+      } catch (err) {
+        show(`${k.name}: ${err && err.message ? err.message : err}`);
+      }
+    }
+  }
+  window.addEventListener("keydown", onKey, true);
+
   const methods = {
     info() {
       walk(() => false); // also finds big byte arrays the hooks missed (e.g. Module.HEAPU8)
@@ -383,10 +487,28 @@
       else locks.delete(String(id));
       return { locked: locks.size };
     },
+    /** The cheats' keys: [{ id, name, key, does, target, value }], and a tag to tell the list apart. */
+    keys({ list, tag }) {
+      const next = new Map();
+      for (const k of Array.isArray(list) ? list : []) {
+        if (!k || typeof k.key !== "string" || !k.target) continue;
+        const entry = { id: String(k.id), name: String(k.name), does: k.does === "set" ? "set" : "lock", target: k.target, value: k.value };
+        if (entry.does === "set" && typeof entry.value !== "number") continue;
+        if (!next.has(k.key)) next.set(k.key, []);
+        next.get(k.key).push(entry);
+      }
+      keys = next;
+      keysTag = String(tag || "");
+      return { keys: keys.size };
+    },
+    /** What's locked (also by a key) and which keys list is in use. */
+    state() {
+      return { locks: [...locks.keys()], keysTag };
+    },
   };
 
   const agent = {
-    version: 1,
+    version: 2,
     callJson(method, args) {
       try {
         const f = Object.prototype.hasOwnProperty.call(methods, method) ? methods[method] : null;

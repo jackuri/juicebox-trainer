@@ -470,6 +470,8 @@ pub struct CommunityList {
     pub packs: Vec<CommunityPack>,
     /// Links to Cheat Engine tables on their makers' pages.
     pub tables: Vec<community::TableLink>,
+    /// Cheats for web games (v1.19.0).
+    pub web: Vec<ot_packs::web::WebPack>,
     /// Entries left out because they were broken.
     pub skipped: Vec<String>,
 }
@@ -541,6 +543,7 @@ pub async fn community_list(
             })
             .collect(),
         tables: index.tables,
+        web: index.web,
         skipped,
     })
 }

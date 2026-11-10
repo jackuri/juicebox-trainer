@@ -993,6 +993,117 @@ pub async fn community_share_table(
     result
 }
 
+/// The community-list pack of one of the player's web games: their saved
+/// cheats, checked by the list's rules (https, at most 50 cheats).
+pub fn web_shareable(
+    dir: &std::path::Path,
+    id: &str,
+    by: &str,
+    notes: Option<&str>,
+    today: &str,
+) -> Result<ot_packs::web::WebPack, CommandError> {
+    let pack = crate::web::pack_for(dir, id, by, notes, today)?;
+    ot_packs::web::check_pack(&pack, true).map_err(|e| err("badRequest", e))
+}
+
+fn web_pr_text(pack: &ot_packs::web::WebPack, update: bool, sharer: &str) -> (String, String) {
+    let title = format!(
+        "{} web cheats: {}",
+        if update { "Update" } else { "Add" },
+        plain(&pack.game, 80)
+    );
+    let names: Vec<String> = pack
+        .cheats
+        .iter()
+        .take(20)
+        .map(|c| plain(&c.name, 80))
+        .collect();
+    let more = pack.cheats.len().saturating_sub(names.len());
+    let mut body = format!(
+        "Shared from OpenTrainer {} by @{sharer}.
+
+         - **Web game:** {}
+         - **Address:** {}
+         - **Cheats ({}):** {}{}
+         - **Found by:** {}
+         - **Notes:** {}
+
+         The sharer says every cheat works. Web cheats are for playing alone or with invited friends;          maintainers: check the address is the game's own page.",
+        env!("CARGO_PKG_VERSION"),
+        plain(&pack.game, 80),
+        plain(&pack.url, 400),
+        pack.cheats.len(),
+        names.join(", "),
+        if more > 0 {
+            format!(" and {more} more")
+        } else {
+            String::new()
+        },
+        plain(&pack.by, 100),
+        pack.notes
+            .as_deref()
+            .map_or_else(|| "none".to_string(), |n| plain(n, 500)),
+    );
+    if update {
+        body.push_str(
+            "
+
+The list already has these web cheats: this replaces them.",
+        );
+    }
+    (title, body)
+}
+
+/// Shares the cheats saved for one of the player's web games with the
+/// community list (a pull request with `web/<id>.json`).
+#[tauri::command]
+pub async fn community_share_web(
+    id: String,
+    by: String,
+    notes: Option<String>,
+    state: State<'_, GithubState>,
+) -> CmdResult<Shared> {
+    let pack = web_shareable(
+        &crate::web::app_dir()?,
+        &id,
+        &by,
+        notes.as_deref(),
+        &ot_packs::share::today(),
+    )?;
+    let json = serde_json::to_string_pretty(&pack).map_err(|e| err("io", e.to_string()))?
+        + "
+";
+    let token =
+        vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let pid = pack.id.clone();
+    let result = send_file(
+        &Hub::github()?,
+        &token,
+        &format!("web/{pid}.json"),
+        &json,
+        &format!("web-{}", &pid[..pid.len().min(40)]),
+        stamp,
+        |update| {
+            format!(
+                "{} web cheats: {pid}",
+                if update { "Update" } else { "Add" }
+            )
+        },
+        |update, login| web_pr_text(&pack, update, login),
+    )
+    .await;
+    if let Err(e) = &result
+        && e.kind == "signedOut"
+    {
+        vault::delete(CREDENTIAL);
+        *lock(&state.login) = None;
+    }
+    result
+}
+
 /// A community pull request page, and nothing else.
 fn is_pr_url(url: &str) -> bool {
     url.strip_prefix(PR_PREFIX).is_some_and(|rest| {
@@ -1106,7 +1217,7 @@ mod tests {
             ("POST", p) if p.ends_with("/git/refs") => (201, "{}".into()),
             ("GET", p) if p.contains("/contents/packs/coin-quest/pack.json?ref=") => (404, "{}".into()),
             ("PUT", p) if p.ends_with("/contents/packs/coin-quest/pack.json") => (201, "{}".into()),
-            ("PUT", p) if p.contains("/contents/tables/") => (201, "{}".into()),
+            ("PUT", p) if p.contains("/contents/tables/") || p.contains("/contents/web/") => (201, "{}".into()),
             ("POST", "/repos/jackuri/opentrainer-packs/pulls") => (
                 201,
                 json!({ "html_url": "https://github.com/jackuri/opentrainer-packs/pull/7", "number": 7 }).to_string(),
@@ -1315,6 +1426,66 @@ mod tests {
             seen.iter()
                 .all(|(m, p, _)| m != "PUT" || !p.contains("/packs/"))
         );
+    }
+
+    #[test]
+    fn shares_web_cheats_as_one_file_by_the_list_rules() {
+        let dir = std::env::temp_dir().join(format!("ot-share-web-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("web-cheats")).unwrap();
+        let games = |url: &str| {
+            json!([{ "id": "outbreak-1", "name": "Outbreak", "url": url, "added": "2026-11-10" }])
+                .to_string()
+        };
+        std::fs::write(
+            dir.join("web-games.json"),
+            games("https://outbreakweb.com/"),
+        )
+        .unwrap();
+        let cheat = json!({ "name": "Gold @everyone", "target": { "k": "j", "path": ["game", "gold"] }, "value": 999 });
+        std::fs::write(
+            dir.join("web-cheats").join("outbreak-1.json"),
+            json!([cheat]).to_string(),
+        )
+        .unwrap();
+
+        let pack = web_shareable(&dir, "outbreak-1", "Sam", Some("level 2"), "2026-11-10").unwrap();
+        let (title, body) = web_pr_text(&pack, false, "sam");
+        assert_eq!(title, "Add web cheats: Outbreak");
+        assert!(body.contains("https://outbreakweb.com/"), "{body}");
+        assert!(body.contains("@\u{200B}everyone"), "no mentions: {body}");
+        assert!(body.contains("invited friends"));
+
+        let (hub, seen) = fake(github_like("sam", false));
+        let json = serde_json::to_string_pretty(&pack).unwrap();
+        let file = format!("web/{}.json", pack.id);
+        run(send_file(
+            &hub,
+            "tok",
+            &file,
+            &json,
+            "web-x",
+            42,
+            |_| "Add web cheats".into(),
+            |u, l| web_pr_text(&pack, u, l),
+        ))
+        .unwrap();
+        let seen = lock(&seen).clone();
+        let put = seen
+            .iter()
+            .find(|(m, p, _)| m == "PUT" && p.ends_with(&file))
+            .expect("the file is written");
+        let put: Value = serde_json::from_str(&put.2).unwrap();
+        let content = base64::engine::general_purpose::STANDARD
+            .decode(put["content"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(ot_packs::web::parse_pack(&content).unwrap(), pack);
+
+        // A game on this PC isn't shared with everyone (files to friends still work).
+        std::fs::write(dir.join("web-games.json"), games("http://127.0.0.1:8080/")).unwrap();
+        assert!(web_shareable(&dir, "outbreak-1", "Sam", None, "2026-11-10").is_err());
+        assert!(crate::web::pack_for(&dir, "outbreak-1", "Sam", None, "2026-11-10").is_ok());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

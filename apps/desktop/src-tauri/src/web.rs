@@ -21,7 +21,7 @@ pub const LABEL: &str = "webgame";
 /// How long a call to the helper may take.
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_GAMES: usize = 200;
-const MAX_CHEATS: usize = 200;
+const MAX_CHEATS: usize = ot_packs::web::MAX_CHEATS;
 
 fn err(kind: &'static str, message: impl Into<String>) -> CommandError {
     CommandError::new(kind, message)
@@ -39,7 +39,7 @@ pub struct WebGame {
     pub added: String,
 }
 
-fn app_dir() -> CmdResult<PathBuf> {
+pub(crate) fn app_dir() -> CmdResult<PathBuf> {
     std::env::var_os("APPDATA")
         .map(|a| PathBuf::from(a).join("OpenTrainer"))
         .ok_or_else(|| err("noAppData", "%APPDATA% is not set"))
@@ -172,67 +172,10 @@ pub fn web_game_remove(id: String) -> CmdResult<()> {
 
 // ----- saved cheats for a web game ----------------------------------------------------------
 
-/// Where a number lives in a web game.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "k", deny_unknown_fields)]
-pub enum WebTarget {
-    /// In one of the page's memories (WebAssembly or a big byte array).
-    #[serde(rename = "m")]
-    Memory {
-        mem: u32,
-        label: String,
-        /// The memory's size when it was found (a hint that it's the same one).
-        size: u64,
-        off: u64,
-        t: NumType,
-    },
-    /// A JavaScript value, by its path from `window`.
-    #[serde(rename = "j")]
-    Js { path: Vec<String> },
-}
+pub use ot_packs::web::{WebCheat, WebPack};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum NumType {
-    U8,
-    I16,
-    I32,
-    F32,
-    F64,
-}
-
-/// A cheat the player saved for a web game.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-pub struct WebCheat {
-    pub name: String,
-    pub target: WebTarget,
-    /// The value it's usually set to.
-    #[serde(default)]
-    pub value: Option<f64>,
-}
-
-fn check_cheat(c: &WebCheat) -> CmdResult<()> {
-    check_name(&c.name)?;
-    match &c.target {
-        WebTarget::Memory { label, off, .. } => {
-            if label.chars().count() > 200 || *off > (1 << 40) {
-                return Err(err("badRequest", "that cheat's place isn't valid"));
-            }
-        }
-        WebTarget::Js { path } => {
-            if path.is_empty()
-                || path.len() > 16
-                || path.iter().any(|p| p.is_empty() || p.chars().count() > 120)
-            {
-                return Err(err("badRequest", "that cheat's place isn't valid"));
-            }
-        }
-    }
-    if c.value.is_some_and(|v| !v.is_finite()) {
-        return Err(err("badRequest", "that value isn't a number"));
-    }
-    Ok(())
+fn check_cheat(c: &WebCheat) -> CmdResult<WebCheat> {
+    ot_packs::web::check_cheat(c).map_err(|e| err("badRequest", e))
 }
 
 fn cheats_file(dir: &std::path::Path, id: &str) -> PathBuf {
@@ -251,10 +194,14 @@ fn known_game(dir: &std::path::Path, id: &str) -> CmdResult<WebGame> {
 pub fn web_cheats(id: String) -> CmdResult<Vec<WebCheat>> {
     let dir = app_dir()?;
     known_game(&dir, &id)?;
-    Ok(std::fs::read_to_string(cheats_file(&dir, &id))
+    Ok(load_cheats(&dir, &id))
+}
+
+fn load_cheats(dir: &std::path::Path, id: &str) -> Vec<WebCheat> {
+    std::fs::read_to_string(cheats_file(dir, id))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
-        .unwrap_or_default())
+        .unwrap_or_default()
 }
 
 /// Saves the cheats for a web game (the whole list).
@@ -265,10 +212,171 @@ pub fn web_cheats_save(id: String, cheats: Vec<WebCheat>) -> CmdResult<()> {
     if cheats.len() > MAX_CHEATS {
         return Err(err("badRequest", "too many cheats"));
     }
-    for c in &cheats {
-        check_cheat(c)?;
-    }
+    let cheats = cheats
+        .iter()
+        .map(check_cheat)
+        .collect::<CmdResult<Vec<_>>>()?;
     save_json(&cheats_file(&dir, &id), &cheats)
+}
+
+// ----- sharing web cheats (v1.19.0) -----------------------------------------------------------
+
+/// A pack of the cheats saved for one of the player's web games.
+pub fn pack_for(
+    dir: &std::path::Path,
+    id: &str,
+    by: &str,
+    notes: Option<&str>,
+    today: &str,
+) -> CmdResult<WebPack> {
+    let game = known_game(dir, id)?;
+    let cheats = load_cheats(dir, id);
+    if cheats.is_empty() {
+        return Err(err("badRequest", "save some cheats for this game first"));
+    }
+    let pack = WebPack {
+        format: ot_packs::web::FORMAT,
+        id: ot_packs::web::pack_id(&game.name, &game.url),
+        game: game.name,
+        url: game.url,
+        by: by.to_string(),
+        notes: notes.map(String::from),
+        added: Some(today.to_string()),
+        cheats,
+    };
+    ot_packs::web::check_pack(&pack, false).map_err(|e| err("badRequest", e))
+}
+
+/// Saves a web game's cheats as an `.otweb` file where the player picks (to
+/// give to friends). `None` if they cancelled.
+#[tauri::command]
+pub async fn web_export(
+    id: String,
+    by: String,
+    notes: Option<String>,
+    app: AppHandle,
+) -> CmdResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    let pack = pack_for(
+        &app_dir()?,
+        &id,
+        &by,
+        notes.as_deref(),
+        &ot_packs::share::today(),
+    )?;
+    let text = serde_json::to_string_pretty(&pack).map_err(|e| err("io", e.to_string()))?
+        + "
+";
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_title("Save the cheats to share")
+        .set_file_name(ot_packs::web::file_name(&pack))
+        .add_filter("OpenTrainer web cheats", &[ot_packs::web::EXTENSION]);
+    if let Ok(docs) = app.path().document_dir() {
+        dialog = dialog.set_directory(docs);
+    }
+    let Some(path) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let mut path = path.into_path().map_err(|e| err("io", e.to_string()))?;
+    if path.extension().is_none() {
+        path.set_extension(ot_packs::web::EXTENSION);
+    }
+    std::fs::write(&path, text).map_err(|e| err("io", format!("{}: {e}", path.display())))?;
+    Ok(Some(path.display().to_string()))
+}
+
+/// Lets the player pick an `.otweb` file. `None` if they cancelled.
+#[tauri::command]
+pub async fn web_pick_file(app: AppHandle) -> CmdResult<Option<String>> {
+    use tauri_plugin_dialog::DialogExt;
+    app.dialog()
+        .file()
+        .set_title("Open web cheats")
+        .add_filter(
+            "OpenTrainer web cheats",
+            &[ot_packs::web::EXTENSION, "json"],
+        )
+        .blocking_pick_file()
+        .map(|p| {
+            p.into_path()
+                .map(|p| p.display().to_string())
+                .map_err(|e| err("io", e.to_string()))
+        })
+        .transpose()
+}
+
+fn read_file(path: &std::path::Path) -> CmdResult<WebPack> {
+    let size = std::fs::metadata(path)
+        .map_err(|e| err("io", format!("couldn't open the file: {e}")))?
+        .len();
+    if size > ot_packs::web::MAX_BYTES as u64 {
+        return Err(err("badRequest", "the file is too big to be web cheats"));
+    }
+    let bytes =
+        std::fs::read(path).map_err(|e| err("io", format!("couldn't open the file: {e}")))?;
+    ot_packs::web::parse_pack(&bytes).map_err(|e| err("badRequest", e))
+}
+
+/// Reads an `.otweb` file (to show what's in it before adding it).
+#[tauri::command]
+pub fn web_read_file(path: String) -> CmdResult<WebPack> {
+    read_file(std::path::Path::new(&path))
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebInstalled {
+    pub game: WebGame,
+    /// Cheats added to the game's list.
+    pub added: usize,
+    /// Cheats the list already had (same place).
+    pub skipped: usize,
+}
+
+fn install(dir: &std::path::Path, pack: &WebPack, today: &str) -> CmdResult<WebInstalled> {
+    let pack = ot_packs::web::check_pack(pack, false).map_err(|e| err("badRequest", e))?;
+    let url = check_url(&pack.url)?.to_string();
+    let game = match load_games(dir).into_iter().find(|g| g.url == url) {
+        Some(g) => g,
+        None => add_game(dir, &pack.game, &url, today)?,
+    };
+    let mut cheats = load_cheats(dir, &game.id);
+    let (mut added, mut skipped) = (0, 0);
+    for c in pack.cheats {
+        if cheats.iter().any(|x| x.target == c.target) {
+            skipped += 1;
+            continue;
+        }
+        if cheats.len() >= MAX_CHEATS {
+            return Err(err(
+                "badRequest",
+                "that's a lot of cheats for one game: remove some first",
+            ));
+        }
+        let mut name = c.name.clone();
+        let mut n = 2;
+        while cheats.iter().any(|x| x.name == name) {
+            name = format!("{} ({n})", c.name);
+            n += 1;
+        }
+        cheats.push(WebCheat { name, ..c });
+        added += 1;
+    }
+    save_json(&cheats_file(dir, &game.id), &cheats)?;
+    Ok(WebInstalled {
+        game,
+        added,
+        skipped,
+    })
+}
+
+/// Adds a pack's cheats to the player's list for its game (adding the game
+/// if it isn't in the list yet). Cheats already in the list are skipped.
+#[tauri::command]
+pub fn web_install(pack: WebPack) -> CmdResult<WebInstalled> {
+    install(&app_dir()?, &pack, &ot_packs::share::today())
 }
 
 // ----- the game window --------------------------------------------------------------------------
@@ -323,7 +431,7 @@ pub fn web_close(app: AppHandle, state: State<'_, WebState>) {
 
 /// The helper calls OpenTrainer may make.
 const CALLS: &[&str] = &[
-    "info", "find", "next", "results", "read", "set", "lock", "unlock",
+    "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state",
 ];
 
 /// The script that runs one call in the game page and returns its JSON.
@@ -363,10 +471,11 @@ fn parse_answer(raw: &str) -> CmdResult<Value> {
 }
 
 /// Asks the helper in the open game page to do something (`info`, `find`,
-/// `next`, `results`, `read`, `set`, `lock`, `unlock`).
+/// `next`, `results`, `read`, `set`, `lock`, `unlock`, and from v1.19.0
+/// `keys`: the cheats' keys, `state`: what's locked).
 #[tauri::command]
 pub async fn web_call(method: String, args: Option<Value>, app: AppHandle) -> CmdResult<Value> {
-    if matches!(method.as_str(), "set" | "lock") {
+    if matches!(method.as_str(), "set" | "lock" | "keys") {
         crate::agreement::require()?;
     }
     let script = call_script(&method, &args.unwrap_or(Value::Null))?;
@@ -389,6 +498,7 @@ pub async fn web_call(method: String, args: Option<Value>, app: AppHandle) -> Cm
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ot_packs::web::WebTarget;
 
     #[test]
     fn web_addresses() {
@@ -428,6 +538,71 @@ mod tests {
         assert!(!cheats_file(&dir, &g.id).exists());
         assert_eq!(remove_game(&dir, &g.id).unwrap_err().kind, "notFound");
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn cheats_travel_as_files_and_merge_into_the_list() {
+        let base = std::env::temp_dir().join(format!("ot-webpack-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        let (mine, friend) = (base.join("mine"), base.join("friend"));
+        let g = add_game(&mine, "Outbreak", "https://outbreakweb.com/", "2026-11-10").unwrap();
+        assert!(
+            pack_for(&mine, &g.id, "Sam", None, "2026-11-10").is_err(),
+            "no cheats yet"
+        );
+        let gold: WebCheat = serde_json::from_str(
+            r#"{"name":"Gold","target":{"k":"j","path":["game","gold"]},"value":999,"key":"ctrl+g"}"#,
+        )
+        .unwrap();
+        let hp: WebCheat = serde_json::from_str(
+            r#"{"name":"Health","target":{"k":"m","mem":0,"label":"memory","size":65536,"off":4096,"t":"i32"},"value":100}"#,
+        )
+        .unwrap();
+        save_json(&cheats_file(&mine, &g.id), &vec![gold.clone(), hp.clone()]).unwrap();
+        assert!(
+            pack_for(&mine, &g.id, " ", None, "2026-11-10").is_err(),
+            "needs who found them"
+        );
+        let pack = pack_for(&mine, &g.id, "Sam", Some("  level 1 "), "2026-11-10").unwrap();
+        assert_eq!(pack.cheats[0].key.as_deref(), Some("Ctrl+G"));
+        assert_eq!(pack.notes.as_deref(), Some("level 1"));
+        assert_eq!(pack.url, "https://outbreakweb.com/");
+
+        // The friend opens the file: the game is added with the cheats.
+        let file = base.join("outbreak.otweb");
+        std::fs::write(&file, serde_json::to_string(&pack).unwrap()).unwrap();
+        let read = read_file(&file).unwrap();
+        assert_eq!(read, pack);
+        let got = install(&friend, &read, "2026-11-11").unwrap();
+        assert_eq!((got.added, got.skipped), (2, 0));
+        assert_eq!(got.game.url, "https://outbreakweb.com/");
+        assert_eq!(load_cheats(&friend, &got.game.id).len(), 2);
+
+        // Again: nothing new. A cheat with the same name in a new place is renamed.
+        let again = install(&friend, &read, "2026-11-11").unwrap();
+        assert_eq!((again.added, again.skipped), (0, 2));
+        let mut moved = read.clone();
+        moved.cheats = vec![WebCheat {
+            target: WebTarget::Js {
+                path: vec!["game".into(), "coins".into()],
+            },
+            ..gold.clone()
+        }];
+        install(&friend, &moved, "2026-11-11").unwrap();
+        let names: Vec<String> = load_cheats(&friend, &got.game.id)
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        assert_eq!(names, ["Gold", "Health", "Gold (2)"]);
+        assert_eq!(load_games(&friend).len(), 1);
+
+        // Bad files are refused.
+        std::fs::write(&file, "{\"format\":1}").unwrap();
+        assert!(read_file(&file).is_err());
+        let mut bad = pack.clone();
+        bad.url = "javascript:alert(1)".into();
+        assert!(install(&friend, &bad, "2026-11-11").is_err());
+        std::fs::remove_dir_all(&base).unwrap();
     }
 
     #[test]

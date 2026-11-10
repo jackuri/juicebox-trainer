@@ -1,6 +1,6 @@
 {
   "name": "@opentrainer/ai-agent",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "private": true,
   "type": "module",
   "description": "OpenTrainer AI helper: drives the guarded ot-mcp tools with the Claude Agent SDK.",

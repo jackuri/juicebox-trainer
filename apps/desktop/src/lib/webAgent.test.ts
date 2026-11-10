@@ -111,4 +111,59 @@ describe("web game helper", () => {
     expect(call("set", { target: { k: "j", path: ["game", "player", "name"] }, value: 1 }).error).toMatch(/isn't a number/);
     expect(call("next", { how: "equals", value: 1 }).ok).toBeDefined();
   });
+
+  it("works the cheats' keys while the game is in front, before the game sees them", () => {
+    const w = window as unknown as { game: { player: { gold: number; level?: number } } };
+    w.game.player.gold = 10;
+    w.game.player.level = 3;
+    const gold = { k: "j", path: ["game", "player", "gold"] };
+    const level = { k: "j", path: ["game", "player", "level"] };
+    expect(call("state").ok).toEqual({ locks: [], keysTag: "" });
+    call("keys", {
+      tag: "t1",
+      list: [
+        { id: "gold", name: "Gold", key: "F1", does: "lock", target: gold, value: 777 },
+        { id: "level", name: "Level", key: "Ctrl+L", does: "set", target: level, value: 50 },
+        { id: "bad", name: "Bad", key: "F2", does: "set", target: level, value: null },
+      ],
+    });
+    expect(call("state").ok).toEqual({ locks: [], keysTag: "t1" });
+
+    let gameSaw = 0;
+    const game = () => gameSaw++;
+    window.addEventListener("keydown", game);
+    const press = (init: KeyboardEventInit, on: EventTarget = window) => {
+      const e = new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init });
+      on.dispatchEvent(e);
+      return e;
+    };
+
+    const e = press({ code: "F1" });
+    expect(e.defaultPrevented).toBe(true);
+    expect(w.game.player.gold).toBe(777);
+    expect(call("state").ok).toEqual({ locks: ["gold"], keysTag: "t1" });
+    expect(document.body.lastElementChild?.tagName).toBe("DIV"); // the note in the corner
+    press({ code: "F1" });
+    expect(call("state").ok).toEqual({ locks: [], keysTag: "t1" });
+
+    press({ code: "KeyL", ctrlKey: true });
+    expect(w.game.player.level).toBe(50);
+    // A key that would set nothing was left out; other keys and held keys reach the game.
+    w.game.player.level = 3;
+    press({ code: "F2" });
+    press({ code: "KeyL" });
+    press({ code: "F1", repeat: true });
+    expect(w.game.player.level).toBe(3);
+    expect(gameSaw).toBe(3);
+
+    // Typing a letter into a chat box isn't a cheat; F-keys still are.
+    call("keys", { tag: "t2", list: [{ id: "g", name: "Gold", key: "G", does: "lock", target: gold, value: 1 }] });
+    const chat = document.createElement("input");
+    document.body.appendChild(chat);
+    expect(press({ code: "KeyG" }, chat).defaultPrevented).toBe(false);
+    expect(press({ code: "KeyG" }).defaultPrevented).toBe(true);
+    call("keys", { tag: "", list: [] });
+    call("unlock", {});
+    window.removeEventListener("keydown", game);
+  });
 });

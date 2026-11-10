@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, toCommandError, type WebGame } from "../lib/ipc";
+import { api, toCommandError, type WebGame, type WebPack } from "../lib/ipc";
 import { WebCheatsPanel } from "./WebCheatsPanel";
+import { WebShareDialog } from "./WebShareDialog";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const field = "rounded-lg bg-zinc-950 px-3 py-1.5 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
@@ -20,6 +21,12 @@ export function WebGamesView() {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
+  const [sharing, setSharing] = useState<WebGame | null>(null);
+  /** Cheats from a file or the community list, shown before they're added. */
+  const [offered, setOffered] = useState<{ pack: WebPack; from: "file" | "community" } | null>(null);
+  const [community, setCommunity] = useState<WebPack[] | null>(null);
+  const [communityError, setCommunityError] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,12 +42,17 @@ export function WebGamesView() {
     };
     check();
     const timer = window.setInterval(check, 2000);
+    api.communityList(false).then(
+      (l) => setCommunity(Array.isArray(l?.web) ? l.web : []),
+      (e: unknown) => setCommunityError(toCommandError(e).message),
+    );
     return () => window.clearInterval(timer);
   }, [load]);
 
   async function run(f: () => Promise<void>) {
     setBusy(true);
     setError(null);
+    setDone(null);
     try {
       await f();
     } catch (e) {
@@ -71,6 +83,34 @@ export function WebGamesView() {
           {error}
         </p>
       )}
+
+      {done && (
+        <p className="rounded-lg bg-emerald-950/40 px-3 py-2 text-emerald-200" role="status">
+          {done}
+        </p>
+      )}
+
+      {offered && (
+        <WebPackOffer
+          offer={offered}
+          busy={busy}
+          onAdd={() =>
+            void run(async () => {
+              const r = await api.webInstall(offered.pack);
+              setOffered(null);
+              load();
+              setDone(
+                r.added === 0
+                  ? `You already had these cheats for ${r.game.name}.`
+                  : `Added ${r.added} cheat${r.added === 1 ? "" : "s"} to ${r.game.name}${r.skipped ? ` (${r.skipped} you already had)` : ""}. Click Play to use them.`,
+              );
+            })
+          }
+          onCancel={() => setOffered(null)}
+        />
+      )}
+
+      {sharing && <WebShareDialog key={sharing.id} game={sharing} onClose={() => setSharing(null)} />}
 
       {current && (
         <WebCheatsPanel
@@ -107,6 +147,9 @@ export function WebGamesView() {
                 >
                   {current?.id === g.id ? "Open again" : "Play"}
                 </button>
+                <button className={button} aria-label={`Share the cheats for ${g.name}`} onClick={() => setSharing(g)}>
+                  Share
+                </button>
                 {confirmRemove === g.id ? (
                   <>
                     <span className="text-xs text-zinc-400">Remove it and its saved cheats?</span>
@@ -132,6 +175,46 @@ export function WebGamesView() {
                     Remove
                   </button>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className={button}
+            disabled={busy}
+            onClick={() =>
+              void run(async () => {
+                const path = await api.webPickFile();
+                if (path) setOffered({ pack: await api.webReadFile(path), from: "file" });
+              })
+            }
+          >
+            Open a cheats file
+          </button>
+          <span className="text-xs text-zinc-500">A friend can give you their cheats as a file (Share, then “Save to a file”).</span>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-2 border-t border-zinc-900 pt-3" aria-label="Web cheats from the community">
+        <h3 className="font-medium">Web cheats from the community</h3>
+        {community === null ? (
+          <p className="text-xs text-zinc-500">{communityError ? `Couldn't load the community list: ${communityError}` : "Loading…"}</p>
+        ) : community.length === 0 ? (
+          <p className="text-xs text-zinc-500">None yet. Found some that work? Click Share next to the game.</p>
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {community.map((p) => (
+              <li key={p.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-900/70 px-3 py-2 ring-1 ring-zinc-800">
+                <span className="min-w-0 flex-1">
+                  <span className="font-medium">{p.game}</span> <span className="text-xs text-zinc-500">{host(p.url)}</span>
+                  <span className="block text-xs text-zinc-400">
+                    {p.cheats.length} cheat{p.cheats.length === 1 ? "" : "s"} · found by {p.by}
+                  </span>
+                </span>
+                <button className={button} aria-label={`Get the cheats for ${p.game}`} onClick={() => setOffered({ pack: p, from: "community" })}>
+                  Get these cheats
+                </button>
               </li>
             ))}
           </ul>
@@ -164,5 +247,51 @@ export function WebGamesView() {
         </p>
       </section>
     </main>
+  );
+}
+
+/** What's in cheats from a file or the community list, before they're added. */
+function WebPackOffer({
+  offer,
+  busy,
+  onAdd,
+  onCancel,
+}: {
+  offer: { pack: WebPack; from: "file" | "community" };
+  busy: boolean;
+  onAdd: () => void;
+  onCancel: () => void;
+}) {
+  const { pack } = offer;
+  return (
+    <section className="flex flex-col gap-2 rounded-2xl bg-zinc-900/90 p-4 ring-1 ring-emerald-800/70" role="dialog" aria-label={`Cheats for ${pack.game}`}>
+      <p className="text-lg font-semibold tracking-tight">Cheats for {pack.game}</p>
+      <p className="text-xs text-zinc-400">
+        Found by {pack.by}
+        {pack.added ? ` · ${pack.added}` : ""} · the game&apos;s page: <span className="text-zinc-200">{host(pack.url)}</span>
+      </p>
+      {pack.notes && <p className="text-sm text-zinc-300">{pack.notes}</p>}
+      <ul className="flex flex-wrap gap-1 text-xs" aria-label="Cheats in it">
+        {pack.cheats.map((c, i) => (
+          <li key={i} className="rounded bg-zinc-950/70 px-2 py-0.5">
+            {c.name}
+            {c.key ? <span className="text-zinc-500"> ({c.key})</span> : null}
+          </li>
+        ))}
+      </ul>
+      <p className="text-xs text-zinc-500">
+        {offer.from === "file" ? "Only add cheats from people you trust. " : "A maintainer checked these before they were listed. "}
+        Adding them puts the game in your web games (if it isn&apos;t there yet) with these cheats. They may not work after the game
+        changes.
+      </p>
+      <div className="flex gap-2">
+        <button className="btn-accent rounded-lg px-4 py-1.5 text-sm font-semibold disabled:opacity-40" disabled={busy} onClick={onAdd}>
+          Add to my web games
+        </button>
+        <button className={button} onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </section>
   );
 }

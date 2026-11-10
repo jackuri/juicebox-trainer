@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.18.0_
+_Last updated: 2026-11-10 — v1.19.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -263,16 +263,23 @@ _Last updated: 2026-11-09 — v1.18.0_
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
 
+- v1.19.0 Web cheat packs: keys for web cheats (work while the game window is in front, note in
+  the game), share as an `.otweb` file or with everyone (pull request `web/<id>.json`), open a
+  friend's file, community web cheats in the Web games tab. All checks pass.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through b1ff553 (makers' terms). v1.18.0 is committed locally only (not pushed or tagged yet;
-  waiting for the user). v1.10.0 – v1.12.0 were
+  through b1ff553 (makers' terms). v1.18.0 is pushed and tagged (CI and Release green, installer published). v1.19.0 is
+  committed locally only (not pushed or tagged yet; waiting for the user); the community repo
+  change for web cheats (builder, check, README) is local only too. v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
 
 ## Next
+- 1.20: the AI helper for web games. The AI's tool server runs as its own process
+  (`opentrainer-desktop --mcp`), so it needs a guarded bridge to the game window first.
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
   (SignPath works now that the repo is public; Microsoft Trusted Signing about $10/month). The
   updater key still has to be added as the `TAURI_SIGNING_PRIVATE_KEY` secret by the user.

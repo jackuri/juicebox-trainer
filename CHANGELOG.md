@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.19.0] - 2026-11-10
+
+### Added
+- **Keys for web cheats.** In a web game's cheats, click **Key** and press a key (F1, Ctrl+1…).
+  While the game window is in front, the key locks or unlocks the cheat, or sets it to its value
+  (pick which). A short note in the corner of the game says what happened, and the cheats panel
+  shows it. The game doesn't see a key that belongs to a cheat; letters typed into a chat box stay
+  typing.
+- **Share web cheats.** **Share** next to a web game:
+  - **Save to a file** (`.otweb`) to give to friends; they add it with **Open a cheats file**,
+    which shows what's in it (who found the cheats, the game's page, the cheats) first;
+  - **Share with everyone** puts them on the community list through a pull request
+    (`web/<id>.json`), like packs. Games on this PC can only be shared as a file.
+- **Web cheats from the community** in the Web games tab: **Get these cheats** adds the game (if
+  it isn't there yet) and its cheats. Cheats already in the list are skipped; a name already used
+  gets a number.
+- The community list carries web cheats whole (`web` in `index.json`); older versions ignore it,
+  and a broken or newer entry is left out instead of breaking the list.
+
+### Changed
+- Web cheat files and saved cheats ignore fields they don't know (so files from newer versions
+  open) and keep keys in their usual spelling (`ctrl+f1` becomes `Ctrl+F1`).
+
 ## [1.18.0] - 2026-11-09
 
 ### Added

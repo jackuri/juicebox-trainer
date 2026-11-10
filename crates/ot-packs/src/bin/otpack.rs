@@ -157,6 +157,7 @@ fn index(dir: &Path, out: &Path) -> bool {
         updated: Some(share::today()),
         packs,
         tables: Vec::new(),
+        web: Vec::new(),
     };
     let json = match serde_json::to_string_pretty(&index) {
         Ok(j) => j + "\n",
