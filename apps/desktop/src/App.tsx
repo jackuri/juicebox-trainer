@@ -41,6 +41,8 @@ export default function App() {
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
   const [view, setView] = useState<View>("cheats");
+  /** The AI helper opens on "a web game" (from a web game's cheats). */
+  const [aiWeb, setAiWeb] = useState(false);
   /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
   const [openPath, setOpenPath] = useState<OpenFile | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
@@ -171,7 +173,10 @@ export default function App() {
             <button
               key={v}
               aria-pressed={view === v}
-              onClick={() => setView(v)}
+              onClick={() => {
+                setView(v);
+                setAiWeb(false);
+              }}
               className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                 view === v
                   ? "bg-zinc-800/80 text-bright"
@@ -246,9 +251,14 @@ export default function App() {
       ) : view === "themes" ? (
         <ThemeView />
       ) : view === "web" ? (
-        <WebGamesView />
+        <WebGamesView
+          onOpenAi={() => {
+            setAiWeb(true);
+            setView("ai");
+          }}
+        />
       ) : view === "ai" ? (
-        <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} />
+        <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} webFirst={aiWeb} />
       ) : view === "saves" ? (
         <SavesView
           processes={processes}

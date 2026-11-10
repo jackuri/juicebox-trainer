@@ -6,7 +6,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT } from "./prompt.js";
+import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools ot-mcp offers (crates/ot-mcp/src/tools.rs). */
@@ -37,6 +37,21 @@ export const OT_TOOLS = [
   "watch_writes_start",
   "watch_writes_stop",
   "pack_heal",
+] as const;
+
+/** The web game tools (v1.20.0), through the app's link to its game window. */
+export const WEB_TOOLS = [
+  "web_game",
+  "web_names",
+  "web_find",
+  "web_next",
+  "web_results",
+  "web_read",
+  "web_set",
+  "web_lock",
+  "web_unlock",
+  "web_cheats_save",
+  "revert_all",
 ] as const;
 
 /** The read-only save tools the "explain a save" task gets. */
@@ -96,6 +111,7 @@ export function buildOptions(
   );
   const ui = createSdkMcpServer({ name: "ui", version: "1.0.0", tools: [askPlayer] });
   const explain = start.task === "explainSave";
+  const web = start.task === "webTrainer";
 
   const env: Record<string, string | undefined> = { ...process.env };
   // Settings inherited from another Claude program (if OpenTrainer was
@@ -126,7 +142,15 @@ export function buildOptions(
         ? {}
         : { hookSpecificOutput: { hookEventName: event, additionalContext: notesText(notes) } };
     };
-  const analysis = !explain && start.analysis ? start.analysis : undefined;
+  // Static analysis reads a PC game's files: not for the other tasks.
+  const analysis = start.task !== "explainSave" && start.task !== "webTrainer" && start.analysis ? start.analysis : undefined;
+  // The app's link to its game window goes to the tool server only.
+  const link =
+    web && process.env.OT_WEB_LINK && process.env.OT_WEB_TOKEN
+      ? { OT_WEB_LINK: process.env.OT_WEB_LINK, OT_WEB_TOKEN: process.env.OT_WEB_TOKEN }
+      : undefined;
+  delete env.OT_WEB_LINK;
+  delete env.OT_WEB_TOKEN;
 
   return {
     model: start.model ?? DEFAULT_MODEL,
@@ -134,18 +158,22 @@ export function buildOptions(
     effort: local ? undefined : "high",
     systemPrompt: explain
       ? EXPLAIN_SAVE_PROMPT
-      : analysis
+      : web
+        ? WEB_PROMPT
+        : analysis
         ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}`
         : SYSTEM_PROMPT,
     tools: [],
     mcpServers: {
-      ot: { type: "stdio", command: mcp.command, args: mcp.args },
+      ot: { type: "stdio", command: mcp.command, args: mcp.args, ...(link ? { env: link } : {}) },
       ui,
       ...(analysis ? { rea: { type: "stdio" as const, command: analysis.command, args: analysis.args } } : {}),
     },
     allowedTools: explain
       ? EXPLAIN_TOOLS.map((t) => `mcp__ot__${t}`)
-      : [
+      : web
+        ? [...WEB_TOOLS.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"]
+        : [
           ...OT_TOOLS.map((t) => `mcp__ot__${t}`),
           "mcp__ui__ask_player",
           // Every tool of the player's analysis server (server-level rule).
@@ -154,7 +182,7 @@ export function buildOptions(
     permissionMode: "dontAsk",
     settingSources: [],
     persistSession: false,
-    maxTurns: explain ? 20 : 300,
+    maxTurns: explain ? 20 : web ? 200 : 300,
     maxBudgetUsd: start.maxBudgetUsd ?? DEFAULT_BUDGET_USD,
     abortController: abort,
     env,
@@ -192,6 +220,16 @@ const ACTIVITY: Record<string, string> = {
   watch_writes_start: "Watching what changes the value",
   watch_writes_stop: "Finding the game code",
   pack_heal: "Repairing the cheat pack",
+  web_game: "Looking at the game page",
+  web_names: "Looking for values by name",
+  web_find: "Searching the game page",
+  web_next: "Narrowing the search",
+  web_results: "Reading the results",
+  web_read: "Reading a value",
+  web_set: "Testing a value",
+  web_lock: "Testing a lock",
+  web_unlock: "Stopping a test lock",
+  web_cheats_save: "Saving the cheats",
 };
 
 /** `mcp__ot__scan_first` → `scan_first`. */
@@ -227,6 +265,14 @@ export async function runSession(
       type: "finished",
       ok: false,
       summary: "Pick which local model to use (its name in Ollama or LM Studio, e.g. qwen3-coder).",
+    });
+    return;
+  }
+  if (start.task === "webTrainer" && (!start.web || !process.env.OT_WEB_LINK)) {
+    io.send({
+      type: "finished",
+      ok: false,
+      summary: "The helper couldn't reach the game window. Open the game in Web games, then start again.",
     });
     return;
   }

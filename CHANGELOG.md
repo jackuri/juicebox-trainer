@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.20.0] - 2026-11-10
+
+### Added
+- **The AI helper for web games.** Open a web game (Web games, **Play**), then click **Find cheats
+  with AI** next to its cheats, or pick **A web game** in **Make a trainer (AI)**. The helper looks
+  for the cheats you ticked: first by name in the game's values ("gold", "health"…), otherwise by
+  asking you to read and change numbers, like for PC games. It checks each cheat with you, then
+  adds the ones that work to the game's cheats, where they show up at once.
+- How it's kept safe: the helper's tools reach the game window only through a link that the app
+  opens for that session alone (this PC only, with a one-time code), for the game that's open.
+  Through it the helper can only search, read, set and lock numbers and save cheat data. Every
+  change it makes is a test that's undone when it finishes. It can't lift your own locks or change
+  your keys. If you close the game window or open another game, it stops getting answers.
+- The helper won't make cheats for competitive web games (ranked, PvP against strangers,
+  leaderboards) or games with items worth real money.
+
+### Changed
+- The web game helper in the page can also list numbers by name (for the AI helper).
+
 ## [1.19.0] - 2026-11-10
 
 ### Added

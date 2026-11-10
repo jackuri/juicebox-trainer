@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-10 — v1.19.0_
+_Last updated: 2026-11-10 — v1.20.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -267,6 +267,17 @@ _Last updated: 2026-11-10 — v1.19.0_
   the game), share as an `.otweb` file or with everyone (pull request `web/<id>.json`), open a
   friend's file, community web cheats in the Web games tab. All checks pass.
 
+- v1.20.0 AI helper for web games: the app's local link to its game window for the AI's tool
+  server (token, whitelisted calls, the helper's own locks only, undone at the end), ten `web_`
+  tools in ot-mcp, the sidecar's web task and prompt, Find cheats with AI in Web games. All
+  checks pass. Real-app test of the release build (testbed/web, a scripted stand-in for the
+  helper that starts the real tool server through the real sidecar settings): 47/47, including
+  the link refusing a wrong token, the player's keys call and "unlock everything", the helper's
+  tests undone and its cheats shown at once and working with their key. One real AI run (the
+  user's Claude login, $2 limit) on testbed/web with a simulated player: all three cheats (gold
+  by name, health and ammo by search) found, checked, saved and still right after a reload, in
+  67 s for about $0.23, with 7 questions to the player.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 and v1.19.0 are pushed and tagged (CI and Release green,
@@ -277,8 +288,8 @@ _Last updated: 2026-11-10 — v1.19.0_
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
 
 ## Next
-- 1.20: the AI helper for web games. The AI's tool server runs as its own process
-  (`opentrainer-desktop --mcp`), so it needs a guarded bridge to the game window first.
+- Ideas for making the AI helpers better at finding cheats (told to the user 2026-11-10, waiting
+  for their pick): see the 1.20 report in the conversation; the short list is in docs/PLAN.md §5.6.
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate
   (SignPath works now that the repo is public; Microsoft Trusted Signing about $10/month). The
   updater key still has to be added as the `TAURI_SIGNING_PRIVATE_KEY` secret by the user.

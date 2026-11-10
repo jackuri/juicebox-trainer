@@ -9,6 +9,7 @@ import {
   type ProcessInfo,
   type RunningGame,
   toCommandError,
+  type WebGame,
 } from "../lib/ipc";
 import { GamePicker } from "./GamePicker";
 
@@ -30,6 +31,8 @@ interface Props {
   processes: ProcessInfo[];
   games: RunningGame[];
   onRefreshProcesses: () => void;
+  /** Start on "a web game" (opened from a web game's cheats). */
+  webFirst?: boolean;
 }
 
 type Backend = "subscription" | "apiKey" | "local";
@@ -72,10 +75,13 @@ function saveSettings(s: Settings) {
 }
 
 /** "Make a trainer": the AI helper finds cheats with the player's help. */
-export function AiView({ processes, games, onRefreshProcesses }: Props) {
+export function AiView({ processes, games, onRefreshProcesses, webFirst = false }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [events, setEvents] = useState<AiEvent[]>([]);
   const [pid, setPid] = useState("");
+  const [kind, setKind] = useState<"pc" | "web">(webFirst ? "web" : "pc");
+  const [webGame, setWebGame] = useState<WebGame | null>(null);
+  const [webTask, setWebTask] = useState(webFirst);
   const [wishes, setWishes] = useState<string[]>(["Infinite health", "Lots of money / gold"]);
   const [other, setOther] = useState("");
   const [settings, setSettings] = useState<Settings>(loadSettings);
@@ -109,6 +115,24 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
     });
   }, []);
 
+  // Which web game is open in OpenTrainer's game window (checked while the form shows).
+  const formShown = !(status?.running ?? false) && events.length === 0;
+  useEffect(() => {
+    if (kind !== "web" || !formShown) return;
+    let live = true;
+    const look = () =>
+      api.webCurrent().then(
+        (g) => live && setWebGame(g ?? null),
+        () => live && setWebGame(null),
+      );
+    void look();
+    const timer = window.setInterval(() => void look(), 2000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [kind, formShown]);
+
   const exited = events.some((e) => e.type === "exit");
   const running = (status?.running ?? false) && !exited;
   const ask = pendingAsk(events);
@@ -121,15 +145,19 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
     try {
       const list = [...wishes, ...other.split(/[,\n]/).map((s) => s.trim()).filter(Boolean)];
       setEvents([]);
+      const web = kind === "web";
+      setWebTask(web);
       await api.aiStart({
-        pid: Number(pid),
+        pid: web ? 0 : Number(pid),
+        task: web ? "webTrainer" : undefined,
+        webGame: web ? webGame?.id : undefined,
         wishes: list,
         notes: "",
         backend,
         maxBudgetUsd: Number(budget) || 5,
         localUrl: backend === "local" ? settings.localUrl : undefined,
         model: backend === "local" ? settings.model : undefined,
-        analysisCommand: settings.analysisCommand.trim() || undefined,
+        analysisCommand: web ? undefined : settings.analysisCommand.trim() || undefined,
         analysisArgs: settings.analysisArgs.split(" ").filter(Boolean),
       });
       setStatus((s) => (s ? { ...s, running: true } : s));
@@ -211,11 +239,48 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
 
       {showForm && (
         <div className="flex max-w-2xl flex-col gap-4">
-          <p className="text-sm text-zinc-400">
-            Start your game, pick it here and tick what you'd like. The helper asks you to do small
-            things in the game (like "spend some gold") while it searches, then saves a cheat pack.
-            Single-player games only: games with anti-cheat are refused.
-          </p>
+          {kind === "web" ? (
+            <p className="text-sm text-zinc-400">
+              Tick what you'd like. The helper looks in the open web game, asks you to do small things
+              in it (like "spend some gold") when it needs to, then adds the cheats that work to the
+              game's cheats in Web games.
+            </p>
+          ) : (
+            <p className="text-sm text-zinc-400">
+              Start your game, pick it here and tick what you'd like. The helper asks you to do small
+              things in the game (like "spend some gold") while it searches, then saves a cheat pack.
+              Single-player games only: games with anti-cheat are refused.
+            </p>
+          )}
+          <fieldset className="flex flex-col gap-1 text-sm">
+            <legend className="mb-1">What kind of game?</legend>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={kind === "pc"} onChange={() => setKind("pc")} />
+              A game on this PC
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="radio" checked={kind === "web"} onChange={() => setKind("web")} />
+              A web game (open in OpenTrainer&apos;s game window)
+            </label>
+          </fieldset>
+          {kind === "web" ? (
+            <div className="flex flex-col gap-1 rounded-lg bg-zinc-900 px-3 py-2 text-sm" role="note" aria-label="Web game">
+              {webGame ? (
+                <p>
+                  The helper works on <b>{webGame.name}</b>, the game open in OpenTrainer&apos;s game window. Keep
+                  that window open while it works.
+                </p>
+              ) : (
+                <p className="text-amber-200">
+                  Open the game first: in <b>Web games</b>, click <b>Play</b> next to it. Then come back here.
+                </p>
+              )}
+              <p className="text-xs text-zinc-500">
+                For playing alone or with friends you invited. Not for competitive games or games with
+                items worth real money.
+              </p>
+            </div>
+          ) : (
           <div className="flex flex-col gap-1 text-sm">
             Game
             <GamePicker
@@ -228,6 +293,7 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
               onRefresh={onRefreshProcesses}
             />
           </div>
+          )}
           <fieldset className="flex flex-col gap-1 text-sm">
             <legend className="mb-1">Cheats you want</legend>
             {WISHES.map((w) => (
@@ -296,6 +362,7 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
               </div>
             )}
           </fieldset>
+          {kind === "pc" && (
           <details className="text-sm">
             <summary className="cursor-pointer text-zinc-400">Advanced: code analysis tool (optional)</summary>
             <div className="mt-2 flex flex-col gap-2 text-xs">
@@ -319,6 +386,7 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
               />
             </div>
           </details>
+          )}
           {backend === "subscription" && status?.signedIn === false && (
             <div className="flex flex-col gap-2 rounded-lg bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="note">
               <p>
@@ -349,7 +417,7 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
           <button
             className={`${big} self-start`}
             disabled={
-              !pid ||
+              (kind === "web" ? !webGame : !pid) ||
               starting ||
               (wishes.length === 0 && !other.trim()) ||
               (backend === "subscription" && status?.signedIn === false) ||
@@ -416,7 +484,9 @@ export function AiView({ processes, games, onRefreshProcesses }: Props) {
                     {e.summary}
                     {e.ok && (
                       <p className="mt-1 text-xs">
-                        Open Cheats, attach to the game, and load the new pack on the Trainer tab.
+                        {webTask
+                          ? "Open Web games: the new cheats are in the game's cheats, with Lock and Set."
+                          : "Open Cheats, attach to the game, and load the new pack on the Trainer tab."}
                       </p>
                     )}
                   </li>

@@ -7,6 +7,13 @@ const invoke = vi.fn();
 vi.mock("@tauri-apps/api/core", () => ({
   invoke: (cmd: string, args?: Record<string, unknown>) => invoke(cmd, args),
 }));
+const listeners = new Map<string, (e: { payload: unknown }) => void>();
+vi.mock("@tauri-apps/api/event", () => ({
+  listen: (name: string, cb: (e: { payload: unknown }) => void) => {
+    listeners.set(name, cb);
+    return Promise.resolve(() => undefined);
+  },
+}));
 
 const game = { id: "testbed-1", name: "Web Testbed", url: "http://127.0.0.1:8080/", added: "2026-11-09" };
 const memTarget = { k: "m" as const, mem: 0, label: "module memory", size: 65536, off: 4096, t: "i32" as const };
@@ -119,6 +126,20 @@ describe("WebGamesView", () => {
       expect(invoke).toHaveBeenCalledWith("web_call", { method: "lock", args: { id: "Health|memory 1 at 0x1000 (i32)", target: memTarget, value: 999 } }),
     );
     expect(await within(panel).findByRole("button", { name: "Locked" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("opens the AI helper for the open game and shows the cheats it saved", async () => {
+    open = game;
+    const onOpenAi = vi.fn();
+    render(<WebGamesView onOpenAi={onOpenAi} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Find cheats with AI" }));
+    expect(onOpenAi).toHaveBeenCalled();
+    // The helper saved a cheat: the panel shows it without reopening.
+    saved = [{ name: "Infinite ammo", target: { k: "j", path: ["game", "ammo"] }, value: 99 }];
+    await waitFor(() => expect(listeners.has("web-cheats-changed")).toBe(true));
+    listeners.get("web-cheats-changed")?.({ payload: "other-game" });
+    listeners.get("web-cheats-changed")?.({ payload: game.id });
+    expect(await screen.findByText("Infinite ammo")).toBeInTheDocument();
   });
 
   it("removes a game only after asking", async () => {

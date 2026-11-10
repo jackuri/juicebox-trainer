@@ -133,6 +133,37 @@ describe("AiView", () => {
     expect(screen.getByRole("button", { name: "Start over" })).toBeInTheDocument();
   });
 
+  it("makes cheats for the open web game", async () => {
+    let open: unknown = null;
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "ai_status"
+        ? Promise.resolve(status())
+        : cmd === "web_current"
+          ? Promise.resolve(open)
+          : Promise.resolve(undefined),
+    );
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} webFirst />);
+    // No game window yet: it says how to open one, and can't start.
+    expect(await screen.findByText(/Open the game first/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Game")).not.toBeInTheDocument();
+    expect(screen.queryByText(/code analysis tool/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Start" })).toBeDisabled();
+
+    open = { id: "zombies-1", name: "Zombie Run", url: "https://zombies.example/", added: "2026-11-10" };
+    expect(await screen.findByText("Zombie Run", {}, { timeout: 3000 })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_start", {
+        request: expect.objectContaining({ pid: 0, task: "webTrainer", webGame: "zombies-1" }) as unknown,
+      }),
+    );
+    act(() => {
+      emit?.({ type: "finished", ok: true, summary: "Saved 2 cheats." });
+      emit?.({ type: "exit" });
+    });
+    expect(screen.getByRole("status")).toHaveTextContent("Open Web games");
+  });
+
   it("can cancel while running", async () => {
     invoke.mockImplementation((cmd: string) =>
       cmd === "ai_status"

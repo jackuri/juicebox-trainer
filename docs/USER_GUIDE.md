@@ -255,6 +255,9 @@ numbers.
    F1). While the game window is in front, the key locks or unlocks the cheat; choose **Set to…**
    to set it once instead. A note in the corner of the game says what the key did. Backspace in
    the Key box removes the key.
+6. Or let the AI helper look: with the game open, click **Find cheats with AI**, tick what you'd
+   like and click **Start**. It may ask you to read a number or do something in the game, then
+   adds the cheats that work to the game's cheats. Keep the game window open while it works.
 
 ### Sharing web cheats
 

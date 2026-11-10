@@ -15,7 +15,7 @@ const host = (url: string) => {
 };
 
 /** Games that run in a web page: add them, open them in OpenTrainer's game window, find and lock values. */
-export function WebGamesView() {
+export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
   const [games, setGames] = useState<WebGame[] | null>(null);
   const [current, setCurrent] = useState<WebGame | null>(null);
   const [name, setName] = useState("");
@@ -116,6 +116,7 @@ export function WebGamesView() {
         <WebCheatsPanel
           key={current.id}
           game={current}
+          onOpenAi={onOpenAi}
           onClose={() =>
             void run(async () => {
               await api.webClose();

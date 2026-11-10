@@ -1052,8 +1052,10 @@ export interface AiStatus {
 
 export interface AiStartRequest {
   pid: number;
-  /** "trainer" (default) or "explainSave" (needs exe and backup). */
-  task?: "trainer" | "explainSave";
+  /** "trainer" (default), "explainSave" (needs exe and backup) or "webTrainer" (the open web game). */
+  task?: "trainer" | "explainSave" | "webTrainer";
+  /** For "webTrainer": the web game's id (it must be the one open in the game window). */
+  webGame?: string;
   exe?: string;
   backup?: string;
   wishes: string[];
@@ -1074,6 +1076,24 @@ export function onAiEvent(cb: (e: AiEvent) => void): () => void {
   let stopped = false;
   try {
     listen<AiEvent>("ai-event", (e) => cb(e.payload)).then(
+      (u) => (stopped ? u() : (unlisten = u)),
+      () => undefined,
+    );
+  } catch {
+    // Not running inside Tauri.
+  }
+  return () => {
+    stopped = true;
+    unlisten?.();
+  };
+}
+
+/** Calls `cb` with a web game's id when the AI helper saved cheats for it. */
+export function onWebCheatsChanged(cb: (id: string) => void): () => void {
+  let unlisten: (() => void) | null = null;
+  let stopped = false;
+  try {
+    listen<string>("web-cheats-changed", (e) => cb(e.payload)).then(
       (u) => (stopped ? u() : (unlisten = u)),
       () => undefined,
     );

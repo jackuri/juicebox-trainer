@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, toCommandError, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { api, onWebCheatsChanged, toCommandError, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
 import { keyFromEvent } from "../lib/keys";
 import { keysFor, lockId, where } from "../lib/webCheats";
 
@@ -14,7 +14,7 @@ const num = (s: string): number | null => {
 };
 const show = (v: number | undefined) => (v === undefined || Number.isNaN(v) ? "?" : Number.isInteger(v) ? String(v) : v.toFixed(3));
 /** Find, change and lock numbers in the open web game; the player's saved cheats for it. */
-export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () => void }) {
+export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onClose: () => void; onOpenAi?: () => void }) {
   const [info, setInfo] = useState<WebInfo | null>(null);
   const [waiting, setWaiting] = useState(true);
   const [value, setValue] = useState("");
@@ -60,8 +60,17 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
       (c) => live && setCheats(Array.isArray(c) ? c : []),
       () => undefined,
     );
+    // The AI helper saved cheats for this game: show them.
+    const stop = onWebCheatsChanged((id) => {
+      if (id !== game.id) return;
+      api.webCheats(game.id).then(
+        (c) => live && setCheats(Array.isArray(c) ? c : []),
+        () => undefined,
+      );
+    });
     return () => {
       live = false;
+      stop();
     };
   }, [game.id]);
 
@@ -132,7 +141,12 @@ export function WebCheatsPanel({ game, onClose }: { game: WebGame; onClose: () =
             Look again
           </button>
         )}
-        <button className={`${button} ml-auto`} onClick={onClose}>
+        {onOpenAi && (
+          <button className={`${button} ml-auto bg-emerald-800 hover:bg-emerald-700`} onClick={onOpenAi}>
+            Find cheats with AI
+          </button>
+        )}
+        <button className={`${button} ${onOpenAi ? "" : "ml-auto"}`} onClick={onClose}>
           Close the game
         </button>
       </div>

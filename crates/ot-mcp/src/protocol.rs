@@ -54,7 +54,7 @@ pub fn handle(tools: &mut Tools, msg: &Value) -> Option<Value> {
             )
         }
         "ping" => ok(id, json!({})),
-        "tools/list" => ok(id, json!({ "tools": crate::tools::definitions() })),
+        "tools/list" => ok(id, json!({ "tools": tools.definitions() })),
         "tools/call" => {
             let name = params.get("name").and_then(Value::as_str).unwrap_or("");
             let args = params.get("arguments").cloned().unwrap_or(json!({}));

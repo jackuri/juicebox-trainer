@@ -12,6 +12,7 @@ fn tools(tmp: &TempDir) -> Tools {
         log_path: Some(tmp.0.join("log.jsonl")),
         packs_dir: Some(tmp.0.join("packs")),
         saves_root: Some(tmp.0.join("saves")),
+        web: None,
     })
 }
 

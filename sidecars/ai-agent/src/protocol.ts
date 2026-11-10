@@ -16,7 +16,13 @@ export interface GameRef {
   exe: string | null;
 }
 
-export type Task = "trainer" | "explainSave";
+export type Task = "trainer" | "explainSave" | "webTrainer";
+
+/** For "webTrainer" (v1.20.0): the web game open in OpenTrainer's game window. */
+export interface WebGameRef {
+  id: string;
+  url: string;
+}
 
 export interface StartMessage {
   type: "start";
@@ -25,6 +31,8 @@ export interface StartMessage {
   /** For "explainSave": the backup made before the player's action. */
   backup?: string;
   game: GameRef;
+  /** For "webTrainer": the web game (its name is game.name). */
+  web?: WebGameRef;
   /** Cheats the player asked for, in plain words. */
   wishes: string[];
   notes?: string;
@@ -73,6 +81,11 @@ export function parseInbound(line: string): Inbound | null {
     case "start": {
       const g = m.game as Record<string, unknown> | undefined;
       if (!g || typeof g.pid !== "number" || typeof g.name !== "string") return null;
+      const task: Task = m.task === "explainSave" ? "explainSave" : m.task === "webTrainer" ? "webTrainer" : "trainer";
+      const web =
+        task === "webTrainer" && typeof g.url === "string" && typeof g.webId === "string"
+          ? { id: g.webId, url: g.url }
+          : undefined;
       const wishes = Array.isArray(m.wishes)
         ? m.wishes.filter((w): w is string => typeof w === "string" && w.trim() !== "")
         : [];
@@ -84,7 +97,8 @@ export function parseInbound(line: string): Inbound | null {
         backend: m.backend === "apiKey" ? "apiKey" : m.backend === "local" ? "local" : "subscription",
         model: typeof m.model === "string" ? m.model : undefined,
         maxBudgetUsd: typeof m.maxBudgetUsd === "number" ? m.maxBudgetUsd : undefined,
-        task: m.task === "explainSave" ? "explainSave" : "trainer",
+        task,
+        web,
         backup: typeof m.backup === "string" ? m.backup : undefined,
         localUrl: typeof m.localUrl === "string" ? m.localUrl : undefined,
         analysis: parseAnalysis(m.analysis),

@@ -37,6 +37,8 @@ struct Running {
 #[derive(Debug, Default)]
 pub struct AiState {
     running: Arc<Mutex<Option<Running>>>,
+    /// The link to the web game window, while a web game session runs.
+    link: Arc<Mutex<Option<crate::web_link::Link>>>,
     transcript: Arc<Mutex<Vec<Value>>>,
     /// The engine download is running.
     installing: AtomicBool,
@@ -416,9 +418,13 @@ pub struct AiStartRequest {
     /// The running game (trainer task).
     #[serde(default)]
     pub pid: u32,
-    /// `trainer` (default) or `explainSave`.
+    /// `trainer` (default), `explainSave` or `webTrainer` (v1.20.0: the web
+    /// game open in OpenTrainer's game window).
     #[serde(default)]
     pub task: Option<String>,
+    /// For `webTrainer`: the web game's id (it must be the one that's open).
+    #[serde(default)]
+    pub web_game: Option<String>,
     /// For `explainSave`: the game's exe and the backup to compare with.
     #[serde(default)]
     pub exe: Option<String>,
@@ -466,7 +472,32 @@ pub async fn ai_start(
         return Err(CommandError::new("aiUnavailable", p));
     }
     let explain = request.task.as_deref() == Some("explainSave");
-    let game = if explain {
+    let web = request.task.as_deref() == Some("webTrainer");
+    let mut link = None;
+    let game = if web {
+        crate::agreement::require()?;
+        let open = crate::web::open_game(&app).ok_or_else(|| {
+            CommandError::new(
+                "noWebGame",
+                "open the game first (Web games, Play), then start the helper",
+            )
+        })?;
+        if request.web_game.as_deref().is_some_and(|id| id != open.id) {
+            return Err(CommandError::new(
+                "noWebGame",
+                format!(
+                    "the game window shows {}: open the game you picked, or pick this one",
+                    open.name
+                ),
+            ));
+        }
+        link = Some(
+            crate::web_link::start_for_app(app.clone(), open.id.clone()).map_err(|e| {
+                CommandError::new("io", format!("couldn't link to the game window: {e}"))
+            })?,
+        );
+        json!({ "pid": 0, "name": open.name, "exe": null, "url": open.url, "webId": open.id })
+    } else if explain {
         // Only save files are read; no game is attached.
         let exe = request
             .exe
@@ -505,6 +536,11 @@ pub async fn ai_start(
             command.env_remove(k);
         }
     }
+    if let Some(l) = &link {
+        command
+            .env("OT_WEB_LINK", &l.addr)
+            .env("OT_WEB_TOKEN", &l.token);
+    }
     let mut child = command
         .arg(&script)
         .env("OT_MCP_COMMAND", &exe)
@@ -528,8 +564,10 @@ pub async fn ai_start(
 
     lock(&state.transcript).clear();
     *lock(&state.running) = Some(Running { child, stdin });
+    *lock(&state.link) = link;
 
     let running = Arc::clone(&state.running);
+    let web_link = Arc::clone(&state.link);
     let transcript = Arc::clone(&state.transcript);
     std::thread::Builder::new()
         .name("ai-helper".into())
@@ -544,6 +582,8 @@ pub async fn ai_start(
             if let Some(mut r) = lock(&running).take() {
                 let _ = r.child.wait();
             }
+            // The game window is the player's again.
+            lock(&web_link).take();
             push(&transcript, &app, json!({ "type": "exit" }));
         })
         .map_err(|e| CommandError::new("io", e.to_string()))?;
@@ -558,7 +598,7 @@ pub async fn ai_start(
     let start = json!({
         "type": "start",
         "game": game,
-        "task": if explain { "explainSave" } else { "trainer" },
+        "task": if explain { "explainSave" } else if web { "webTrainer" } else { "trainer" },
         "backup": request.backup,
         "wishes": request.wishes,
         "notes": request.notes,
@@ -636,6 +676,16 @@ mod tests {
         assert_eq!(r.pid, 0);
         assert_eq!(r.task.as_deref(), Some("explainSave"));
         assert_eq!(r.backup.as_deref(), Some("17"));
+    }
+
+    #[test]
+    fn web_requests_name_the_game() {
+        let r: AiStartRequest = serde_json::from_str(
+            r#"{"pid":0,"task":"webTrainer","webGame":"zombies-1","wishes":["Ammo"],"notes":"","backend":"subscription","maxBudgetUsd":5}"#,
+        )
+        .unwrap();
+        assert_eq!(r.task.as_deref(), Some("webTrainer"));
+        assert_eq!(r.web_game.as_deref(), Some("zombies-1"));
     }
 
     #[test]

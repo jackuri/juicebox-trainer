@@ -342,29 +342,7 @@ fn install(dir: &std::path::Path, pack: &WebPack, today: &str) -> CmdResult<WebI
         Some(g) => g,
         None => add_game(dir, &pack.game, &url, today)?,
     };
-    let mut cheats = load_cheats(dir, &game.id);
-    let (mut added, mut skipped) = (0, 0);
-    for c in pack.cheats {
-        if cheats.iter().any(|x| x.target == c.target) {
-            skipped += 1;
-            continue;
-        }
-        if cheats.len() >= MAX_CHEATS {
-            return Err(err(
-                "badRequest",
-                "that's a lot of cheats for one game: remove some first",
-            ));
-        }
-        let mut name = c.name.clone();
-        let mut n = 2;
-        while cheats.iter().any(|x| x.name == name) {
-            name = format!("{} ({n})", c.name);
-            n += 1;
-        }
-        cheats.push(WebCheat { name, ..c });
-        added += 1;
-    }
-    save_json(&cheats_file(dir, &game.id), &cheats)?;
+    let (added, skipped) = add_cheats_in(dir, &game.id, &pack.cheats)?;
     Ok(WebInstalled {
         game,
         added,
@@ -412,12 +390,8 @@ pub async fn web_open(
 
 /// The web game that's open, if its window still is.
 #[tauri::command]
-pub fn web_current(app: AppHandle, state: State<'_, WebState>) -> Option<WebGame> {
-    let mut open = state.open.lock().unwrap_or_else(|e| e.into_inner());
-    if app.get_webview_window(LABEL).is_none() {
-        *open = None;
-    }
-    open.clone()
+pub fn web_current(app: AppHandle) -> Option<WebGame> {
+    open_game(&app)
 }
 
 /// Closes the game window.
@@ -431,7 +405,7 @@ pub fn web_close(app: AppHandle, state: State<'_, WebState>) {
 
 /// The helper calls OpenTrainer may make.
 const CALLS: &[&str] = &[
-    "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state",
+    "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state", "names",
 ];
 
 /// The script that runs one call in the game page and returns its JSON.
@@ -475,10 +449,20 @@ fn parse_answer(raw: &str) -> CmdResult<Value> {
 /// `keys`: the cheats' keys, `state`: what's locked).
 #[tauri::command]
 pub async fn web_call(method: String, args: Option<Value>, app: AppHandle) -> CmdResult<Value> {
-    if matches!(method.as_str(), "set" | "lock" | "keys") {
+    tauri::async_runtime::spawn_blocking(move || {
+        call_blocking(&app, &method, &args.unwrap_or(Value::Null))
+    })
+    .await
+    .map_err(|e| err("webGame", e.to_string()))?
+}
+
+/// One call to the helper in the game page, waiting for its answer (not on
+/// the main thread). Changing calls need the agreement.
+pub fn call_blocking(app: &AppHandle, method: &str, args: &Value) -> CmdResult<Value> {
+    if matches!(method, "set" | "lock" | "keys") {
         crate::agreement::require()?;
     }
-    let script = call_script(&method, &args.unwrap_or(Value::Null))?;
+    let script = call_script(method, args)?;
     let window = app
         .get_webview_window(LABEL)
         .ok_or_else(|| err("noWebGame", "open a web game first"))?;
@@ -488,11 +472,63 @@ pub async fn web_call(method: String, args: Option<Value>, app: AppHandle) -> Cm
             let _ = tx.send(result);
         })
         .map_err(|e| err("webGame", format!("couldn't reach the game page: {e}")))?;
-    let raw = tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(CALL_TIMEOUT))
-        .await
-        .map_err(|e| err("webGame", e.to_string()))?
+    let raw = rx
+        .recv_timeout(CALL_TIMEOUT)
         .map_err(|_| err("webGame", "the game page took too long to answer"))?;
     parse_answer(&raw)
+}
+
+/// The web game whose window is open (`None` once it was closed).
+pub fn open_game(app: &AppHandle) -> Option<WebGame> {
+    let state = app.state::<WebState>();
+    let mut open = state.open.lock().unwrap_or_else(|e| e.into_inner());
+    if app.get_webview_window(LABEL).is_none() {
+        *open = None;
+    }
+    open.clone()
+}
+
+/// Adds cheats to a web game's saved list (the AI helper's finds, v1.20.0):
+/// checked, cheats already there (same place) skipped, clashing names numbered.
+pub fn add_cheats(id: &str, new: &[WebCheat]) -> CmdResult<(usize, usize)> {
+    add_cheats_in(&app_dir()?, id, new)
+}
+
+fn add_cheats_in(dir: &std::path::Path, id: &str, new: &[WebCheat]) -> CmdResult<(usize, usize)> {
+    known_game(dir, id)?;
+    let new = new.iter().map(check_cheat).collect::<CmdResult<Vec<_>>>()?;
+    let mut cheats = load_cheats(dir, id);
+    let (mut added, mut skipped) = (0, 0);
+    for c in new {
+        if cheats.iter().any(|x| x.target == c.target) {
+            skipped += 1;
+            continue;
+        }
+        if cheats.len() >= MAX_CHEATS {
+            return Err(err(
+                "badRequest",
+                "that's a lot of cheats for one game: remove some first",
+            ));
+        }
+        cheats.push(WebCheat {
+            name: free_name(&cheats, &c.name),
+            ..c
+        });
+        added += 1;
+    }
+    save_json(&cheats_file(dir, id), &cheats)?;
+    Ok((added, skipped))
+}
+
+/// `name`, or `name (2)`, `name (3)`… if the list already has it.
+fn free_name(cheats: &[WebCheat], name: &str) -> String {
+    let mut out = name.to_string();
+    let mut n = 2;
+    while cheats.iter().any(|x| x.name == out) {
+        out = format!("{name} ({n})");
+        n += 1;
+    }
+    out
 }
 
 #[cfg(test)]

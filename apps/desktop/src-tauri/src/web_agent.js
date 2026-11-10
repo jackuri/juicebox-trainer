@@ -79,7 +79,8 @@
   const MAX_DEPTH = 8;
   const isNode = (v) => typeof Node !== "undefined" && v instanceof Node;
 
-  /** Every own number reachable from window: [{ obj, key, path }]. Big byte arrays become memories. */
+  /** Every own number reachable from window: [{ obj, key, path }]. Big byte arrays become memories.
+   * `match(value, key, parentPath)` picks the numbers to keep. */
   function walk(match) {
     const out = [];
     const visited = new WeakSet([window.__otAgent || {}]);
@@ -104,7 +105,7 @@
         if (!d || !("value" in d)) continue; // getters may do things: never call them
         const v = d.value;
         if (typeof v === "number") {
-          if (match(v)) out.push({ obj, key, path: path.concat(key) });
+          if (match(v, key, path)) out.push({ obj, key, path: path.concat(key) });
         } else if (v && typeof v === "object" && path.length < MAX_DEPTH) {
           if (visited.has(v) || isNode(v) || v === window) continue;
           visited.add(v);
@@ -501,6 +502,30 @@
       keysTag = String(tag || "");
       return { keys: keys.size };
     },
+    /** Numbers whose name (or their object's name and theirs, e.g. "player.hp") contains one of
+     * the words in `query` (split by | or ,), for the AI helper (v1.20.0). */
+    names({ query, limit }) {
+      const words = String(query == null ? "" : query)
+        .toLowerCase()
+        .split(/[|,]/)
+        .map((w) => w.trim())
+        .filter(Boolean)
+        .slice(0, 10);
+      if (!words.length) throw new Error("say which name to look for");
+      const max = Math.min(Math.max(Number(limit) || 50, 1), 200);
+      const hits = walk((v, key, path) => {
+        const text = (path.length ? String(path[path.length - 1]) + "." : "") + String(key);
+        const low = text.toLowerCase();
+        return words.some((w) => low.includes(w));
+      });
+      return {
+        count: hits.length,
+        results: hits.slice(0, max).map((h) => {
+          const target = { k: "j", path: h.path.map(String) };
+          return { target, where: where(target), value: h.obj[h.key] };
+        }),
+      };
+    },
     /** What's locked (also by a key) and which keys list is in use. */
     state() {
       return { locks: [...locks.keys()], keysTag };
@@ -508,7 +533,7 @@
   };
 
   const agent = {
-    version: 2,
+    version: 3,
     callJson(method, args) {
       try {
         const f = Object.prototype.hasOwnProperty.call(methods, method) ? methods[method] : null;

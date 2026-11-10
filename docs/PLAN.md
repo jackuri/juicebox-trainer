@@ -222,6 +222,22 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 - Back up saves before the first cheat is ever applied to a game.
 - Show token/cost estimate before long runs; cancel button always visible.
 
+### 5.6 Making the helpers better at finding cheats (ideas, 2026-11-10; not scheduled)
+Proposed to the user after 1.20, in the order recommended:
+1. **Measure first:** a benchmark of testbed games (native x64 / x86, Unity-like floats, doubles,
+   pointer chains, values stored ×10 or XOR-ed, web JS and WebAssembly) with a simulated player
+   that answers the helper from the testbed's own state. Score cheats found, questions asked,
+   cost and time, so every prompt or tool change is measured, not guessed.
+2. **Let the helper see the game:** a read-only `game_screenshot` tool (the game's window only),
+   so it reads numbers and checks "did it work?" itself instead of asking the player each time.
+3. **More from each find:** `read_struct` (the values next to one it found, typed: max health,
+   stamina and ammo often sit together), and finding live objects by class for Unity Mono like
+   `unreal_find` does for Unreal (names → values without scanning).
+4. **Reuse what's known:** a `known_cheats` tool over the community list, the player's packs and
+   field notes (engine, value types, what worked), and a short note saved after each session.
+5. **Checks in code:** `pack_write` / `web_cheats_save` refuse cheats never tried in the session;
+   a cheaper model for the mechanical narrowing steps; a smaller tool set for local models.
+
 ---
 
 ## 6. Roadmap (every update bumps the version)
@@ -244,6 +260,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 | 1.0.0 | Release | Installer (NSIS, per-user, `.otpack` file association), signing-ready release workflow (unsigned until a certificate exists), auto-update (off until the repo is public), user / developer / release docs, `.otpack` import/export, community pack list (GitHub repo index), AI engine downloaded on first use. The repo stays private for now (user's choice) |
 | 1.1.0 | Polish | "Browse…" pickers for games and save folders, plain `pack.json` import, auto-load the only pack on attach, "Find pointers" from scanner results, "Copy as pack cheat" for pointer paths. Added after 1.0.0 from STATUS follow-ups (no new dependencies) |
 | 1.2.0 | Look | New look in the style of modern trainer apps (user's request: "like Wand / WeMod"): sidebar, navy + blue-violet theme, cheat cards with big switches and key caps, game cards with generated covers, new icon colours. Own design; no other app's branding or art |
+| 1.20.0 | AI helper for web games | User's go-ahead 2026-11-10. App `web_link.rs`: while a `webTrainer` session runs, a local link (127.0.0.1, new port, 128-bit token from `remote::token`, one request per connection, 1 MB cap) passes on only the page helper's `info` / `names` / `find` / `next` / `results` / `read` / `set` / `lock` / `unlock` (locks only with `ai:` ids) plus `game` and `saveCheats` (checked `WebCheat`s merged by place, `web-cheats-changed` event), and only while the session's game is the open one; it stops when the helper exits. `ot-mcp` `web` module: `web_game`, `web_names`, `web_find`, `web_next`, `web_results`, `web_read`, `web_set`, `web_lock`, `web_unlock`, `web_cheats_save` (listed only with a link; `OT_WEB_LINK` / `OT_WEB_TOKEN`), every set / lock recorded and undone by `revert_all` or exit. Sidecar: task `webTrainer` with `WEB_PROMPT` (names first, then guided search; play-fair scope), only the web tools, link env given to the tool server only. Page helper v3: `names`. UI: Find cheats with AI in a web game's cheats, "What kind of game?" in the AI helper |
 | 1.19.0 | Web cheat packs | User's go-ahead 2026-11-10. `ot_packs::web` (WebPack format 1 / `.otweb`, WebCheat with `key` + `keyDoes`, `check_pack` local vs community rules: https and not this PC, ≤ 50 cheats; `host`, `url_problem`); community index `web` (whole packs, read leniently one by one); app: `web_export` / `web_pick_file` / `web_read_file` / `web_install` (merge by place, rename on clash, adds the game by exact address), `community_share_web` (`web/<id>.json` through `send_file`); helper `keys` / `state` calls (capture-phase keydown before the game, closed-shadow note, typing in boxes ignored); Web games tab: Share dialog, Open a cheats file, community list; community repo: builder + check accept `web/`, README rules (no competitive or real-money games). The AI helper for web games moves to 1.20 (needs a bridge from the `--mcp` process to the game window) |
 | 1.18.0 | Agreement + web games I | User request 2026-11-09 (web games such as browser co-op with invited friends; warning + liability waiver). `agreement.rs` (signed name + date + version; `AgreementGate` before the app; `web_open` / `set` / `lock` need it); `web.rs` + `web_agent.js` (WebviewWindow `webgame`, external URL, agent via `initialization_script_for_all_frames`, calls via `eval_with_callback`, whitelisted methods, JSON-quoted args): WebAssembly.Memory / Instance / instantiate hooks + big byte arrays, JS value walk without getters, find / next / set / lock, saved web cheats per game; Web games tab; `testbed/web`. No IPC for the game window (not in capabilities). Next 1.19: web cheat packs (sharing, hotkeys, AI helper) |
 | 1.17.0 | Creator invitations | Plan step 3 (user's choice 2026-11-09: makers choose their terms). `meta.source` + `licence` / `support` (SUPPORT_SITES) / `fromMaker`; `community_share` `terms` (`with_terms`, PR text lists terms, credit, support, maker claim for maintainers); community index entries carry `source`; community rows show credit, terms, Shared-by-its-maker badge, Maker's page / Support the maker (`community_open_credit`, listed addresses only); `docs/CREATORS.md` with the invitation message; community README: MIT unless the pack names other terms, badge checked by maintainers. Next: step 4, tested AI-made packs for popular games the user owns |

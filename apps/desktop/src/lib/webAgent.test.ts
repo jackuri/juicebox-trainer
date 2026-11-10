@@ -105,6 +105,18 @@ describe("web game helper", () => {
     expect(read[1]?.value).toBe(99999);
   });
 
+  it("finds numbers by name for the AI helper, without calling getters", () => {
+    getterCalls = 0;
+    const found = call("names", { query: "GOLD | hp" }).ok!;
+    expect(found.results!.map((h) => h.where)).toEqual(["game.player.gold"]);
+    expect(found.results![0]!.target).toEqual({ k: "j", path: ["game", "player", "gold"] });
+    expect(getterCalls).toBe(0);
+    // The object's name counts too ("player.gold" matches "player").
+    expect(call("names", { query: "player" }).ok!.count).toBe(1);
+    expect(call("names", { query: "nothing-like-this" }).ok!.count).toBe(0);
+    expect(call("names", { query: " " }).error).toMatch(/which name/);
+  });
+
   it("refuses writes outside the memory and non-numbers", () => {
     const outside = { k: "m", mem: 0, label: "m", size: 65536, off: 70000, t: "i32" };
     expect(call("set", { target: outside, value: 1 }).error).toMatch(/outside/);

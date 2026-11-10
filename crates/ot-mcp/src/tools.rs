@@ -28,7 +28,7 @@ pub const INSTRUCTIONS: &str = "OpenTrainer tools for making cheat packs for sin
 Attach to the game first (the anti-cheat guard decides; a refusal is final). Find values with \
 scan_first/scan_next while the player changes them in game, make them stable with pointer_scan or \
 make_aob, then build a pack and try it with pack_try and cheat_set. Memory writes are tests and \
-are undone by revert_all. Save the finished pack with pack_write.";
+are undone by revert_all. Save the finished pack with pack_write. For a web game open in OpenTrainer's game window, use the web_ tools instead (web_names, web_find, web_set, web_cheats_save); their changes are tests too, undone by revert_all.";
 
 const MAX_HITS_SHOWN: usize = 20;
 const MAX_PATHS_SHOWN: usize = 20;
@@ -44,6 +44,9 @@ pub struct Config {
     pub packs_dir: Option<PathBuf>,
     /// Save backups (`%LOCALAPPDATA%\OpenTrainer\saves`).
     pub saves_root: Option<PathBuf>,
+    /// The app's link to its web game window (v1.20.0), for a helper session
+    /// started for a web game.
+    pub web: Option<crate::web::LinkConfig>,
 }
 
 impl Config {
@@ -62,6 +65,7 @@ impl Config {
             }),
             packs_dir: ot_packs::store::user_dir(),
             saves_root: ot_saves::default_root(),
+            web: crate::web::LinkConfig::from_env(),
         }
     }
 }
@@ -117,6 +121,8 @@ pub struct Tools {
     live: Option<Live>,
     log: Option<File>,
     control: ScanControl,
+    /// The web game session (only with a link from the app).
+    web: Option<crate::web::WebSession>,
 }
 
 impl std::fmt::Debug for Tools {
@@ -172,11 +178,13 @@ impl Tools {
             std::fs::create_dir_all(p.parent()?).ok()?;
             File::options().create(true).append(true).open(p).ok()
         });
+        let web = cfg.web.clone().map(crate::web::WebSession::new);
         Self {
             cfg,
             live: None,
             log,
             control: ScanControl::new(),
+            web,
         }
     }
 
@@ -215,7 +223,23 @@ impl Tools {
         Ok(self.live.as_mut().expect("checked above"))
     }
 
+    /// The tools for `tools/list`: the web tools only for a web game session.
+    pub fn definitions(&self) -> Vec<Value> {
+        let mut list = definitions();
+        if self.web.is_some() {
+            list.extend(crate::web::definitions());
+        }
+        list
+    }
+
     fn dispatch(&mut self, name: &str, args: &Value) -> Res {
+        if name.starts_with("web_") {
+            return self
+                .web
+                .as_mut()
+                .ok_or("the web tools work only when the helper was started for a web game")?
+                .call(name, args);
+        }
         match name {
             "list_processes" => self.list_processes(args),
             "attach" => self.attach(args),
@@ -236,7 +260,14 @@ impl Tools {
             "pack_try" => self.pack_try(args),
             "cheat_set" => self.cheat_set(args),
             "revert_all" => {
-                let problems = self.live()?.revert();
+                let mut problems = Vec::new();
+                if let Some(web) = self.web.as_mut() {
+                    problems.extend(web.revert());
+                    if self.live.is_none() {
+                        return Ok(json!({ "reverted": true, "problems": problems }));
+                    }
+                }
+                problems.extend(self.live()?.revert());
                 Ok(json!({ "reverted": true, "problems": problems }))
             }
             "pack_write" => self.pack_write(args),
@@ -1251,5 +1282,20 @@ mod tests {
         assert_eq!(v["valid"], false);
         // No game attached: nothing to detach, still fine.
         assert_eq!(t.call("detach", &json!({})).unwrap()["detached"], true);
+        // The web tools need a web game session, and aren't listed without one.
+        assert!(
+            t.call("web_find", &json!({ "value": 1 }))
+                .unwrap_err()
+                .contains("web game")
+        );
+        assert!(!t.definitions().iter().any(|d| d["name"] == "web_find"));
+        let web = Tools::new(Config {
+            web: Some(crate::web::LinkConfig {
+                addr: "127.0.0.1:9".into(),
+                token: "x".into(),
+            }),
+            ..Config::default()
+        });
+        assert!(web.definitions().iter().any(|d| d["name"] == "web_find"));
     }
 }

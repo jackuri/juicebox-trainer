@@ -10,6 +10,7 @@
 
 pub mod protocol;
 pub mod tools;
+pub mod web;
 
 pub use tools::{Config, Tools};
 

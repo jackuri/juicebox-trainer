@@ -18,6 +18,7 @@ mod sharing;
 mod tables;
 mod updates;
 mod web;
+mod web_link;
 
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tracing::{info, warn};

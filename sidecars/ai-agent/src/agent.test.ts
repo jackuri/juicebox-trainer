@@ -168,6 +168,59 @@ describe("explain a save", () => {
   });
 });
 
+describe("web games", () => {
+  const webStart: StartMessage = {
+    type: "start",
+    task: "webTrainer",
+    game: { pid: 0, name: "Zombie Run", exe: null },
+    web: { id: "zombie-run-1", url: "https://zombies.example/play" },
+    wishes: ["Infinite ammo"],
+    backend: "subscription",
+    analysis: { command: "rea.exe", args: [] },
+  };
+
+  afterEach(() => {
+    delete process.env.OT_WEB_LINK;
+    delete process.env.OT_WEB_TOKEN;
+  });
+
+  it("parses the web game from the start message", () => {
+    const m = parseInbound(
+      JSON.stringify({
+        type: "start",
+        task: "webTrainer",
+        game: { pid: 0, name: "Zombie Run", exe: null, url: "https://zombies.example/play", webId: "zombie-run-1" },
+        wishes: ["Ammo"],
+      }),
+    );
+    expect(m).toMatchObject({ task: "webTrainer", web: { id: "zombie-run-1", url: "https://zombies.example/play" } });
+  });
+
+  it("gets only the web tools, its own prompt, and passes the link to the tool server only", () => {
+    process.env.OT_WEB_LINK = "127.0.0.1:5000";
+    process.env.OT_WEB_TOKEN = "secret";
+    const o = buildOptions(webStart, mcp, io(), new AbortController(), "1.20.0");
+    expect(o.allowedTools).toContain("mcp__ot__web_names");
+    expect(o.allowedTools).toContain("mcp__ot__revert_all");
+    expect(o.allowedTools).toContain("mcp__ui__ask_player");
+    expect(o.allowedTools).not.toContain("mcp__ot__attach");
+    expect(o.allowedTools).not.toContain("mcp__rea");
+    expect(Object.keys(o.mcpServers ?? {})).toEqual(["ot", "ui"]);
+    expect(o.mcpServers?.ot).toMatchObject({ env: { OT_WEB_LINK: "127.0.0.1:5000", OT_WEB_TOKEN: "secret" } });
+    expect(o.env?.OT_WEB_TOKEN).toBeUndefined();
+    expect(String(o.systemPrompt)).toContain("web_names");
+    expect(String(o.systemPrompt)).toContain("real money");
+    expect(kickoff(webStart)).toContain("https://zombies.example/play");
+    expect(kickoff(webStart)).toContain("web_game");
+  });
+
+  it("stops at once without the link", async () => {
+    const x = io();
+    await runSession(webStart, x, fakeQuery([]), mcp, new AbortController(), "1.20.0");
+    expect(x.sent.at(-1)).toMatchObject({ type: "finished", ok: false });
+  });
+});
+
 describe("runSession", () => {
   it("relays text, tool activity and the result", async () => {
     const x = io();
