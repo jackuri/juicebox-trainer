@@ -13,20 +13,28 @@
 //! - `game`: which web game the session is for;
 //! - `saveCheats`: adds checked cheat data to that game's list.
 //!
-//! Every request is for the game the session started with: if the player
-//! closed its window or opened another game, the request is refused. Nothing
-//! the helper sends is run as code (the page calls are whitelisted and their
-//! arguments JSON-quoted, see `web::call_script`).
+//! - `reverted`: the tool server undid all its changes itself.
+//!
+//! Every request is for the game the session started with, on its own site:
+//! if the player closed its window, opened another game or the page went to
+//! another website, the request is refused. Nothing the helper sends is run as
+//! code (the page calls are whitelisted and their arguments JSON-quoted, see
+//! `web::call_script`).
+//!
+//! The link also keeps each place's value from before the helper first set or
+//! locked it. When the session ends (`Link::finish`), the app lifts the
+//! helper's locks and, unless the tool server said it undid everything, puts
+//! those values back: a helper that was stopped leaves nothing behind.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::web::{WebCheat, WebGame};
 
@@ -36,17 +44,17 @@ pub const AI_CALLS: &[&str] = &[
 ];
 /// Longest request (a list of cheats is the biggest).
 const MAX_LINE: u64 = 1 << 20;
-/// Locks the AI helper makes start with this.
-pub const AI_LOCK: &str = "ai:";
 
 /// The game window, as the link sees it (a fake one in tests).
 pub trait Game: Send + Sync + 'static {
     fn open(&self) -> Option<WebGame>;
+    /// The address the game window shows now.
+    fn page_url(&self) -> Option<String>;
     fn call(&self, method: &str, args: &Value) -> Result<Value, String>;
     fn add_cheats(&self, id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String>;
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 struct Request {
     token: String,
     call: String,
@@ -62,61 +70,176 @@ fn same(a: &str, b: &str) -> bool {
             == 0
 }
 
+/// The AI helper's lock ids: `ai:` and a number (the player's are `name|place`).
+pub fn is_ai_lock(id: &str) -> bool {
+    id.strip_prefix("ai:")
+        .is_some_and(|n| !n.is_empty() && n.len() <= 9 && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
 fn ai_id(args: &Value) -> Result<(), String> {
     match args.get("id").and_then(Value::as_str) {
-        Some(id) if id.starts_with(AI_LOCK) && id.len() <= 100 => Ok(()),
-        _ => Err(format!(
-            "lock and unlock need an id starting with \"{AI_LOCK}\" (the player's own locks are theirs)"
-        )),
+        Some(id) if is_ai_lock(id) => Ok(()),
+        _ => Err("lock and unlock need one of the helper's own ids (ai:1, ai:2…); the player's locks are theirs".into()),
     }
 }
 
-/// Answers one request line: `{ "ok": ... }` or `{ "error": "..." }`.
-pub fn handle(line: &str, token: &str, game_id: &str, game: &dyn Game) -> Value {
-    match answer(line, token, game_id, game) {
-        Ok(v) => json!({ "ok": v }),
-        Err(e) => json!({ "error": e }),
-    }
+/// The site a web address is on: scheme and host, without a leading `www.`.
+fn site(url: &str) -> Option<(String, String)> {
+    let u = tauri::Url::parse(url).ok()?;
+    let host = u.host_str()?.to_ascii_lowercase();
+    let host = host.strip_prefix("www.").unwrap_or(&host).to_string();
+    Some((
+        u.scheme().to_string(),
+        format!("{host}:{}", u.port_or_known_default().unwrap_or(0)),
+    ))
 }
 
-fn answer(line: &str, token: &str, game_id: &str, game: &dyn Game) -> Result<Value, String> {
-    let req: Request = serde_json::from_str(line).map_err(|_| "bad request".to_string())?;
-    if !same(&req.token, token) {
-        return Err("wrong token".into());
-    }
-    let open = game
-        .open()
-        .filter(|g| g.id == game_id)
-        .ok_or("the game window is closed or shows another game: ask the player to open the game again (Web games, Play)")?;
-    match req.call.as_str() {
-        "game" => Ok(json!({ "id": open.id, "name": open.name, "url": open.url })),
-        "saveCheats" => {
-            let cheats: Vec<WebCheat> =
-                serde_json::from_value(req.args.get("cheats").cloned().unwrap_or(Value::Null))
-                    .map_err(|e| format!("cheats: {e}"))?;
-            if cheats.is_empty() {
-                return Err("no cheats to save".into());
-            }
-            let (added, skipped) = game.add_cheats(&open.id, &cheats)?;
-            Ok(json!({ "added": added, "skipped": skipped }))
+/// One helper session's link: who may ask, about which game, and what to undo.
+pub struct Session {
+    token: String,
+    game_id: String,
+    game: Arc<dyn Game>,
+    /// Each place the helper set or locked since its last full undo, with the
+    /// value it had before (oldest first).
+    before: Mutex<Vec<(Value, f64)>>,
+}
+
+impl Session {
+    pub fn new(token: String, game_id: String, game: Arc<dyn Game>) -> Self {
+        Self {
+            token,
+            game_id,
+            game,
+            before: Mutex::new(Vec::new()),
         }
-        call if AI_CALLS.contains(&call) => {
-            if matches!(call, "lock" | "unlock") {
-                ai_id(&req.args)?;
-            }
-            game.call(call, &req.args)
+    }
+
+    fn journal(&self) -> std::sync::MutexGuard<'_, Vec<(Value, f64)>> {
+        self.before.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Answers one request line: `{ "ok": ... }` or `{ "error": "..." }`.
+    pub fn handle(&self, line: &str) -> Value {
+        match self.answer(line) {
+            Ok(v) => json!({ "ok": v }),
+            Err(e) => json!({ "error": e }),
         }
-        other => Err(format!("unknown call {other}")),
+    }
+
+    /// The game window still shows the session's game, on its own site.
+    fn check_window(&self) -> Result<WebGame, String> {
+        let open = self
+            .game
+            .open()
+            .filter(|g| g.id == self.game_id)
+            .ok_or("the game window is closed or shows another game: ask the player to open the game again (Web games, Play)")?;
+        let here = self.game.page_url().as_deref().and_then(site);
+        if here.is_none() || here != site(&open.url) {
+            return Err("the game window has gone to another website: ask the player to open the game again (Web games, Play)".into());
+        }
+        Ok(open)
+    }
+
+    fn answer(&self, line: &str) -> Result<Value, String> {
+        let req: Request = serde_json::from_str(line).map_err(|_| "bad request".to_string())?;
+        if !same(&req.token, &self.token) {
+            return Err("wrong token".into());
+        }
+        let open = self.check_window()?;
+        match req.call.as_str() {
+            "game" => Ok(json!({ "id": open.id, "name": open.name, "url": open.url })),
+            // The tool server undid everything itself.
+            "reverted" => {
+                self.journal().clear();
+                Ok(json!({}))
+            }
+            "saveCheats" => {
+                let cheats: Vec<WebCheat> =
+                    serde_json::from_value(req.args.get("cheats").cloned().unwrap_or(Value::Null))
+                        .map_err(|e| format!("cheats: {e}"))?;
+                if cheats.is_empty() {
+                    return Err("no cheats to save".into());
+                }
+                let (added, skipped) = self.game.add_cheats(&open.id, &cheats)?;
+                Ok(json!({ "added": added, "skipped": skipped }))
+            }
+            call if AI_CALLS.contains(&call) => {
+                if matches!(call, "lock" | "unlock") {
+                    ai_id(&req.args)?;
+                }
+                if matches!(call, "set" | "lock") {
+                    self.remember(req.args.get("target"));
+                }
+                self.game.call(call, &req.args)
+            }
+            other => Err(format!("unknown call {other}")),
+        }
+    }
+
+    /// Keeps a place's value before the helper first changes it.
+    fn remember(&self, target: Option<&Value>) {
+        let Some(t) = target else { return };
+        if self.journal().iter().any(|(x, _)| x == t) {
+            return;
+        }
+        let read = self.game.call("read", &json!({ "targets": [t] }));
+        if let Some(v) = read.ok().and_then(|r| r.get(0)?.get("value")?.as_f64()) {
+            self.journal().push((t.clone(), v));
+        }
+    }
+
+    /// After the session: lifts the helper's locks and puts back what it
+    /// changed and didn't undo itself (for example when it was stopped).
+    pub fn undo(&self) {
+        if self.check_window().is_err() {
+            return; // The page is gone, and its changes with it.
+        }
+        if let Ok(state) = self.game.call("state", &json!({})) {
+            for id in state["locks"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                if is_ai_lock(id) {
+                    let _ = self.game.call("unlock", &json!({ "id": id }));
+                }
+            }
+        }
+        let changed = std::mem::take(&mut *self.journal());
+        for (target, value) in changed.into_iter().rev() {
+            let _ = self
+                .game
+                .call("set", &json!({ "target": target, "value": value }));
+        }
     }
 }
 
-/// A running link. Dropping it stops listening.
-#[derive(Debug)]
+/// A running link. Dropping it stops listening; `finish` also undoes what
+/// the helper left in the page.
 pub struct Link {
     /// `127.0.0.1:<port>`.
     pub addr: String,
     pub token: String,
+    session: Arc<Session>,
     stop: Arc<AtomicBool>,
+}
+
+impl std::fmt::Debug for Link {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Link")
+            .field("addr", &self.addr)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Link {
+    /// Stops listening, then lifts the helper's locks and puts back the values
+    /// it changed and didn't undo.
+    pub fn finish(self) {
+        self.stop.store(true, Ordering::SeqCst);
+        self.session.undo();
+    }
 }
 
 impl Drop for Link {
@@ -125,9 +248,9 @@ impl Drop for Link {
     }
 }
 
-fn serve_one(stream: TcpStream, token: &str, game_id: &str, game: &dyn Game) {
+fn serve_one(stream: TcpStream, session: &Session) {
     let _ = stream.set_nonblocking(false);
-    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let Ok(mut writer) = stream.try_clone() else {
         return;
     };
@@ -138,7 +261,7 @@ fn serve_one(stream: TcpStream, token: &str, game_id: &str, game: &dyn Game) {
     {
         return;
     }
-    let reply = handle(line.trim(), token, game_id, game);
+    let reply = session.handle(line.trim());
     let _ = writeln!(writer, "{reply}");
     let _ = writer.flush();
 }
@@ -149,15 +272,21 @@ pub fn start(game_id: String, game: Arc<dyn Game>) -> std::io::Result<Link> {
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?.to_string();
     let token = crate::remote::token();
+    let session = Arc::new(Session::new(token.clone(), game_id, game));
     let stop = Arc::new(AtomicBool::new(false));
-    let (t, s) = (token.clone(), Arc::clone(&stop));
+    let (s, stopped) = (Arc::clone(&session), Arc::clone(&stop));
     std::thread::Builder::new()
         .name("web-link".into())
         .spawn(move || {
-            // One request at a time (the tool server waits for each answer).
-            while !s.load(Ordering::SeqCst) {
+            while !stopped.load(Ordering::SeqCst) {
                 match listener.accept() {
-                    Ok((stream, _)) => serve_one(stream, &t, &game_id, game.as_ref()),
+                    // Its own thread, so a connection that sends nothing holds up nobody.
+                    Ok((stream, _)) => {
+                        let s = Arc::clone(&s);
+                        let _ = std::thread::Builder::new()
+                            .name("web-link-call".into())
+                            .spawn(move || serve_one(stream, &s));
+                    }
                     Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                         std::thread::sleep(Duration::from_millis(25));
                     }
@@ -165,7 +294,12 @@ pub fn start(game_id: String, game: Arc<dyn Game>) -> std::io::Result<Link> {
                 }
             }
         })?;
-    Ok(Link { addr, token, stop })
+    Ok(Link {
+        addr,
+        token,
+        session,
+        stop,
+    })
 }
 
 /// The real game window.
@@ -174,6 +308,10 @@ struct AppGame(AppHandle);
 impl Game for AppGame {
     fn open(&self) -> Option<WebGame> {
         crate::web::open_game(&self.0)
+    }
+    fn page_url(&self) -> Option<String> {
+        let w = self.0.get_webview_window(crate::web::LABEL)?;
+        w.url().ok().map(|u| u.to_string())
     }
     fn call(&self, method: &str, args: &Value) -> Result<Value, String> {
         crate::web::call_blocking(&self.0, method, args).map_err(|e| e.message)
@@ -194,25 +332,62 @@ pub fn start_for_app(app: AppHandle, game_id: String) -> std::io::Result<Link> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::Mutex;
 
-    #[derive(Default)]
+    /// A tiny page: places by path text, plus locks.
     struct Fake {
         open: Mutex<Option<WebGame>>,
+        url: Mutex<String>,
         calls: Mutex<Vec<(String, Value)>>,
         saved: Mutex<Vec<WebCheat>>,
+        page: Mutex<Value>,
+        locks: Mutex<Vec<String>>,
+    }
+
+    fn key(t: &Value) -> String {
+        t["path"]
+            .as_array()
+            .map(|p| {
+                p.iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(".")
+            })
+            .unwrap_or_default()
     }
 
     impl Game for Fake {
         fn open(&self) -> Option<WebGame> {
             self.open.lock().unwrap().clone()
         }
+        fn page_url(&self) -> Option<String> {
+            Some(self.url.lock().unwrap().clone())
+        }
         fn call(&self, method: &str, args: &Value) -> Result<Value, String> {
             self.calls
                 .lock()
                 .unwrap()
                 .push((method.to_string(), args.clone()));
-            Ok(json!({ "did": method }))
+            let mut page = self.page.lock().unwrap();
+            Ok(match method {
+                "read" => json!([{ "value": page[key(&args["targets"][0])] }]),
+                "set" | "lock" => {
+                    page[key(&args["target"])] = args["value"].clone();
+                    if method == "lock" {
+                        self.locks
+                            .lock()
+                            .unwrap()
+                            .push(args["id"].as_str().unwrap().into());
+                    }
+                    json!({ "value": args["value"] })
+                }
+                "unlock" => {
+                    let id = args["id"].as_str().unwrap_or_default().to_string();
+                    self.locks.lock().unwrap().retain(|l| *l != id);
+                    json!({})
+                }
+                "state" => json!({ "locks": *self.locks.lock().unwrap() }),
+                _ => json!({ "did": method }),
+            })
         }
         fn add_cheats(&self, _id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String> {
             self.saved.lock().unwrap().extend_from_slice(cheats);
@@ -220,112 +395,159 @@ mod tests {
         }
     }
 
-    fn fake() -> Fake {
-        let f = Fake::default();
-        *f.open.lock().unwrap() = Some(WebGame {
-            id: "zombies-1".into(),
-            name: "Zombies".into(),
-            url: "https://zombies.example/".into(),
-            added: "2026-11-10".into(),
-        });
-        f
+    fn fake() -> Arc<Fake> {
+        Arc::new(Fake {
+            open: Mutex::new(Some(WebGame {
+                id: "zombies-1".into(),
+                name: "Zombies".into(),
+                url: "https://zombies.example/play".into(),
+                added: "2026-11-10".into(),
+            })),
+            url: Mutex::new("https://www.zombies.example/play/level2".into()),
+            calls: Mutex::default(),
+            saved: Mutex::default(),
+            page: Mutex::new(json!({ "game.hp": 50.0, "game.gold": 10.0 })),
+            locks: Mutex::new(vec!["Health|game.hp".into()]),
+        })
     }
 
-    fn ask(f: &Fake, token: &str, call: &str, args: Value) -> Value {
-        let line = json!({ "token": token, "call": call, "args": args }).to_string();
-        handle(&line, "secret", "zombies-1", f)
+    fn session(f: &Arc<Fake>) -> Session {
+        Session::new(
+            "secret".into(),
+            "zombies-1".into(),
+            Arc::clone(f) as Arc<dyn Game>,
+        )
+    }
+
+    fn ask(s: &Session, token: &str, call: &str, args: Value) -> Value {
+        s.handle(&json!({ "token": token, "call": call, "args": args }).to_string())
+    }
+
+    fn page_calls(f: &Fake) -> Vec<String> {
+        f.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(c, _)| c.clone())
+            .collect()
     }
 
     #[test]
     fn passes_on_only_the_helpers_calls_for_its_game() {
         let f = fake();
+        let s = session(&f);
         assert_eq!(
-            ask(&f, "secret", "find", json!({ "value": 5 }))["ok"]["did"],
+            ask(&s, "secret", "find", json!({ "value": 5 }))["ok"]["did"],
             "find"
         );
         assert_eq!(
-            ask(&f, "secret", "names", json!({ "query": "hp" }))["ok"]["did"],
+            ask(&s, "secret", "names", json!({ "query": "hp" }))["ok"]["did"],
             "names"
         );
         assert_eq!(
-            ask(&f, "secret", "game", json!({}))["ok"]["name"],
+            ask(&s, "secret", "game", json!({}))["ok"]["name"],
             "Zombies"
         );
         assert!(
-            ask(&f, "wrong!", "find", json!({}))["error"]
+            ask(&s, "wrong!", "find", json!({}))["error"]
                 .as_str()
                 .unwrap()
                 .contains("token")
         );
-        assert!(handle("not json", "secret", "zombies-1", &f)["error"].is_string());
-        // Not for the helper: the player's keys, and anything unknown.
+        assert!(s.handle("not json")["error"].is_string());
+        assert!(
+            s.handle("POST / HTTP/1.1")["error"].is_string(),
+            "a browser's request"
+        );
+        // Not for the helper: the player's keys and state, and anything unknown.
         for call in ["keys", "state", "eval", "callJson"] {
             assert!(
-                ask(&f, "secret", call, json!({}))["error"]
+                ask(&s, "secret", call, json!({}))["error"]
                     .as_str()
                     .unwrap()
                     .contains("unknown"),
                 "{call}"
             );
         }
-        let calls = f.calls.lock().unwrap().clone();
-        assert_eq!(
-            calls.len(),
-            2,
-            "only find and names reached the page: {calls:?}"
-        );
+        assert_eq!(page_calls(&f), ["find", "names"]);
     }
 
     #[test]
     fn the_helpers_locks_are_its_own() {
         let f = fake();
+        let s = session(&f);
         let t = json!({ "k": "j", "path": ["game", "hp"] });
         assert!(
             ask(
-                &f,
+                &s,
                 "secret",
                 "lock",
                 json!({ "id": "ai:1", "target": t, "value": 9 })
             )["ok"]
                 .is_object()
         );
-        assert!(ask(&f, "secret", "unlock", json!({ "id": "ai:1" }))["ok"].is_object());
-        // The player's lock, or all locks at once, aren't the helper's to undo.
-        assert!(
-            ask(&f, "secret", "unlock", json!({ "id": "Health|game.hp" }))["error"].is_string()
-        );
-        assert!(ask(&f, "secret", "unlock", json!({}))["error"].is_string());
+        assert!(ask(&s, "secret", "unlock", json!({ "id": "ai:1" }))["ok"].is_object());
+        // The player's locks (even one named "ai:…"), or all locks at once, aren't the helper's.
+        for id in [
+            json!("Health|game.hp"),
+            json!("ai:x|game.hp"),
+            json!("ai:"),
+            json!(null),
+        ] {
+            assert!(
+                ask(&s, "secret", "unlock", json!({ "id": id }))["error"].is_string(),
+                "{id}"
+            );
+        }
         assert!(
             ask(
-                &f,
+                &s,
                 "secret",
                 "lock",
                 json!({ "id": "Gold|x", "target": t, "value": 1 })
             )["error"]
                 .is_string()
         );
+        assert!(is_ai_lock("ai:12") && !is_ai_lock("ai:1|x") && !is_ai_lock("x"));
     }
 
     #[test]
-    fn refuses_when_the_window_shows_another_game_or_is_closed() {
+    fn refuses_when_the_window_shows_another_game_or_site_or_is_closed() {
         let f = fake();
+        let s = session(&f);
+        // The same site (with or without www) is fine.
+        assert!(ask(&s, "secret", "info", json!({}))["ok"].is_object());
+        *f.url.lock().unwrap() = "https://evil.example/zombies.example".into();
+        assert!(
+            ask(&s, "secret", "find", json!({}))["error"]
+                .as_str()
+                .unwrap()
+                .contains("another website")
+        );
+        *f.url.lock().unwrap() = "http://zombies.example/play".into();
+        assert!(
+            ask(&s, "secret", "find", json!({}))["error"].is_string(),
+            "not https any more"
+        );
+        *f.url.lock().unwrap() = "https://zombies.example/".into();
         f.open.lock().unwrap().as_mut().unwrap().id = "other-2".into();
         assert!(
-            ask(&f, "secret", "find", json!({}))["error"]
+            ask(&s, "secret", "find", json!({}))["error"]
                 .as_str()
                 .unwrap()
                 .contains("open the game again")
         );
         *f.open.lock().unwrap() = None;
-        assert!(ask(&f, "secret", "info", json!({}))["error"].is_string());
-        assert!(f.calls.lock().unwrap().is_empty());
+        assert!(ask(&s, "secret", "info", json!({}))["error"].is_string());
+        assert_eq!(page_calls(&f), ["info"]);
     }
 
     #[test]
     fn saves_cheats_as_data() {
         let f = fake();
+        let s = session(&f);
         let r = ask(
-            &f,
+            &s,
             "secret",
             "saveCheats",
             json!({ "cheats": [{ "name": "Ammo", "target": { "k": "j", "path": ["game", "ammo"] }, "value": 99 }] }),
@@ -334,33 +556,83 @@ mod tests {
         assert_eq!(f.saved.lock().unwrap()[0].name, "Ammo");
         // Only cheat data: anything else in a cheat is refused.
         let bad = ask(
-            &f,
+            &s,
             "secret",
             "saveCheats",
             json!({ "cheats": [{ "name": "x", "target": { "k": "j", "path": ["a"], "code": "evil()" } }] }),
         );
         assert!(bad["error"].is_string());
-        assert!(ask(&f, "secret", "saveCheats", json!({ "cheats": [] }))["error"].is_string());
+        assert!(ask(&s, "secret", "saveCheats", json!({ "cheats": [] }))["error"].is_string());
     }
 
     #[test]
-    fn listens_on_this_pc_only_and_stops_when_dropped() {
-        let link = start("zombies-1".into(), Arc::new(fake())).unwrap();
+    fn undoes_what_a_stopped_helper_left_in_the_page() {
+        let f = fake();
+        let s = session(&f);
+        let hp = json!({ "k": "j", "path": ["game", "hp"] });
+        let gold = json!({ "k": "j", "path": ["game", "gold"] });
+        ask(&s, "secret", "set", json!({ "target": hp, "value": 999 }));
+        ask(&s, "secret", "set", json!({ "target": hp, "value": 5000 }));
+        ask(
+            &s,
+            "secret",
+            "lock",
+            json!({ "id": "ai:1", "target": gold, "value": 77 }),
+        );
+        // The helper was stopped before it undid anything: the app does it.
+        s.undo();
+        let page = f.page.lock().unwrap().clone();
+        assert_eq!(
+            page["game.hp"], 50.0,
+            "the value from before the first change"
+        );
+        assert_eq!(page["game.gold"], 10.0);
+        assert_eq!(
+            *f.locks.lock().unwrap(),
+            ["Health|game.hp"],
+            "the player's lock stays"
+        );
+
+        // When the tool server undid everything itself, nothing is put back twice
+        // (the game may have changed the value since).
+        let f = fake();
+        let s = session(&f);
+        ask(&s, "secret", "set", json!({ "target": hp, "value": 999 }));
+        ask(&s, "secret", "set", json!({ "target": hp, "value": 50 }));
+        ask(&s, "secret", "reverted", json!({}));
+        f.page.lock().unwrap()["game.hp"] = json!(42.0); // the player took a hit
+        s.undo();
+        assert_eq!(f.page.lock().unwrap()["game.hp"], 42.0);
+    }
+
+    #[test]
+    fn listens_on_this_pc_only_and_stops_when_finished() {
+        let f = fake();
+        let link = start("zombies-1".into(), Arc::clone(&f) as Arc<dyn Game>).unwrap();
         assert!(link.addr.starts_with("127.0.0.1:"));
+        assert!(
+            !format!("{link:?}").contains(&link.token),
+            "the token isn't printed"
+        );
         let token = link.token.clone();
-        let request = |addr: &str| -> std::io::Result<Value> {
+        let request = |addr: &str, line: &str| -> std::io::Result<Value> {
             let mut s = TcpStream::connect(addr)?;
             s.set_read_timeout(Some(Duration::from_secs(5)))?;
-            let line = json!({ "token": token, "call": "game" });
             writeln!(s, "{line}")?;
             let mut reply = String::new();
             BufReader::new(s).read_line(&mut reply)?;
             Ok(serde_json::from_str(&reply).unwrap_or(Value::Null))
         };
-        assert_eq!(request(&link.addr).unwrap()["ok"]["id"], "zombies-1");
+        // A connection that sends nothing doesn't hold up the helper.
+        let _idle = TcpStream::connect(&link.addr).unwrap();
+        let game = json!({ "token": token, "call": "game" }).to_string();
+        assert_eq!(request(&link.addr, &game).unwrap()["ok"]["id"], "zombies-1");
         let addr = link.addr.clone();
-        drop(link);
+        link.finish();
         std::thread::sleep(Duration::from_millis(200));
-        assert!(request(&addr).is_err(), "nothing answers after the session");
+        assert!(
+            request(&addr, &game).is_err(),
+            "nothing answers after the session"
+        );
     }
 }

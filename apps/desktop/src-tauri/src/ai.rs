@@ -579,11 +579,25 @@ pub async fn ai_start(
                     Err(_) => info!("ai helper: {line}"),
                 }
             }
-            if let Some(mut r) = lock(&running).take() {
-                let _ = r.child.wait();
+            // Wait for the helper to end. It counts as running until the game
+            // page is cleaned up, so a new session can't start in between.
+            loop {
+                let ended = match lock(&running).as_mut() {
+                    Some(r) => r.child.try_wait().map_or(true, |s| s.is_some()),
+                    None => true,
+                };
+                if ended {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(100));
             }
-            // The game window is the player's again.
-            lock(&web_link).take();
+            // The game window is the player's again: lift the helper's locks
+            // and put back what it changed and didn't undo itself.
+            let link = lock(&web_link).take();
+            if let Some(link) = link {
+                link.finish();
+            }
+            lock(&running).take();
             push(&transcript, &app, json!({ "type": "exit" }));
         })
         .map_err(|e| CommandError::new("io", e.to_string()))?;

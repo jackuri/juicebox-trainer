@@ -20,10 +20,35 @@ const TIMEOUT: Duration = Duration::from_secs(60);
 const SHOWN: usize = 20;
 
 /// Where the app's link listens, and its token.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct LinkConfig {
     pub addr: String,
     pub token: String,
+}
+
+impl std::fmt::Debug for LinkConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Never the token.
+        f.debug_struct("LinkConfig")
+            .field("addr", &self.addr)
+            .finish_non_exhaustive()
+    }
+}
+
+/// Longest text passed on from the page (names, titles): anything longer is
+/// cut, so a page can't fill the helper's context with its own words.
+const MAX_TEXT: usize = 300;
+
+/// Cuts every string in `v` to `MAX_TEXT` characters.
+fn clip(v: Value) -> Value {
+    match v {
+        Value::String(s) if s.chars().count() > MAX_TEXT => {
+            Value::String(s.chars().take(MAX_TEXT).collect::<String>() + "…")
+        }
+        Value::Array(a) => Value::Array(a.into_iter().map(clip).collect()),
+        Value::Object(o) => Value::Object(o.into_iter().map(|(k, v)| (k, clip(v))).collect()),
+        other => other,
+    }
 }
 
 impl LinkConfig {
@@ -110,7 +135,7 @@ impl WebSession {
         if let Some(e) = v.get("error").and_then(Value::as_str) {
             return Err(e.to_string());
         }
-        Ok(v.get("ok").cloned().unwrap_or(Value::Null))
+        Ok(clip(v.get("ok").cloned().unwrap_or(Value::Null)))
     }
 
     fn read_one(&self, target: &Value) -> Result<f64, String> {
@@ -249,6 +274,10 @@ impl WebSession {
             if let Err(e) = self.ask("set", json!({ "target": t, "value": before })) {
                 problems.push(e);
             }
+        }
+        // All undone: the app needn't put anything back after the session.
+        if problems.is_empty() {
+            let _ = self.ask("reverted", json!({}));
         }
         problems
     }
@@ -461,6 +490,11 @@ mod tests {
                 .iter()
                 .any(|(c, a)| c == "unlock" && a["id"] == "ai:1")
         );
+        assert_eq!(
+            calls.last().unwrap().0,
+            "reverted",
+            "tells the app it's all undone"
+        );
     }
 
     #[test]
@@ -518,6 +552,20 @@ mod tests {
             saved["cheats"][0]["key"], "F1",
             "tidied like the app's cheats"
         );
+    }
+
+    #[test]
+    fn long_page_text_is_cut_and_the_token_never_printed() {
+        let long = "x".repeat(5000);
+        let v = clip(json!({ "where": long, "list": [long], "n": 5 }));
+        assert_eq!(v["where"].as_str().unwrap().chars().count(), MAX_TEXT + 1);
+        assert_eq!(v["list"][0].as_str().unwrap().chars().count(), MAX_TEXT + 1);
+        assert_eq!(v["n"], 5);
+        let link = LinkConfig {
+            addr: "127.0.0.1:1".into(),
+            token: "s3cret".into(),
+        };
+        assert!(!format!("{link:?}").contains("s3cret"));
     }
 
     #[test]

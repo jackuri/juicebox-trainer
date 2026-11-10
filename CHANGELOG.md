@@ -16,7 +16,9 @@ All notable changes to this project are documented here. The format follows
   opens for that session alone (this PC only, with a one-time code), for the game that's open.
   Through it the helper can only search, read, set and lock numbers and save cheat data. Every
   change it makes is a test that's undone when it finishes. It can't lift your own locks or change
-  your keys. If you close the game window or open another game, it stops getting answers.
+  your keys. If you close the game window, open another game or the page goes to another
+  website, it stops getting answers. If the helper is stopped before it undoes its tests, the app
+  undoes them itself.
 - The helper won't make cheats for competitive web games (ranked, PvP against strangers,
   leaderboards) or games with items worth real money.
 

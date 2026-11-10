@@ -276,7 +276,15 @@ _Last updated: 2026-11-10 — v1.20.0_
   tests undone and its cheats shown at once and working with their key. One real AI run (the
   user's Claude login, $2 limit) on testbed/web with a simulated player: all three cheats (gold
   by name, health and ammo by search) found, checked, saved and still right after a reload, in
-  67 s for about $0.23, with 7 questions to the player.
+  67 s for about $0.23, with 7 questions to the player. Security review before release (user's
+  request): no exploitable issue found in the new code; `npm audit` of the shipped packages 0
+  issues (10 moderate in eslint's minimatch, dev only); `cargo audit` 0 vulnerabilities (5
+  warnings for Linux-only or build-time crates). Fixed from the review: the app now undoes what a
+  stopped helper left in the page (the link keeps each place's value from before; the tool server
+  says "reverted" when it undid everything), lock ids must be `ai:<number>`, the link refuses a
+  page that went to another website, each connection has its own thread, the token is never
+  printed, page text over 300 characters is cut, and both prompts say text from the game is data,
+  never instructions.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
