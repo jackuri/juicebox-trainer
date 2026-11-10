@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { AboutView } from "./components/AboutView";
 import { ThemeView } from "./components/ThemeView";
+import { WebGamesView } from "./components/WebGamesView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
 import { Icon, Logo } from "./components/Icon";
@@ -26,7 +27,7 @@ import {
   type Verdict,
 } from "./lib/ipc";
 
-type View = "games" | "cheats" | "packs" | "saves" | "ai" | "themes" | "about";
+type View = "games" | "web" | "cheats" | "packs" | "saves" | "ai" | "themes" | "about";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -158,6 +159,7 @@ export default function App() {
           {(
             [
               ["games", "Games", "games"],
+              ["web", "Web games", "web"],
               ["cheats", "Cheats", "cheats"],
               ["packs", "Packs", "packs"],
               ["saves", "Save backups", "saves"],
@@ -243,6 +245,8 @@ export default function App() {
         <AboutView />
       ) : view === "themes" ? (
         <ThemeView />
+      ) : view === "web" ? (
+        <WebGamesView />
       ) : view === "ai" ? (
         <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} />
       ) : view === "saves" ? (

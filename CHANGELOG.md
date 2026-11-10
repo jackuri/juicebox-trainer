@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.18.0] - 2026-11-09
+
+### Added
+- **The agreement.** Before using OpenTrainer, players read a short "play fair" warning (cheats
+  only alone or with invited friends, never with strangers or in public matches; other players
+  can report you and sites can ban accounts) and a waiver (OpenTrainer is used at your own risk;
+  its makers aren't responsible for bans, reports, lost saves or other problems), and sign by
+  typing their name. It's saved with the date (`%APPDATA%\OpenTrainer\agreement.json`) and
+  shown again if the agreement changes. **About** shows who signed and when, with the text.
+- **Web games.** A new **Web games** tab: add a game that runs in a web page by its address
+  (https, or http on this PC) and click **Play**. It opens in OpenTrainer's game window, where
+  OpenTrainer's helper can:
+  - **find a value** (any, whole or decimal number) in the game's WebAssembly memory (games built
+    with Emscripten, console emulators) or in its JavaScript values (most HTML5 games), and narrow
+    it down (it's now this value, went up, went down, changed, didn't change);
+  - **set** it and **lock** it;
+  - **save** found values as the game's cheats, which work again the next time it's opened.
+  The page gets no access to OpenTrainer's commands; only OpenTrainer's own fixed calls run in it.
+- A web testbed (`testbed/web`): gold in JavaScript, health and ammo in WebAssembly memory.
+
+### Known limits
+- Games in another site's frame, or running in a background worker, may not show their numbers.
+- Web cheats are found again by where they were; a game update can move them.
+
 ## [1.17.0] - 2026-11-09
 
 ### Added

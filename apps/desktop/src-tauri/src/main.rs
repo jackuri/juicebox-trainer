@@ -1,6 +1,7 @@
 // No console window in release builds.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod agreement;
 mod ai;
 mod commands;
 mod covers;
@@ -16,6 +17,7 @@ mod saves;
 mod sharing;
 mod tables;
 mod updates;
+mod web;
 
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tracing::{info, warn};
@@ -79,6 +81,7 @@ fn main() {
         .manage(remote::RemoteState::default())
         .manage(sharing::SharingState::default())
         .manage(tables::TablesState::default())
+        .manage(web::WebState::default())
         .manage(github::GithubState::default())
         .manage(updates::UpdateState::default())
         .on_window_event(|window, event| {
@@ -174,6 +177,17 @@ fn main() {
             sharing::packs_preview,
             sharing::packs_import,
             tables::tables_search,
+            agreement::agreement_status,
+            agreement::agreement_sign,
+            web::web_games,
+            web::web_game_add,
+            web::web_game_remove,
+            web::web_cheats,
+            web::web_cheats_save,
+            web::web_open,
+            web::web_current,
+            web::web_close,
+            web::web_call,
             tables::tables_recent,
             github::github_status,
             github::github_sign_in,

@@ -238,6 +238,53 @@ export interface PackSummary {
   tableLink?: boolean;
 }
 
+/** The player's signed agreement (v1.18.0). */
+export interface AgreementStatus {
+  accepted: boolean;
+  version: number;
+  signed: { version: number; name: string; date: string } | null;
+}
+
+/** A game that runs in a web page (v1.18.0). */
+export interface WebGame {
+  id: string;
+  name: string;
+  url: string;
+  added: string;
+}
+
+export type NumType = "u8" | "i16" | "i32" | "f32" | "f64";
+/** Where a number lives in a web game: a page memory, or a JavaScript value by its path. */
+export type WebTarget =
+  | { k: "m"; mem: number; label: string; size: number; off: number; t: NumType }
+  | { k: "j"; path: string[] };
+
+export interface WebCheat {
+  name: string;
+  target: WebTarget;
+  value?: number | null;
+}
+
+export interface WebHit {
+  id: number;
+  target: WebTarget;
+  where: string;
+  value: number;
+}
+
+export interface WebSearch {
+  count: number;
+  tooMany: boolean;
+  results: WebHit[];
+}
+
+export interface WebInfo {
+  url: string;
+  title: string;
+  memories: { index: number; label: string; bytes: number }[];
+  locks: number;
+}
+
 /** A Cheat Engine table on its maker's page, from the community list (v1.16.0). */
 export interface TableLink {
   id: string;
@@ -1086,6 +1133,25 @@ export const api = {
   packsPreview: (path: string, exe?: string) => invoke<PackPreview>("packs_preview", { path, exe: exe ?? null }),
   packsImport: (path: string, replace: boolean, exe?: string, checksum?: string, credit?: Credit) =>
     invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null, checksum: checksum ?? null, credit: credit ?? null }),
+  agreementStatus: () => invoke<AgreementStatus>("agreement_status"),
+  agreementSign: (name: string) => invoke<AgreementStatus>("agreement_sign", { name }),
+  webGames: () => invoke<WebGame[]>("web_games"),
+  webGameAdd: (name: string, url: string) => invoke<WebGame>("web_game_add", { name, url }),
+  webGameRemove: (id: string) => invoke<void>("web_game_remove", { id }),
+  webCheats: (id: string) => invoke<WebCheat[]>("web_cheats", { id }),
+  webCheatsSave: (id: string, cheats: WebCheat[]) => invoke<void>("web_cheats_save", { id, cheats }),
+  webOpen: (id: string) => invoke<WebGame>("web_open", { id }),
+  webCurrent: () => invoke<WebGame | null>("web_current"),
+  webClose: () => invoke<void>("web_close"),
+  webInfo: () => invoke<WebInfo>("web_call", { method: "info", args: null }),
+  webFind: (value: number, kind: "any" | "whole" | "decimal") => invoke<WebSearch>("web_call", { method: "find", args: { value, kind } }),
+  webNext: (how: "equals" | "changed" | "unchanged" | "increased" | "decreased", value?: number) =>
+    invoke<WebSearch>("web_call", { method: "next", args: { how, value: value ?? null } }),
+  webResults: () => invoke<WebSearch>("web_call", { method: "results", args: null }),
+  webRead: (targets: WebTarget[]) => invoke<{ value?: number; error?: string }[]>("web_call", { method: "read", args: { targets } }),
+  webSet: (target: WebTarget, value: number) => invoke<{ value: number }>("web_call", { method: "set", args: { target, value } }),
+  webLock: (id: string, target: WebTarget, value: number) => invoke<unknown>("web_call", { method: "lock", args: { id, target, value } }),
+  webUnlock: (id?: string) => invoke<unknown>("web_call", { method: "unlock", args: { id: id ?? null } }),
   /** Opens a search for the game's Cheat Engine tables in the browser. */
   tablesSearch: (site: "fearless" | "web", game: string) => invoke<void>("tables_search", { site, game }),
   /** Cheat Engine tables downloaded in the last 30 days, newest first. */

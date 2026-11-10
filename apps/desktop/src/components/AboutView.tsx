@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
+import { AgreementText } from "./AgreementGate";
+import { type AgreementStatus, type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -7,6 +8,7 @@ const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 dis
 export function AboutView() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [ai, setAi] = useState<AiStatus | null>(null);
+  const [agreement, setAgreement] = useState<AgreementStatus | null>(null);
   const [checking, setChecking] = useState(false);
   const [result, setResult] = useState<UpdateInfo | null | undefined>(undefined);
   const [installing, setInstalling] = useState(false);
@@ -17,6 +19,7 @@ export function AboutView() {
   useEffect(() => {
     api.updateStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
     api.aiStatus().then(setAi, () => undefined);
+    api.agreementStatus().then(setAgreement, () => undefined);
   }, []);
   useEffect(
     () =>
@@ -147,6 +150,21 @@ export function AboutView() {
               </button>
             </div>
           )}
+        </section>
+      )}
+
+      {agreement?.signed && (
+        <section className="flex flex-col gap-1" aria-label="Your agreement">
+          <h3 className="font-medium">Your agreement</h3>
+          <p className="text-zinc-400">
+            Signed by {agreement.signed.name} on {agreement.signed.date}.
+          </p>
+          <details className="text-zinc-400">
+            <summary className="cursor-pointer text-emerald-300 hover:text-emerald-200">Read it again</summary>
+            <div className="mt-2">
+              <AgreementText />
+            </div>
+          </details>
         </section>
       )}
 

@@ -30,6 +30,13 @@ application data" also removes the downloaded AI engine.
 flag them. OpenTrainer doesn't hide what it does. If yours complains, check that you downloaded it
 from the releases page above. You can compare the file with `SHA256SUMS.txt` there.
 
+## The agreement
+
+The first time you open OpenTrainer (and if the agreement ever changes), it asks you to read a
+short agreement: play fair (cheats only alone or with friends you invited) and use OpenTrainer at
+your own risk (its makers aren't responsible if an account is banned or a save breaks). Tick the
+box and type your name to sign. **About** shows it again.
+
 ## The tabs
 
 The tabs are in the bar on the left. The bottom of that bar says which game OpenTrainer is
@@ -42,6 +49,7 @@ attached to, if any.
 | **Packs** | Your cheat packs, sharing them, and packs from other players |
 | **Save backups** | Back up, compare, restore and edit saves |
 | **Make a trainer (AI)** | Let the AI helper find cheats for a game with you |
+| **Web games** | Games that run in a web page: find and lock values |
 | **Themes** | Change how OpenTrainer looks |
 | **About** | Version, updates, this guide |
 
@@ -227,6 +235,28 @@ What it needs:
 The helper can only use OpenTrainer's guarded tools. It can't run programs or read your files. It
 refuses games with anti-cheat, and its test changes are undone when it stops. You set the most it
 may spend. Every step is logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
+
+## Web games
+
+Some games run in a web page. OpenTrainer can open them in its own window and change their
+numbers.
+
+1. Open **Web games**. Under **Add a web game**, type a name and paste the game's address (copy it
+   from your browser), then click **Add**.
+2. Click **Play**. The game opens in OpenTrainer's game window. Play as usual (sign in, start the
+   game).
+3. Back in OpenTrainer, under **Find a value**, type a number you see in the game (gold, health,
+   ammo…) and click **Find**. Change it in the game (spend gold, take a hit), then click **It's now
+   this value** with the new number, or **Went up** / **Went down**. Repeat until only a few are
+   left.
+4. Click **Add to my cheats** and name it. Now you can **Set** it to any number or **Lock** it.
+   Your cheats are saved for that game.
+
+**Play fair:** only use cheats alone or in a private game with friends you invited, never with
+strangers or in public matches. Other players can report you and sites can ban accounts.
+
+Games inside another site's frame, or running in a background worker, may not show their numbers
+yet. If a game is updated, find its values again.
 
 ## Themes
 

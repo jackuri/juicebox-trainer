@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.17.0_
+_Last updated: 2026-11-09 — v1.18.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -72,6 +72,23 @@ _Last updated: 2026-11-09 — v1.17.0_
   a credited table pack (author = maker's name) was called "a file" in the share dialog; now a
   pack whose credit names a `.CT` file counts as a table. Test pack removed. Installer:
   `release-out/OpenTrainer_1.17.0_x64-setup.exe`.
+- Real-app test of the 1.18.0 release build (DevTools port, testbed/web on a local server, 29/29
+  passed): agreement first, web_open refused before signing, sign needs the box + a name, saved
+  with the date; Web games tab + play-fair note; add (plain http elsewhere refused), open, helper
+  in the page; the game page's IPC is refused ("not allowed by ACL"); health in WebAssembly
+  memory found / set / locked / unlocked, gold as game.player.gold found / set, ammo as f32 found;
+  cheats saved, window closed, reopened and cheats work again; unknown calls refused. It found a
+  bug, fixed: the memory count was read only once, before the game made its memory; it's now
+  read again every few seconds. Older real-app tests (1.13 to 1.17) re-run on 1.18 with a
+  temporary test signature: 101/101. The user's own agreement / web-games files were backed up and
+  restored (none existed, so the user still signs it themselves). Installer:
+  `release-out/OpenTrainer_1.18.0_x64-setup.exe`.
+- v1.18.0 Agreement + web games I (user request: web games like outbreakweb.com, which the user
+  says is a fan-made co-op site where you invite friends; a warning and a waiver every player
+  signs). `src-tauri/src/{agreement.rs, web.rs, web_agent.js}`, `components/{AgreementGate,
+  WebGamesView, WebCheatsPanel}.tsx`, `lib/agreement.ts`, `testbed/web`. The agreement text is
+  plain-language and not legal advice; the user should have it checked. Not tested on
+  outbreakweb.com or any real site (only on testbed/web).
 - Before releasing 1.17.0 (the user asked to run and check everything first): all real-app tests
   from 1.13 to 1.17 re-run on the 1.17 build, 101/101 passed (memory viewer + XML / YAML / SQLite
   saves 25, themes 34, Downloads tables 14, table links 14, credit and terms 14). Review fixes:
@@ -247,9 +264,9 @@ _Last updated: 2026-11-09 — v1.17.0_
   works.
 
 ## In progress
-- Pushed through v1.16.0; v1.16.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through 6c30cda (table links). v1.17.0 and community repo 79b222e: pushed and tagged on
-  2026-11-09 (see the release notes). v1.10.0 – v1.12.0 were
+- Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
+  through b1ff553 (makers' terms). v1.18.0 is committed locally only (not pushed or tagged yet;
+  waiting for the user). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and

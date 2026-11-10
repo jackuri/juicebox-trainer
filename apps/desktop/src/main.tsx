@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { AgreementGate } from "./components/AgreementGate";
 import { Overlay } from "./components/Overlay";
 import "./index.css";
 import { applyTheme, loadTheme, watchTheme } from "./lib/theme";
@@ -16,4 +17,14 @@ if (overlay) document.documentElement.classList.add("overlay");
 applyTheme(loadTheme());
 watchTheme();
 
-createRoot(root).render(<StrictMode>{overlay ? <Overlay /> : <App />}</StrictMode>);
+createRoot(root).render(
+  <StrictMode>
+    {overlay ? (
+      <Overlay />
+    ) : (
+      <AgreementGate>
+        <App />
+      </AgreementGate>
+    )}
+  </StrictMode>,
+);
