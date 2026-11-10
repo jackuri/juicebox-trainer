@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.17.0] - 2026-11-09
+
+### Added
+- **Makers choose their terms.** Sharing a pack asks who made the cheats ("I did" or "someone
+  else, and they said it may be shared") and the terms for other players: free to reuse (MIT),
+  "shared with permission; the maker keeps all rights", or other terms of your own. An optional
+  support link (Patreon, Ko-fi, Buy Me a Coffee, GitHub, YouTube) can be added. They're kept in the
+  pack (`meta.source`: `licence`, `support`, `fromMaker`) and described in the pull request.
+- **Credit in the community list.** Each community pack shows who made the cheats, its terms
+  (MIT when none are given), a **Shared by its maker** badge when its maker shared it (checked by
+  the list's maintainers), and **Maker's page** / **Support the maker** buttons. Only addresses the
+  list gives for that pack, on known table or support sites, are opened. The install dialog shows
+  the terms and the support page too.
+- **For table makers** (`docs/CREATORS.md`): what OpenTrainer does with a table, how makers are
+  credited, how to share with their own terms, and an invitation message to send them.
+
+### Changed
+- The community list: packs are MIT unless the pack names other terms.
+
 ## [1.16.0] - 2026-11-09
 
 ### Added

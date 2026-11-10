@@ -75,7 +75,10 @@
           "properties": {
             "by": { "description": "Who made them.", "type": "string", "minLength": 1, "maxLength": 100 },
             "url": { "description": "The page they were published on.", "type": "string", "pattern": "^https?://[^/\\s]", "maxLength": 400 },
-            "file": { "description": "The file they were converted from.", "type": "string", "minLength": 1, "maxLength": 200 }
+            "file": { "description": "The file they were converted from.", "type": "string", "minLength": 1, "maxLength": 200 },
+            "licence": { "description": "The maker's terms, e.g. MIT or 'Shared with permission; all rights kept by the maker' (v1.17.0). Community packs without terms are MIT.", "type": "string", "minLength": 1, "maxLength": 100 },
+            "support": { "description": "Where players can support the maker: https on Patreon, Ko-fi, Buy Me a Coffee, GitHub, YouTube or a table site.", "type": "string", "pattern": "^https://[^/@\\s]+(/.*)?$", "maxLength": 400 },
+            "fromMaker": { "description": "The person who shared the pack says they made the cheats; checked by the community list's maintainers.", "type": "boolean" }
           }
         }
       }

@@ -3,6 +3,8 @@ import {
   api,
   type DeviceCode,
   type GithubStatus,
+  LICENCE_MIT,
+  LICENCE_PERMISSION,
   type PackSummary,
   type SharedPack,
   TABLE_AUTHOR,
@@ -31,12 +33,17 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
   const [copied, setCopied] = useState(false);
   const [note, setNote] = useState("");
   const [tested, setTested] = useState(false);
-  const [tableOk, setTableOk] = useState(false);
+  /** Who made the cheats (asked for packs that came from someone else). */
+  const [madeBy, setMadeBy] = useState<"me" | "other" | null>(null);
+  const [terms, setTerms] = useState<"mit" | "permission" | "other">("mit");
+  const [otherTerms, setOtherTerms] = useState("");
+  const [support, setSupport] = useState("");
   const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState<SharedPack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = pack.name ?? pack.id ?? "this pack";
-  const fromTable = pack.author === TABLE_AUTHOR;
+  /** Converted from a Cheat Engine table (the author is the maker's name once credited). */
+  const fromTable = pack.author === TABLE_AUTHOR || /\.ct$/i.test(pack.credit?.file ?? "");
   /** Someone else made it: a file the player opened, or a Cheat Engine table. */
   const fromSomeoneElse = fromTable || pack.source === "imported";
 
@@ -74,7 +81,17 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     setError(null);
     setSharing(true);
     try {
-      setShared(link ? await api.communityShareTable(pack.key) : await api.communityShare(pack.key, note, tableOk));
+      const licence = terms === "mit" ? LICENCE_MIT : terms === "permission" ? LICENCE_PERMISSION : otherTerms.trim();
+      const fromMaker = fromSomeoneElse ? madeBy === "me" : !pack.ai;
+      setShared(
+        link
+          ? await api.communityShareTable(pack.key)
+          : await api.communityShare(pack.key, note, fromSomeoneElse && madeBy === "other", {
+              fromMaker,
+              licence,
+              support: support.trim() || undefined,
+            }),
+      );
     } catch (e) {
       const err = toCommandError(e);
       if (err.kind === "signedOut") setStatus((s) => (s ? { ...s, signedIn: false, login: null } : s));
@@ -203,17 +220,55 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
             I tried every cheat in this pack and they work. It&apos;s for a single-player game.
           </label>
           {fromSomeoneElse && (
-            <label className="flex items-start gap-2">
-              <input type="checkbox" className="mt-1" checked={tableOk} onChange={(e) => setTableOk(e.target.checked)} />
-              {fromTable
-                ? "This pack came from a Cheat Engine table. I made that table, or its author says it may be shared."
-                : "This pack came from a file. I made it, or its maker says it may be shared."}
-            </label>
+            <fieldset className="flex flex-col gap-1">
+              <legend className="mb-1">{fromTable ? "This pack came from a Cheat Engine table. Who made the table?" : "This pack came from a file. Who made it?"}</legend>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="made-by" className="mt-1" checked={madeBy === "me"} onChange={() => setMadeBy("me")} />I did
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="radio" name="made-by" className="mt-1" checked={madeBy === "other"} onChange={() => setMadeBy("other")} />
+                Someone else, and they said it may be shared (pick the terms they agreed to)
+              </label>
+            </fieldset>
           )}
+          <fieldset className="flex flex-col gap-1">
+            <legend className="mb-1">Terms for other players</legend>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="terms" className="mt-1" checked={terms === "mit"} onChange={() => setTerms("mit")} />
+              Free to reuse and change (MIT)
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="terms" className="mt-1" checked={terms === "permission"} onChange={() => setTerms("permission")} />
+              Shared with permission; the maker keeps all rights (others may use it, not re-share it)
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="terms" className="mt-1" checked={terms === "other"} onChange={() => setTerms("other")} />
+              Other terms:
+              <input
+                aria-label="Other terms"
+                className="min-w-0 flex-1 rounded bg-zinc-950 px-2 py-0.5 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+                maxLength={100}
+                value={otherTerms}
+                onFocus={() => setTerms("other")}
+                onChange={(e) => setOtherTerms(e.target.value)}
+              />
+            </label>
+          </fieldset>
+          <label className="flex flex-col gap-1">
+            Where players can support the maker (optional: Patreon, Ko-fi, Buy Me a Coffee, GitHub, YouTube)
+            <input
+              aria-label="Support page"
+              className="rounded-lg bg-zinc-950 px-3 py-1.5 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600"
+              placeholder="https://www.patreon.com/…"
+              maxLength={400}
+              value={support}
+              onChange={(e) => setSupport(e.target.value)}
+            />
+          </label>
           <div className="flex flex-wrap items-center gap-2">
             <button
               className={primary}
-              disabled={sharing || !tested || (fromSomeoneElse && !tableOk)}
+              disabled={sharing || !tested || (fromSomeoneElse && madeBy === null) || (terms === "other" && !otherTerms.trim())}
               onClick={() => void share()}
             >
               {sharing ? "Sharing…" : "Share"}

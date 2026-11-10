@@ -530,10 +530,45 @@ fn pr_text(
             note.as_str()
         },
     );
-    if pack.meta.author == TABLE_AUTHOR {
-        body.push_str(" It was converted from a Cheat Engine table; the sharer says they made the table or its author allows sharing it.");
+    let src = pack.meta.source.as_ref();
+    body.push_str(&format!(
+        "
+
+- **Terms:** {}",
+        src.and_then(|s| s.licence.as_deref())
+            .map_or_else(|| "MIT (the list's default)".to_string(), |l| plain(l, 100))
+    ));
+    if let Some(by) = src.and_then(|s| s.by.as_deref()) {
+        body.push_str(&format!(
+            "
+- **Credit:** {}",
+            plain(by, 100)
+        ));
+    }
+    if let Some(support) = src.and_then(|s| s.support.as_deref()) {
+        body.push_str(&format!(
+            "
+- **Support page:** {}",
+            plain(support, 400)
+        ));
+    }
+    if src.is_some_and(|s| s.from_maker) {
+        body.push_str(
+            "
+- **Shared by its maker:** the sharer says they made these cheats. Maintainers: check this              (for example the maker's forum profile or thread links to this GitHub account) before merging,              because it shows a \"Shared by its maker\" badge.",
+        );
+    } else if pack.meta.author == TABLE_AUTHOR || src.is_some_and(|s| s.file.is_some()) {
+        body.push_str(
+            "
+
+It was converted from a Cheat Engine table; the sharer says its maker allows sharing it.",
+        );
     } else if req.from_someone_else {
-        body.push_str(" It came from a pack file; the sharer says they made it or its maker allows sharing it.");
+        body.push_str(
+            "
+
+It came from a pack file; the sharer says they made it or its maker allows sharing it.",
+        );
     }
     if update {
         body.push_str("\n\nThe list already has a pack for this game: this replaces it.");
@@ -713,12 +748,73 @@ async fn send_file(
     })
 }
 
+/// The terms the player picks when sharing (v1.17.0).
+#[derive(Debug, Default, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Terms {
+    /// The player made the cheats (for a table: they made the table).
+    #[serde(default)]
+    pub from_maker: bool,
+    /// The maker's terms; none means MIT on the community list.
+    #[serde(default)]
+    pub licence: Option<String>,
+    /// Where players can support the maker.
+    #[serde(default)]
+    pub support: Option<String>,
+}
+
+/// The pack text with the chosen terms in `meta.source` (checked again).
+pub fn with_terms(text: &str, terms: &Terms) -> Result<String, CommandError> {
+    let licence = terms
+        .licence
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let support = terms
+        .support
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    if !terms.from_maker && licence.is_none() && support.is_none() {
+        return Ok(text.to_string());
+    }
+    let bad = |e: String| err("badRequest", e);
+    let mut v: Value = serde_json::from_str(text).map_err(|e| bad(e.to_string()))?;
+    let src = &mut v["meta"]["source"];
+    if terms.from_maker {
+        src["fromMaker"] = true.into();
+    }
+    if let Some(l) = licence {
+        src["licence"] = l.into();
+    }
+    if let Some(s) = support {
+        src["support"] = s.into();
+    }
+    let text = serde_json::to_string_pretty(&v).map_err(|e| bad(e.to_string()))?
+        + "
+";
+    match ot_packs::parse(&text) {
+        Ok(_) => Ok(text),
+        Err(e) => {
+            let e = e.to_string();
+            Err(bad(if e.contains("meta.source.support") {
+                "the support page must be an https page on Patreon, Ko-fi, Buy Me a Coffee, GitHub, YouTube or a table site".into()
+            } else if e.contains("meta.source.licence") {
+                "the terms must be 1 to 100 characters on one line".into()
+            } else {
+                e
+            }))
+        }
+    }
+}
+
 /// Shares one of the player's packs with the community list.
 #[tauri::command]
 pub async fn community_share(
     key: String,
     note: String,
     permission: bool,
+    terms: Option<Terms>,
     state: State<'_, GithubState>,
 ) -> CmdResult<Shared> {
     let found = store::all()
@@ -739,6 +835,8 @@ pub async fn community_share(
         store::Source::User => false,
     };
     let text = found.text.map_err(|e| err("io", e.to_string()))?;
+    let terms = terms.unwrap_or_default();
+    let text = with_terms(&text, &terms)?;
     let token =
         vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
     let stamp = std::time::SystemTime::now()
@@ -751,7 +849,8 @@ pub async fn community_share(
         &ShareRequest {
             note,
             from_someone_else,
-            permission,
+            // The maker sharing their own cheats needs nobody's permission.
+            permission: permission || terms.from_maker,
         },
         stamp,
     )
@@ -1126,6 +1225,57 @@ mod tests {
             "{body}"
         );
         assert!(body.contains("Only a link"));
+    }
+
+    #[test]
+    fn the_maker_picks_terms_and_a_support_page() {
+        let text = pack_text("sam");
+        // No terms: the text is shared exactly as it is.
+        assert_eq!(with_terms(&text, &Terms::default()).unwrap(), text);
+        let terms = Terms {
+            from_maker: true,
+            licence: Some(ot_packs::schema::LICENCE_PERMISSION.into()),
+            support: Some("https://ko-fi.com/sam".into()),
+        };
+        let shared = with_terms(&text, &terms).unwrap();
+        let (pack, _) = ot_packs::parse(&shared).unwrap();
+        let src = pack.meta.source.clone().unwrap();
+        assert!(src.from_maker);
+        assert_eq!(
+            src.licence.as_deref(),
+            Some(ot_packs::schema::LICENCE_PERMISSION)
+        );
+        let (_, body) = pr_text(&pack, &req(false), false, "sam");
+        assert!(body.contains("all rights kept by the maker"), "{body}");
+        assert!(
+            body.contains("Shared by its maker") && body.contains("ko-fi.com/sam"),
+            "{body}"
+        );
+        // A made-by-the-maker table pack needs no other permission.
+        assert!(
+            shareable(
+                &shared,
+                &ShareRequest {
+                    note: String::new(),
+                    from_someone_else: true,
+                    permission: true
+                }
+            )
+            .is_ok()
+        );
+
+        let bad = with_terms(
+            &text,
+            &Terms {
+                support: Some("https://evil.example/pay".into()),
+                ..Terms::default()
+            },
+        )
+        .unwrap_err();
+        assert!(bad.message.contains("Patreon"), "{}", bad.message);
+        let (plain_pack, _) = ot_packs::parse(&text).unwrap();
+        let (_, mit) = pr_text(&plain_pack, &req(false), false, "sam");
+        assert!(mit.contains("MIT (the list's default)"), "{mit}");
     }
 
     #[test]

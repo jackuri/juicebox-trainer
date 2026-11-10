@@ -424,6 +424,23 @@ export interface CheatSource {
   by?: string;
   url?: string;
   file?: string;
+  /** The maker's terms (v1.17.0); none means MIT on the community list. */
+  licence?: string;
+  /** Where players can support the maker. */
+  support?: string;
+  /** The person who shared it says they made the cheats (checked by the list's maintainers). */
+  fromMaker?: boolean;
+}
+
+/** Terms a maker can pick when sharing. */
+export const LICENCE_MIT = "MIT";
+export const LICENCE_PERMISSION = "Shared with permission; all rights kept by the maker";
+
+/** What the player picks when sharing a pack (v1.17.0). */
+export interface ShareTerms {
+  fromMaker: boolean;
+  licence?: string;
+  support?: string;
 }
 
 /** The table maker's name and page, typed when converting a table. */
@@ -488,6 +505,8 @@ export interface CommunityPack {
   packVersion: string;
   cheats: number;
   notes: string | null;
+  /** Who made the cheats, their terms and support page (v1.17.0). */
+  source?: CheatSource | null;
   sha256: string;
   size: number;
   installed: "none" | "installed" | "update" | "other";
@@ -1081,8 +1100,10 @@ export const api = {
   githubOpenDevicePage: () => invoke<void>("github_open_device_page"),
   githubOpenPr: (url: string) => invoke<void>("github_open_pr", { url }),
   /** `permission`: for a pack from someone else, the player made it or its maker allows sharing it. */
-  communityShare: (key: string, note: string, permission: boolean) =>
-    invoke<SharedPack>("community_share", { key, note, permission }),
+  communityShare: (key: string, note: string, permission: boolean, terms?: ShareTerms) =>
+    invoke<SharedPack>("community_share", { key, note, permission, terms: terms ?? null }),
+  /** Opens a community pack maker's page or support page (only what the list gives). */
+  communityOpenCredit: (id: string, which: "page" | "support") => invoke<void>("community_open_credit", { id, which }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
   /** Adds the link to the table a pack came from to the community list (a pull request). */
   communityShareTable: (key: string) => invoke<SharedPack>("community_share_table", { key }),

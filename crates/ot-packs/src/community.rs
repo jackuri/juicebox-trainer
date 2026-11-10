@@ -141,6 +141,10 @@ pub struct Entry {
     pub cheats: usize,
     #[serde(default)]
     pub notes: Option<String>,
+    /// Who made the cheats, their terms and support page (v1.17.0; the pack's
+    /// `meta.source` without the file name).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<crate::schema::Source>,
     /// SHA-256 of `packs/<id>/pack.json`.
     pub sha256: String,
     /// Bytes of `pack.json`.
@@ -257,6 +261,11 @@ pub fn entry_for(pack: &Pack, text: &str) -> Entry {
         pack_version: pack.meta.pack_version.clone(),
         cheats: pack.cheats.len(),
         notes: pack.meta.notes.clone(),
+        source: pack
+            .meta
+            .source
+            .clone()
+            .map(|s| crate::schema::Source { file: None, ..s }),
         sha256: ot_core::hash::sha256_bytes(text.as_bytes()),
         size: text.len() as u64,
     }

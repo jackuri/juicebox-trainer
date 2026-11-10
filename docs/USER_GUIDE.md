@@ -133,6 +133,11 @@ In the **Packs** tab:
   tables itself.
   - **Tables other players found:** **Find a cheat table** also lists tables other players linked
     for that game, with who made them. **Open its page** opens the table's own page.
+  - **Credit and terms:** community packs show who made the cheats, their terms (MIT unless the
+    maker chose others, such as "shared with permission; the maker keeps all rights"), a **Shared
+    by its maker** badge when the maker shared it, and **Maker's page** / **Support the maker**.
+    When you share a pack, say who made it and pick the terms; if someone else made it, pick the
+    terms they agreed to. Table makers: see [For cheat table makers](CREATORS.md).
   - **Share a table's link:** after turning a table into cheats (with its maker and page filled
     in), click **Share the table's link** next to it in **Packs**. Only the link goes to the
     community list, so other players find the table on its maker's page. OpenTrainer turns its number values (health, money, ammo…, also ones found through

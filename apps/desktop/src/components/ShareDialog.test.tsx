@@ -67,32 +67,72 @@ describe("ShareDialog", () => {
     fireEvent.click(screen.getByLabelText(/I tried every cheat/));
     fireEvent.click(shareButton);
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "Steam, v1.2", permission: false }),
+      expect(invoke).toHaveBeenCalledWith("community_share", {
+        key: pack.key,
+        note: "Steam, v1.2",
+        permission: false,
+        // An AI-made pack: no maker badge; MIT by default.
+        terms: { fromMaker: false, licence: "MIT", support: undefined },
+      }),
     );
     expect(await screen.findByText(/Sent! A maintainer will check it/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "See it on GitHub" }));
     expect(invoke).toHaveBeenCalledWith("github_open_pr", { url: "https://github.com/jackuri/opentrainer-packs/pull/7" });
   });
 
-  it("asks for the table author's permission for a pack made from a Cheat Engine table", async () => {
+  it("a table's maker shares it with their own terms and support page", async () => {
     mock({ configured: true, signedIn: true, login: "sam" });
     render(<ShareDialog pack={{ ...pack, author: "Cheat Engine table (imported)", ai: false }} onClose={vi.fn()} />);
     fireEvent.click(await screen.findByLabelText(/I tried every cheat/));
+    expect(screen.getByText(/Who made the table\?/)).toBeInTheDocument();
+    // Who made it must be answered first.
     expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
-    fireEvent.click(screen.getByLabelText(/I made that table/));
+    fireEvent.click(screen.getByLabelText("I did"));
+    fireEvent.click(screen.getByLabelText(/the maker keeps all rights/));
+    fireEvent.change(screen.getByLabelText("Support page"), { target: { value: "https://ko-fi.com/sam" } });
     fireEvent.click(screen.getByRole("button", { name: "Share" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("community_share", { key: pack.key, note: "", permission: true }),
+      expect(invoke).toHaveBeenCalledWith("community_share", {
+        key: pack.key,
+        note: "",
+        permission: false,
+        terms: { fromMaker: true, licence: "Shared with permission; all rights kept by the maker", support: "https://ko-fi.com/sam" },
+      }),
     );
   });
 
-  it("asks the maker's permission for a pack someone gave you", async () => {
+  it("knows a credited table pack came from a table", async () => {
+    mock({ configured: true, signedIn: true, login: "sam" });
+    render(
+      <ShareDialog
+        pack={{ ...pack, source: "imported", author: "TableMaker", ai: false, credit: { by: "TableMaker", file: "Coin_Quest.CT" } }}
+        onClose={vi.fn()}
+      />,
+    );
+    expect(await screen.findByText(/This pack came from a Cheat Engine table. Who made the table\?/)).toBeInTheDocument();
+  });
+
+  it("someone else's pack needs their permission and the terms they agreed to", async () => {
     mock({ configured: true, signedIn: true, login: "sam" });
     render(<ShareDialog pack={{ ...pack, source: "imported", author: "pat", ai: false }} onClose={vi.fn()} />);
     fireEvent.click(await screen.findByLabelText(/I tried every cheat/));
+    expect(screen.getByText(/This pack came from a file. Who made it\?/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
-    fireEvent.click(screen.getByLabelText(/This pack came from a file/));
+    fireEvent.click(screen.getByLabelText(/Someone else, and they said it may be shared/));
     expect(screen.getByRole("button", { name: "Share" })).toBeEnabled();
+    // Other terms need words.
+    fireEvent.click(screen.getByLabelText(/^Other terms:/));
+    expect(screen.getByRole("button", { name: "Share" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText("Other terms"), { target: { value: "CC BY 4.0" } });
+    fireEvent.click(screen.getByRole("button", { name: "Share" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("community_share", {
+        key: pack.key,
+        note: "",
+        permission: true,
+        terms: { fromMaker: false, licence: "CC BY 4.0", support: undefined },
+      }),
+    );
   });
 
   it("asks to sign in again when GitHub forgot the sign-in", async () => {

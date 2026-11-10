@@ -340,7 +340,13 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         {community && community.packs.length === 0 && <p className="text-sm text-zinc-400">No packs on the list yet.</p>}
         <ul className="flex flex-col gap-2">
           {shown.map((p) => (
-            <CommunityRow key={p.id} pack={p} busy={busy} onPreview={() => void preview({ kind: "community", id: p.id })} />
+            <CommunityRow
+              key={p.id}
+              pack={p}
+              busy={busy}
+              onPreview={() => void preview({ kind: "community", id: p.id })}
+              onCredit={(which) => void api.communityOpenCredit(p.id, which).catch((e: unknown) => setError(toCommandError(e).message))}
+            />
           ))}
         </ul>
       </section>
@@ -355,7 +361,17 @@ const STATE_TEXT: Record<CommunityPack["installed"], string | null> = {
   other: "You have another pack for this game",
 };
 
-function CommunityRow({ pack, busy, onPreview }: { pack: CommunityPack; busy: boolean; onPreview: () => void }) {
+function CommunityRow({
+  pack,
+  busy,
+  onPreview,
+  onCredit,
+}: {
+  pack: CommunityPack;
+  busy: boolean;
+  onPreview: () => void;
+  onCredit: (which: "page" | "support") => void;
+}) {
   const state = STATE_TEXT[pack.installed];
   return (
     <li className="flex flex-wrap items-center gap-3 rounded-xl bg-zinc-900/70 px-3 py-2 ring-1 ring-zinc-800" data-testid={`community-${pack.id}`}>
@@ -370,6 +386,25 @@ function CommunityRow({ pack, busy, onPreview }: { pack: CommunityPack; busy: bo
           )}
         </p>
         {pack.notes && <p className="text-xs text-zinc-500">{pack.notes}</p>}
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400" data-testid="credit">
+          {pack.source?.by && <span>Cheats made by {pack.source.by}</span>}
+          {pack.source?.fromMaker && (
+            <span className="rounded bg-emerald-900/60 px-1.5 py-0.5 text-[10px] text-emerald-200" title="Its maker shared it; the list's maintainers checked">
+              Shared by its maker
+            </span>
+          )}
+          <span>Terms: {pack.source?.licence ?? "MIT (free to reuse)"}</span>
+          {pack.source?.url && (
+            <button className="text-emerald-300 underline hover:text-emerald-200" onClick={() => onCredit("page")}>
+              Maker&apos;s page
+            </button>
+          )}
+          {pack.source?.support && (
+            <button className="text-emerald-300 underline hover:text-emerald-200" onClick={() => onCredit("support")}>
+              Support the maker
+            </button>
+          )}
+        </p>
         {state && <p className={`text-xs ${pack.installed === "installed" ? "text-emerald-400" : "text-sky-300"}`}>{state}</p>}
       </div>
       <button className={pack.installed === "installed" ? button : primary} disabled={busy} aria-label={`See ${pack.name}`} onClick={onPreview}>
@@ -415,10 +450,21 @@ export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCa
         {(p.source?.by || p.source?.url) && (
           <p className="mt-1 text-xs text-zinc-400" data-testid="source">
             Cheats made by {p.source.by ?? "their maker"}
+            {p.source.fromMaker && " (shared by its maker)"}
             {p.source.url && (
               <>
                 {" · "}
                 <span className="select-all break-all text-zinc-300">{p.source.url}</span>
+              </>
+            )}
+          </p>
+        )}
+        {(p.source?.licence || p.source?.support) && (
+          <p className="text-xs text-zinc-400" data-testid="terms">
+            {p.source.licence && <>Terms: {p.source.licence}. </>}
+            {p.source.support && (
+              <>
+                Support the maker: <span className="select-all break-all text-zinc-300">{p.source.support}</span>
               </>
             )}
           </p>

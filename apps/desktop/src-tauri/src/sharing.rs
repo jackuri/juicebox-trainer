@@ -545,6 +545,38 @@ pub async fn community_list(
     })
 }
 
+/// Opens a community pack maker's page (`page`: where the cheats were
+/// published) or support page (`support`) in the browser: only addresses the
+/// list gives for that pack, on a known table or support site.
+#[tauri::command]
+pub async fn community_open_credit(
+    id: String,
+    which: String,
+    state: State<'_, SharingState>,
+) -> CmdResult<()> {
+    let Cached { index, .. } = index(&state, false).await?;
+    let src = index
+        .packs
+        .iter()
+        .find(|e| e.id == id)
+        .and_then(|e| e.source.as_ref())
+        .ok_or_else(|| {
+            CommandError::new("notFound", format!("{id} has no maker's page on the list"))
+        })?;
+    let url = match which.as_str() {
+        "page" => src.url.as_deref(),
+        "support" => src.support.as_deref(),
+        _ => None,
+    }
+    .filter(|u| ot_packs::schema::is_support_url(u))
+    .ok_or_else(|| CommandError::new("badRequest", "that page can't be opened from here"))?;
+    std::process::Command::new("explorer.exe")
+        .arg(url)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    Ok(())
+}
+
 /// Opens a table's page from the community list in the browser: only pages
 /// the list has, on a known table site.
 #[tauri::command]

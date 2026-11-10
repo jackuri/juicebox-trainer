@@ -13,8 +13,9 @@ use serde_json::Number;
 use crate::hotkey::Hotkey;
 use crate::numbers::{Num, in_bounds, is_float, to_value};
 use crate::schema::{
-    Address, Capture, Cheat, Impl, MAX_SOURCE_BY, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS,
-    SAVE_PLACEHOLDERS, SCHEMA_VERSION, Ui, ValueImpl, is_source_url, parse_offset,
+    Address, Capture, Cheat, Impl, MAX_SOURCE_BY, MAX_SOURCE_LICENCE, Operand, Pack, PackArch,
+    PatchImpl, SAVE_CODECS, SAVE_PLACEHOLDERS, SCHEMA_VERSION, Ui, ValueImpl, is_source_url,
+    is_support_url, parse_offset,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -240,6 +241,24 @@ pub fn validate(pack: &Pack) -> Vec<Issue> {
                     .any(|c| c.is_control() || c == '/' || c == '\\'))
         {
             cx.error("meta.source.file", "must be a file name");
+        }
+        if let Some(licence) = &src.licence
+            && (licence.trim().is_empty()
+                || licence.chars().count() > MAX_SOURCE_LICENCE
+                || licence.chars().any(char::is_control))
+        {
+            cx.error(
+                "meta.source.licence",
+                format!("must be 1 to {MAX_SOURCE_LICENCE} characters on one line"),
+            );
+        }
+        if let Some(support) = &src.support
+            && !is_support_url(support)
+        {
+            cx.error(
+                "meta.source.support",
+                "must be an https page on Patreon, Ko-fi, Buy Me a Coffee, GitHub, YouTube or a table site",
+            );
         }
     }
 
@@ -859,6 +878,45 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn maker_terms_and_support_page() {
+        let good = with(|v| {
+            v["meta"]["source"] = serde_json::json!({
+                "by": "TableMaker",
+                "licence": "Shared with permission; all rights kept by the maker",
+                "support": "https://www.patreon.com/tablemaker",
+                "fromMaker": true
+            })
+        });
+        let (pack, _) = parse(&good).expect("valid");
+        let src = pack.meta.source.unwrap();
+        assert!(src.from_maker);
+        assert_eq!(
+            src.support.as_deref(),
+            Some("https://www.patreon.com/tablemaker")
+        );
+        for bad in [
+            "https://evil.example/pay",
+            "http://patreon.com/x",
+            "https://patreon.com.evil.example/x",
+            "https://user@patreon.com/x",
+        ] {
+            has_error(
+                &with(|v| v["meta"]["source"] = serde_json::json!({ "support": bad })),
+                "meta.source.support",
+            );
+        }
+        has_error(
+            &with(|v| v["meta"]["source"] = serde_json::json!({ "licence": "a\nb" })),
+            "meta.source.licence",
+        );
+        // fromMaker false isn't written back.
+        let text =
+            with(|v| v["meta"]["source"] = serde_json::json!({ "by": "x", "fromMaker": false }));
+        let (pack, _) = parse(&text).unwrap();
+        assert!(!serde_json::to_string(&pack).unwrap().contains("fromMaker"));
     }
 
     #[test]

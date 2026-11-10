@@ -54,6 +54,13 @@ const list: CommunityList = {
       packVersion: "1.1.0",
       cheats: 3,
       notes: "Tested on the Steam version",
+      source: {
+        by: "TableMaker",
+        url: "https://fearlessrevolution.com/viewtopic.php?t=5",
+        licence: "Shared with permission; all rights kept by the maker",
+        support: "https://ko-fi.com/tablemaker",
+        fromMaker: true,
+      },
       sha256: "a".repeat(64),
       size: 100,
       installed: "update",
@@ -171,6 +178,23 @@ describe("PacksView", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace and install" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("community_install", { id: "my-game", replace: true }));
     expect(await screen.findByText(/Installed the pack for My Game/)).toBeInTheDocument();
+  });
+
+  it("credits a community pack's maker, with their terms and pages", async () => {
+    view();
+    const row = await screen.findByTestId("community-my-game");
+    const credit = within(row).getByTestId("credit");
+    expect(credit).toHaveTextContent("Cheats made by TableMaker");
+    expect(credit).toHaveTextContent("Shared by its maker");
+    expect(credit).toHaveTextContent("Terms: Shared with permission; all rights kept by the maker");
+    fireEvent.click(within(credit).getByRole("button", { name: "Support the maker" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("community_open_credit", { id: "my-game", which: "support" }));
+    fireEvent.click(within(credit).getByRole("button", { name: "Maker's page" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("community_open_credit", { id: "my-game", which: "page" }));
+    // A pack without credit is MIT and has no maker buttons.
+    const other = within(await screen.findByTestId("community-other-game")).getByTestId("credit");
+    expect(other).toHaveTextContent("Terms: MIT (free to reuse)");
+    expect(within(other).queryByRole("button")).not.toBeInTheDocument();
   });
 
   it("opens a pack file from Explorer and installs it", async () => {

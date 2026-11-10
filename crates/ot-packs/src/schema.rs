@@ -98,6 +98,60 @@ pub struct Source {
     /// The file they were converted from, e.g. `Hollow_Knight.CT`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file: Option<String>,
+    /// The maker's terms (v1.17.0), e.g. `MIT` or `Shared with permission;
+    /// all rights kept`. Packs without terms on the community list are MIT.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub licence: Option<String>,
+    /// Where players can support the maker (https, e.g. Patreon or Ko-fi).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub support: Option<String>,
+    /// The person who shared the pack says they made the cheats (the
+    /// community list's maintainers check this before showing the badge).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub from_maker: bool,
+}
+
+/// The longest terms a pack may give.
+pub const MAX_SOURCE_LICENCE: usize = 100;
+
+/// Terms a maker can pick when sharing (any other one-line text is allowed too).
+pub const LICENCE_MIT: &str = "MIT";
+pub const LICENCE_PERMISSION: &str = "Shared with permission; all rights kept by the maker";
+
+/// Sites a maker's support page may be on.
+pub const SUPPORT_SITES: &[&str] = &[
+    "patreon.com",
+    "www.patreon.com",
+    "ko-fi.com",
+    "www.ko-fi.com",
+    "buymeacoffee.com",
+    "www.buymeacoffee.com",
+    "github.com",
+    "fearlessrevolution.com",
+    "www.fearlessrevolution.com",
+    "forum.cheatengine.org",
+    "opencheattables.com",
+    "www.opencheattables.com",
+    "www.youtube.com",
+    "youtube.com",
+];
+
+/// The host of an https address, lowercased, if the address is fine for a
+/// pack to give (see [`is_source_url`]).
+pub fn https_host(url: &str) -> Option<String> {
+    if !is_source_url(url) {
+        return None;
+    }
+    let host = url
+        .strip_prefix("https://")?
+        .split(['/', '?', '#'])
+        .next()?;
+    (!host.contains('@')).then(|| host.to_ascii_lowercase())
+}
+
+/// A support page a pack may give: https on one of [`SUPPORT_SITES`].
+pub fn is_support_url(url: &str) -> bool {
+    https_host(url).is_some_and(|h| SUPPORT_SITES.contains(&h.as_str()))
 }
 
 /// The longest maker name and page address a pack may give.

@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.16.0_
+_Last updated: 2026-11-09 — v1.17.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -65,6 +65,20 @@ _Last updated: 2026-11-09 — v1.16.0_
   its link with maker / site / cheats; unlisted and off-site pages refused; a table installed with
   a FearLess page offers Share the table's link and its dialog opens (not sent); other packs don't
   offer it. Test pack removed. Installer: `release-out/OpenTrainer_1.16.0_x64-setup.exe`.
+- Real-app test of the 1.17.0 release build (DevTools port, local test copy of the community list,
+  14/14 passed): credit / badge / terms / maker buttons on a community pack, MIT shown for a pack
+  without terms, unknown link kinds and packs without credit refused, the share dialog asks who
+  made the table, the three kinds of terms and a support page (not sent). It found a bug, fixed:
+  a credited table pack (author = maker's name) was called "a file" in the share dialog; now a
+  pack whose credit names a `.CT` file counts as a table. Test pack removed. Installer:
+  `release-out/OpenTrainer_1.17.0_x64-setup.exe`.
+- v1.17.0 Creator invitations (cheat-library plan step 3; the user chose "let makers choose"
+  their terms): `schema::Source` `licence` / `support` / `from_maker`, `SUPPORT_SITES`,
+  `is_support_url`; `github::{Terms, with_terms}` and terms lines in the PR text; community `Entry`
+  `source`; `sharing::community_open_credit`; ShareDialog who-made-it + terms + support page;
+  community rows with credit / badge / buttons; `docs/CREATORS.md` (invitation message for the
+  user to send). Community repo commit 79b222e (local): index carries `source`, README terms and
+  badge rule. Sending invitations is up to the user.
 - v1.16.0 Table link directory (cheat-library plan step 2): `community::{TableLink, TABLE_SITES,
   table_site, table_problem, table_id}`, index `tables` (default empty, so older lists load);
   `community_open_table` (only listed pages), `github::{send_file, table_link, table_pr_text,
@@ -227,8 +241,9 @@ _Last updated: 2026-11-09 — v1.16.0_
   works.
 
 ## In progress
-- Pushed through v1.15.0; v1.15.0 is tagged and Latest (in-app updates on). v1.16.0 is committed
-  locally only (not pushed or tagged yet; waiting for the user). v1.10.0 – v1.12.0 were
+- Pushed through v1.16.0; v1.16.0 is tagged and Latest (in-app updates on). Community repo pushed
+  through 6c30cda (table links). v1.17.0 and community repo 79b222e are committed locally only
+  (not pushed or tagged yet; waiting for the user). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
