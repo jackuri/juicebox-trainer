@@ -1,5 +1,6 @@
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { coverBytes } from "../lib/format";
+import { DownloadedTables, FindTable } from "./CheatTables";
 import {
   api,
   type LibraryGame,
@@ -21,10 +22,12 @@ interface Props {
   /** A game was started and attached: show its cheats. */
   onPlayed: (r: PlayResult) => void;
   onOpenAi: () => void;
+  /** Turn a downloaded Cheat Engine table into a pack (Packs view). */
+  onOpenTable: (path: string, exe?: string) => void;
 }
 
 /** Games on this PC, with "Play with cheats". */
-export function LibraryView({ onPlayed, onOpenAi }: Props) {
+export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
   const [games, setGames] = useState<LibraryGame[] | null>(null);
   const [filter, setFilter] = useState("");
   const [showHidden, setShowHidden] = useState(false);
@@ -32,6 +35,8 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
   const [playing, setPlaying] = useState<string | null>(null);
   const [progress, setProgress] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The game whose "Find a cheat table" panel is open. */
+  const [findFor, setFindFor] = useState<string | null>(null);
 
   const load = useCallback(() => {
     api.libraryList().then(setGames, (e: unknown) => setError(toCommandError(e).message));
@@ -134,6 +139,7 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
           {error}
         </p>
       )}
+      {games && <DownloadedTables games={games} onOpenTable={onOpenTable} />}
       {games === null && <p className="text-sm text-zinc-500">Looking for games (Steam, Epic, GOG, Xbox)…</p>}
       {games !== null && games.length > 0 && shown.length === 0 && !filter.trim() && (
         <p className="text-sm text-zinc-400">All your games are hidden. Tick &quot;Show hidden&quot; to see them.</p>
@@ -230,6 +236,18 @@ export function LibraryView({ onPlayed, onOpenAi }: Props) {
                     Make one with AI
                   </button>
                 )}
+                {!g.blocked &&
+                  (findFor === g.id ? (
+                    <FindTable game={g} onClose={() => setFindFor(null)} onError={setError} />
+                  ) : (
+                    <button
+                      className="w-full rounded-lg px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+                      aria-label={`Find a cheat table for ${g.name}`}
+                      onClick={() => setFindFor(g.id)}
+                    >
+                      {g.pack ? "Find more cheats (tables)" : "Find a cheat table"}
+                    </button>
+                  ))}
               </div>
             </div>
           </li>

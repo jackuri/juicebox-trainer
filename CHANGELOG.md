@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.15.0] - 2026-11-09
+
+### Added
+- **Get cheats for a game from a free Cheat Engine table.** Each game in **Games** has
+  **Find a cheat table**: it opens a search for that game's tables on FearLess Revolution (or
+  the web) in your browser. Tables you download (`.CT`, in Downloads or a folder unzipped there,
+  last 30 days) show up in a **Cheat tables in your Downloads** box within a few seconds, matched
+  to the game (by the exe the table names, the game you just searched for, or the file name), with
+  how many cheats OpenTrainer can use. **Turn into cheats** opens it for that game; **Not now**
+  hides it. OpenTrainer never downloads or re-uploads tables itself.
+- **Credit for table makers.** Packs can say who made their cheats and where they were published
+  (`meta.source`: `by`, `url`, `file`). Converting a table asks for the maker's name and page;
+  the maker becomes the pack's author, and the install dialog shows the credit.
+
+### Changed
+- Packs with `meta.source` need OpenTrainer 1.15.0 or newer.
+
 ## [1.14.0] - 2026-11-09
 
 ### Added

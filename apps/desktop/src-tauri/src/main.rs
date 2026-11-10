@@ -14,6 +14,7 @@ mod overlay;
 mod remote;
 mod saves;
 mod sharing;
+mod tables;
 mod updates;
 
 use tauri::{Emitter, Manager, RunEvent, WindowEvent};
@@ -77,6 +78,7 @@ fn main() {
         .manage(library::LibraryState::default())
         .manage(remote::RemoteState::default())
         .manage(sharing::SharingState::default())
+        .manage(tables::TablesState::default())
         .manage(github::GithubState::default())
         .manage(updates::UpdateState::default())
         .on_window_event(|window, event| {
@@ -171,6 +173,8 @@ fn main() {
             dialogs::pick_exe,
             sharing::packs_preview,
             sharing::packs_import,
+            tables::tables_search,
+            tables::tables_recent,
             github::github_status,
             github::github_sign_in,
             github::github_sign_in_wait,

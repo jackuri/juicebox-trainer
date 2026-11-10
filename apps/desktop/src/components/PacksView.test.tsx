@@ -121,7 +121,8 @@ beforeEach(() => {
   });
 });
 
-function view(openPath: string | null = null) {
+function view(path: string | null = null) {
+  const openPath = path ? { path } : null;
   const opened = vi.fn();
   render(<PacksView openPath={openPath} onOpened={opened} onShowCheats={vi.fn()} />);
   return opened;
@@ -179,8 +180,16 @@ describe("PacksView", () => {
     expect(within(dialog).getByText(/Install the pack for New Game/)).toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole("button", { name: "Install" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("packs_import", { path: "C:\\Downloads\\new-game-1.0.0.otpack", replace: false, exe: null, checksum: "abc" }),
+      expect(invoke).toHaveBeenCalledWith("packs_import", {
+        path: "C:\\Downloads\\new-game-1.0.0.otpack",
+        replace: false,
+        exe: null,
+        checksum: "abc",
+        credit: null,
+      }),
     );
+    // Only tables ask for the maker's credit.
+    expect(screen.queryByText(/Credit the table's maker/)).not.toBeInTheDocument();
   });
 
   it("says when the pack is already there, and when the list can't load", async () => {
@@ -212,6 +221,8 @@ describe("PacksView", () => {
       cheats: [{ name: "Coins", ui: "number", description: null, patch: false }],
       skipped: [{ name: "God mode", why: "runs its own code (a script); OpenTrainer never runs code from a table" }],
       needsExe: true,
+      table: true,
+      source: { file: "Coin_Quest.CT" },
     });
     invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
       if (cmd === "packs_list") return Promise.resolve([]);
@@ -229,6 +240,9 @@ describe("PacksView", () => {
     expect(within(dialog).getByText("1 entry not imported")).toBeInTheDocument();
     expect(within(dialog).getByText(/God mode: runs its own code/)).toBeInTheDocument();
 
+    // The maker's credit is typed before choosing the exe and kept after it.
+    fireEvent.change(within(dialog).getByLabelText(/Who made it/), { target: { value: "CoinMaker" } });
+    fireEvent.change(within(dialog).getByLabelText(/Its page/), { target: { value: "https://example.com/t/1" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Choose the game's exe…" }));
     await waitFor(() =>
       expect(invoke).toHaveBeenCalledWith("packs_preview", { path: "C:\\Downloads\\Coin_Quest.CT", exe: "CoinQuest.exe" }),
@@ -243,8 +257,25 @@ describe("PacksView", () => {
         replace: false,
         exe: "CoinQuest.exe",
         checksum: null,
+        credit: { by: "CoinMaker", url: "https://example.com/t/1" },
       }),
     );
+  });
+
+  it("opens a downloaded table for the game's exe and shows who made a pack", async () => {
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      if (cmd === "packs_list") return Promise.resolve([]);
+      if (cmd === "community_list") return Promise.resolve(list);
+      if (cmd === "packs_preview")
+        return Promise.resolve(
+          preview({ exe: String(args?.exe), source: { by: "TableMaker", url: "https://example.com/t/2", file: "HK.CT" } }),
+        );
+      return Promise.resolve(null);
+    });
+    render(<PacksView openPath={{ path: "C:\\Downloads\\HK.CT", exe: "hollow_knight.exe" }} onOpened={vi.fn()} onShowCheats={vi.fn()} />);
+    const dialog = await screen.findByRole("dialog", { name: "Install pack" });
+    expect(invoke).toHaveBeenCalledWith("packs_preview", { path: "C:\\Downloads\\HK.CT", exe: "hollow_knight.exe" });
+    expect(within(dialog).getByTestId("source")).toHaveTextContent("Cheats made by TableMaker · https://example.com/t/2");
   });
 
   it("can't install a table with nothing usable in it", async () => {

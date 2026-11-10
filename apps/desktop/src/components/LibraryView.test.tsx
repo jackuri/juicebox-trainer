@@ -66,7 +66,7 @@ beforeEach(() => {
 
 describe("LibraryView", () => {
   it("lists games with their pack, preset and anti-cheat status", async () => {
-    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     const tb = await screen.findByTestId("game-own:c:\\t.exe");
     expect(within(tb).getByText(/Pack: OpenTrainer Testbed \(x64\)/)).toBeInTheDocument();
     expect(within(tb).getByText("Starts with: Story mode")).toBeInTheDocument();
@@ -91,7 +91,7 @@ describe("LibraryView", () => {
 
   it("plays a game and hands over the session", async () => {
     const played = vi.fn();
-    render(<LibraryView onPlayed={played} onOpenAi={vi.fn()} />);
+    render(<LibraryView onPlayed={played} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Play OpenTrainer Testbed" }));
     await vi.waitFor(() => expect(played).toHaveBeenCalledWith({ session, trainer: null, preset: "Story mode" }));
     expect(invoke).toHaveBeenCalledWith("library_play", { id: "own:c:\\t.exe" });
@@ -105,7 +105,7 @@ describe("LibraryView", () => {
       return Promise.resolve();
     });
     const ai = vi.fn();
-    render(<LibraryView onPlayed={vi.fn()} onOpenAi={ai} />);
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={ai} onOpenTable={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Play Testbed" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Testbed didn't start.");
     fireEvent.click(screen.getByRole("button", { name: "Make one with AI" }));
@@ -133,7 +133,7 @@ describe("LibraryView", () => {
         );
       return Promise.resolve();
     });
-    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     const art = await screen.findByTestId("game-steam:art");
     await vi.waitFor(() => expect(art.querySelector("img")).toHaveAttribute("src", "blob:cover-1"));
     expect(art.querySelector("img")).toHaveClass("object-cover");
@@ -165,7 +165,7 @@ describe("LibraryView", () => {
       if (cmd === "pick_exe") return Promise.resolve(picked);
       return Promise.resolve();
     });
-    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     const browse = await screen.findByRole("button", { name: "Browse for its .exe…" });
     fireEvent.click(browse);
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("pick_exe", { titleText: "Pick the game's .exe", start: null }));
@@ -182,7 +182,7 @@ describe("LibraryView", () => {
         return Promise.resolve([game({ id: "steam:1", name: "Shown Game" }), game({ id: "steam:2", name: "Secret Game", hidden: true })]);
       return Promise.resolve();
     });
-    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} />);
+    render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     await screen.findByTestId("game-steam:1");
     expect(screen.queryByTestId("game-steam:2")).not.toBeInTheDocument();
 

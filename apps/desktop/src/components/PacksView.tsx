@@ -4,6 +4,7 @@ import {
   api,
   type CommunityList,
   type CommunityPack,
+  type Credit,
   isTable,
   PACK_SOURCE_LABEL,
   type PackPreview,
@@ -18,9 +19,15 @@ const primary =
 /** Where the pack in the install dialog comes from. */
 type Incoming = { kind: "file"; path: string; exe?: string } | { kind: "community"; id: string };
 
+/** A file to open in Packs; `exe` names the game for a table that doesn't say. */
+export interface OpenFile {
+  path: string;
+  exe?: string;
+}
+
 interface Props {
-  /** An .otpack opened from Explorer or dropped on the window. */
-  openPath: string | null;
+  /** An .otpack opened from Explorer, dropped on the window, or a downloaded table. */
+  openPath: OpenFile | null;
   onOpened: () => void;
   /** Go to the Cheats view (after installing a pack). */
   onShowCheats: () => void;
@@ -39,6 +46,8 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; path?: string; cheats?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The table maker's credit, typed in the install dialog. */
+  const [credit, setCredit] = useState<Credit>({});
 
   const loadPacks = useCallback(() => {
     api.packsList().then(setPacks, (e: unknown) => setError(toCommandError(e).message));
@@ -63,9 +72,10 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     loadCommunity(false);
   }, [loadPacks, loadCommunity]);
 
-  const preview = useCallback(async (from: Incoming) => {
+  const preview = useCallback(async (from: Incoming, keepCredit = false) => {
     setError(null);
     setMessage(null);
+    if (!keepCredit) setCredit({});
     setBusy(true);
     try {
       const p = from.kind === "file" ? await api.packsPreview(from.path, from.exe) : await api.communityPreview(from.id);
@@ -82,7 +92,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     // After this render: show what's in the file the player opened.
     void Promise.resolve().then(() => {
       onOpened();
-      return preview({ kind: "file", path: openPath });
+      return preview({ kind: "file", path: openPath.path, exe: openPath.exe });
     });
   }, [openPath, onOpened, preview]);
 
@@ -102,7 +112,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     try {
       const exe = await api.pickExe("Choose the game's exe");
       const name = exe?.split(/[\\/]/).pop();
-      if (name) await preview({ kind: "file", path, exe: name });
+      if (name) await preview({ kind: "file", path, exe: name }, true);
     } catch (e) {
       setError(toCommandError(e).message);
     }
@@ -115,7 +125,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     setBusy(true);
     setError(null);
     try {
-      if (from.kind === "file") await api.packsImport(from.path, replace, from.exe, p.checksum);
+      if (from.kind === "file") await api.packsImport(from.path, replace, from.exe, p.checksum, p.table ? credit : undefined);
       else await api.communityInstall(from.id, replace);
       setIncoming(null);
       setMessage({ text: `Installed the pack for ${p.game}. Start the game and load it in Cheats.`, cheats: true });
@@ -193,6 +203,8 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
               ? () => incoming.from.kind === "file" && void chooseExe(incoming.from.path)
               : undefined
           }
+          credit={incoming.preview.table ? credit : undefined}
+          onCredit={setCredit}
           onInstall={() => void install()}
           onCancel={() => setIncoming(null)}
         />
@@ -361,10 +373,15 @@ interface DialogProps {
   onCancel: () => void;
   /** Set for a Cheat Engine table: lets the player name the game's exe. */
   onChooseExe?: () => void;
+  /** Set for a Cheat Engine table: the maker's credit the player types. */
+  credit?: Credit;
+  onCredit?: (c: Credit) => void;
 }
 
+const field = "w-full rounded bg-zinc-900 px-2 py-1 text-xs outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
+
 /** What a pack does, before it's installed. */
-export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel, onChooseExe }: DialogProps) {
+export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCancel, onChooseExe, credit, onCredit }: DialogProps) {
   const replaces = p.existing && !p.existing.same ? p.existing : null;
   const skipped = p.skipped ?? [];
   const empty = p.cheats.length === 0;
@@ -381,7 +398,37 @@ export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCa
           {fromCommunity ? " · from the community list" : ""}
         </p>
         {p.notes && <p className="mt-1 text-xs text-zinc-400">{p.notes}</p>}
+        {(p.source?.by || p.source?.url) && (
+          <p className="mt-1 text-xs text-zinc-400" data-testid="source">
+            Cheats made by {p.source.by ?? "their maker"}
+            {p.source.url && (
+              <>
+                {" · "}
+                <span className="select-all break-all text-zinc-300">{p.source.url}</span>
+              </>
+            )}
+          </p>
+        )}
       </div>
+      {credit && onCredit && (
+        <fieldset className="flex flex-col gap-1.5 rounded bg-zinc-900/70 p-2 text-xs ring-1 ring-zinc-800">
+          <legend className="px-1 text-zinc-300">Credit the table&apos;s maker (kept with the pack and shown when it&apos;s shared)</legend>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-zinc-400">Who made it (their name on the site)</span>
+            <input className={field} maxLength={100} value={credit.by ?? ""} onChange={(e) => onCredit({ ...credit, by: e.target.value })} />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-zinc-400">Its page (copy the address from your browser)</span>
+            <input
+              className={field}
+              maxLength={400}
+              placeholder="https://…"
+              value={credit.url ?? ""}
+              onChange={(e) => onCredit({ ...credit, url: e.target.value })}
+            />
+          </label>
+        </fieldset>
+      )}
       {p.needsExe && !empty && (
         <div className="flex flex-wrap items-center gap-2 rounded bg-amber-950/40 px-2 py-1.5 text-xs text-amber-200" role="status">
           <span className="flex-1">This table doesn&apos;t say which game it&apos;s for. Choose the game&apos;s exe to install it.</span>

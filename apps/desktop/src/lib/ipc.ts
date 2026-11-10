@@ -397,6 +397,39 @@ export interface PackPreview {
   needsExe?: boolean;
   /** SHA-256 of the pack text shown; installing checks it is unchanged. */
   checksum?: string;
+  /** Converted from a Cheat Engine table: the maker's credit can be added. */
+  table?: boolean;
+  /** Who made the cheats and where they were published, if the pack says. */
+  source?: CheatSource | null;
+}
+
+/** Credit for cheats made by someone else (a Cheat Engine table's maker). */
+export interface CheatSource {
+  by?: string;
+  url?: string;
+  file?: string;
+}
+
+/** The table maker's name and page, typed when converting a table. */
+export interface Credit {
+  by?: string;
+  url?: string;
+}
+
+/** A Cheat Engine table in the player's Downloads folder (last 30 days). */
+export interface RecentTable {
+  path: string;
+  file: string;
+  /** Last changed, milliseconds since 1970. */
+  modified: number;
+  /** The game, from the table's file name. */
+  game: string;
+  /** The game's exe, when the table says. */
+  exe: string | null;
+  /** Cheats OpenTrainer can use from it. */
+  cheats: number;
+  /** Why it can't be read, if it can't. */
+  error: string | null;
 }
 
 /** GitHub sign-in for sharing packs with the community list. */
@@ -1014,8 +1047,12 @@ export const api = {
     invoke<string | null>("pick_exe", { titleText, start: start ?? null }),
   /** `exe`: the game's exe file name, for a Cheat Engine table that doesn't say. */
   packsPreview: (path: string, exe?: string) => invoke<PackPreview>("packs_preview", { path, exe: exe ?? null }),
-  packsImport: (path: string, replace: boolean, exe?: string, checksum?: string) =>
-    invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null, checksum: checksum ?? null }),
+  packsImport: (path: string, replace: boolean, exe?: string, checksum?: string, credit?: Credit) =>
+    invoke<ImportResult>("packs_import", { path, replace, exe: exe ?? null, checksum: checksum ?? null, credit: credit ?? null }),
+  /** Opens a search for the game's Cheat Engine tables in the browser. */
+  tablesSearch: (site: "fearless" | "web", game: string) => invoke<void>("tables_search", { site, game }),
+  /** Cheat Engine tables downloaded in the last 30 days, newest first. */
+  tablesRecent: () => invoke<RecentTable[]>("tables_recent"),
   packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
   githubStatus: () => invoke<GithubStatus>("github_status"),
   githubSignIn: () => invoke<DeviceCode>("github_sign_in"),

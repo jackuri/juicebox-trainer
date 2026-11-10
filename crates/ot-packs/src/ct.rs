@@ -20,7 +20,7 @@ use serde::Serialize;
 use crate::ct_script::{self, Sym};
 use crate::schema::{
     Address, Capture, Cheat, Game, Impl, Meta, NumberConfig, Operand, Pack, PackArch, PatchImpl,
-    SCHEMA_VERSION, Ui, ValueImpl, When,
+    SCHEMA_VERSION, Source, Ui, ValueImpl, When,
 };
 use crate::validate::{Severity, validate};
 
@@ -141,6 +141,10 @@ pub fn convert(
                 "Converted from the Cheat Engine table \"{file_stem}\". Credit goes to the table's author (see where you \
                  downloaded it). Tables are made for one game version: if a value shows ?? the game was probably updated."
             )),
+            source: Some(Source {
+                file: Some(format!("{file_stem}.CT")),
+                ..Source::default()
+            }),
         },
         cheats: walk.cheats,
         save_codes: Vec::new(),

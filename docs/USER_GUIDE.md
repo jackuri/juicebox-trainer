@@ -123,8 +123,14 @@ In the **Packs** tab:
   already have a pack for that game, OpenTrainer asks before replacing it and keeps the old one as a
   backup.
 - **Use a Cheat Engine table:** many games have free cheat tables (`.CT` files) shared on forums
-  such as FearLessRevolution. Download one, then drop it on the window or click **Open a pack or
-  table…**. OpenTrainer turns its number values (health, money, ammo…, also ones found through
+  such as FearLessRevolution. The easy way: in **Games**, click **Find a cheat table** on the game,
+  then **Search FearLess Revolution** (or **Search the web**). Your browser opens the search; open a
+  table's page and download its `.CT` file (some sites ask you to sign in first). Back in
+  OpenTrainer, **Cheat tables in your Downloads** shows it within a few seconds, already matched to
+  the game: click **Turn into cheats**. You can also drop a table on the window or click **Open a
+  pack or table…**. Before installing, type who made the table and its page address: they're kept
+  with the pack and shown to anyone it's shared with. OpenTrainer never downloads or re-uploads
+  tables itself. OpenTrainer turns its number values (health, money, ammo…, also ones found through
   pointers) into a pack. You see which cheats came over and which entries were left out, and why.
   - **Scripts are never run.** OpenTrainer reads them only to understand them. The common kinds it
     redoes its own safe way: scripts that find a base address (so the values under it come over),

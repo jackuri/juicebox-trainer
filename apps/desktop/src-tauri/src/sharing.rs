@@ -179,6 +179,10 @@ pub struct PackPreview {
     pub needs_exe: bool,
     /// SHA-256 of the pack text shown: installing checks it is still the same.
     pub checksum: String,
+    /// It was converted from a Cheat Engine table (credit can be added).
+    pub table: bool,
+    /// Who made the cheats and where they were published, if the pack says.
+    pub source: Option<ot_packs::schema::Source>,
 }
 
 fn preview(o: share::Opened) -> PackPreview {
@@ -233,6 +237,8 @@ fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
             })
             .collect(),
         warnings,
+        table: false,
+        source: pack.meta.source.clone(),
         existing,
         skipped: Vec::new(),
         needs_exe: false,
@@ -251,7 +257,64 @@ fn open_otpack(path: &str, exe: Option<&str>) -> CmdResult<share::Opened> {
 #[tauri::command]
 pub async fn packs_preview(path: String, exe: Option<String>) -> CmdResult<PackPreview> {
     let o = open_otpack(&path, exe.as_deref())?;
-    Ok(preview(o))
+    let mut p = preview(o);
+    p.table = is_table_path(&path);
+    Ok(p)
+}
+
+fn is_table_path(path: &str) -> bool {
+    Path::new(path)
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case(ot_packs::ct::EXTENSION))
+}
+
+/// The table maker's name and page, typed by the player when converting a table.
+#[derive(Debug, Default, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Credit {
+    pub by: Option<String>,
+    pub url: Option<String>,
+}
+
+/// Adds the maker's credit to a converted table's pack: `meta.source.by` /
+/// `url`, and the maker as the pack's author. The result is checked again.
+fn with_credit(text: &str, credit: &Credit) -> CmdResult<(Pack, String)> {
+    let by = credit
+        .by
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let url = credit
+        .url
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty());
+    let bad = |e: String| CommandError::new("badRequest", e);
+    let mut v: serde_json::Value = serde_json::from_str(text).map_err(|e| bad(e.to_string()))?;
+    let meta = &mut v["meta"];
+    if let Some(by) = by {
+        meta["author"] = by.into();
+        meta["source"]["by"] = by.into();
+    }
+    if let Some(url) = url {
+        meta["source"]["url"] = url.into();
+    }
+    let text = serde_json::to_string_pretty(&v).map_err(|e| bad(e.to_string()))?
+        + "
+";
+    match ot_packs::parse(&text) {
+        Ok((pack, _)) => Ok((pack, text)),
+        Err(e) => {
+            let e = e.to_string();
+            Err(bad(if e.contains("meta.source.url") {
+                "the table's page must be a web address starting with https://".into()
+            } else if e.contains("meta.source.by") {
+                "the maker's name must be 1 to 100 characters on one line".into()
+            } else {
+                e
+            }))
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -290,8 +353,9 @@ pub async fn packs_import(
     replace: bool,
     exe: Option<String>,
     checksum: Option<String>,
+    credit: Option<Credit>,
 ) -> CmdResult<ImportResult> {
-    let o = open_otpack(&path, exe.as_deref())?;
+    let mut o = open_otpack(&path, exe.as_deref())?;
     // Install exactly what the player looked at, not a file changed since.
     if let Some(want) = checksum
         && ot_core::hash::sha256_bytes(o.text.as_bytes()) != want
@@ -312,6 +376,9 @@ pub async fn packs_import(
             "invalidPack",
             "nothing in this table could be imported",
         ));
+    }
+    if let Some(credit) = credit.filter(|_| is_table_path(&path)) {
+        (o.pack, o.text) = with_credit(&o.text, &credit)?;
     }
     let name = Path::new(&path)
         .file_name()
@@ -515,6 +582,57 @@ pub async fn community_install(
 mod tests {
     use super::*;
 
+    const TABLE: &str = r#"<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>1</ID>
+      <Description>"Gold"</Description>
+      <VariableType>4 Bytes</VariableType>
+      <Address>"Game.exe"+1234</Address>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+"#;
+
+    #[test]
+    fn credits_the_table_maker() {
+        let o = share::open_table(TABLE.as_bytes(), "Some_Game", None).unwrap();
+        assert_eq!(
+            o.pack.meta.source.as_ref().and_then(|s| s.file.as_deref()),
+            Some("Some_Game.CT")
+        );
+        let credit = Credit {
+            by: Some("  TableMaker ".into()),
+            url: Some("https://fearlessrevolution.com/viewtopic.php?t=123".into()),
+        };
+        let (pack, text) = with_credit(&o.text, &credit).unwrap();
+        assert_eq!(pack.meta.author, "TableMaker");
+        let src = pack.meta.source.unwrap();
+        assert_eq!(src.by.as_deref(), Some("TableMaker"));
+        assert_eq!(
+            src.url.as_deref(),
+            Some("https://fearlessrevolution.com/viewtopic.php?t=123")
+        );
+        assert_eq!(src.file.as_deref(), Some("Some_Game.CT"));
+        assert!(text.ends_with("}\n"));
+
+        // Blank credit changes nothing; a bad page address is refused.
+        let (same, _) = with_credit(&o.text, &Credit::default()).unwrap();
+        assert_eq!(same, o.pack);
+        let err = with_credit(
+            &o.text,
+            &Credit {
+                by: None,
+                url: Some("javascript:alert(1)".into()),
+            },
+        )
+        .unwrap_err();
+        assert!(err.message.contains("https://"), "{}", err.message);
+        assert!(is_table_path(r"C:\Downloads\X.ct"));
+        assert!(!is_table_path(r"C:\Downloads\X.otpack"));
+    }
+
     #[test]
     fn finds_an_otpack_argument() {
         let args = |a: &[&str]| a.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -550,9 +668,14 @@ mod tests {
         );
         // The file is swapped after the preview: nothing is installed.
         std::fs::write(&file, store::BUNDLED[1].1).unwrap();
-        let e =
-            tauri::async_runtime::block_on(packs_import(path, false, None, Some(shown.checksum)))
-                .unwrap_err();
+        let e = tauri::async_runtime::block_on(packs_import(
+            path,
+            false,
+            None,
+            Some(shown.checksum),
+            None,
+        ))
+        .unwrap_err();
         assert_eq!(e.kind, "changed");
         std::fs::remove_dir_all(&dir).unwrap();
     }

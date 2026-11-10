@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.14.0_
+_Last updated: 2026-11-09 — v1.15.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -53,6 +53,23 @@ _Last updated: 2026-11-09 — v1.14.0_
   (signing-ready), user / developer / release docs. All checks pass. Live-tested: a release
   installer and its update signature built locally; latest.json made; the AI engine download
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
+- Real-app test of the 1.15.0 release build (DevTools port, 14/14 passed): Find a cheat table on
+  every playable game (25), its panel; a test table written to the real Downloads folder showed up
+  within seconds with "2 cheats OpenTrainer can use"; Turn into cheats → install dialog (script
+  listed as not imported) → credit typed → installed pack has author + `meta.source`; not offered
+  again; a `javascript:` page address refused. The test pack was removed (kept in packs-removed)
+  and the test table deleted. The search buttons weren't clicked (they'd open the browser).
+  Installer: `release-out/OpenTrainer_1.15.0_x64-setup.exe`.
+- v1.15.0 Get cheats from tables (cheat-library plan, step 1 of 5; the user picked the recommended
+  plan on 2026-11-09 after hearing why bulk-copying FearLess tables isn't an option: permission,
+  sign-in, scripts, game updates). `src-tauri/src/tables.rs` (`tables_search` fearless / web,
+  `tables_recent` Downloads scan + cache), `components/CheatTables.tsx` (FindTable, DownloadedTables),
+  `lib/tables.ts` (matchGame, last search, Not now list), `schema::Source` + checks, `packs_import`
+  `credit`. FearLess shows a bot check to automated browsers, so its search URL (standard phpBB
+  `search.php?keywords=…&sf=titleonly&sr=topics`) was not opened here; a real browser passes it.
+  Plan, next: 1.16 link directory (community list lists where tables are, links only), 1.17
+  creator invitations (credit badge, licence field, invitation text; the community repo's checks
+  must accept `meta.source`), then tested AI-made packs for popular games, then code caves.
 - v1.14.0 Themes (user request 2026-11-09: game-themed looks, current one as default): Themes tab
   (`ThemeView`, live preview cards each with their own `data-theme`), `lib/theme.ts` (list,
   localStorage `opentrainer.theme`, storage-event sync for the overlay), `themes.css` (10 blocks:
@@ -197,6 +214,7 @@ _Last updated: 2026-11-09 — v1.14.0_
   works.
 
 ## In progress
+- v1.15.0 is committed locally only (not pushed or tagged yet; waiting for the user).
 - Pushed through v1.14.0; v1.14.0 is tagged and Latest (in-app updates on). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs

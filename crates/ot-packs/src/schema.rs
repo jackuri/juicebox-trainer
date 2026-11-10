@@ -79,6 +79,45 @@ pub struct Meta {
     pub pack_version: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub notes: Option<String>,
+    /// Where the cheats came from, to credit their maker (v1.15.0): for a
+    /// converted Cheat Engine table, the table's maker and page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<Source>,
+}
+
+/// Credit for cheats made by someone else (a Cheat Engine table's maker).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct Source {
+    /// Who made them (free text, e.g. a forum name).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub by: Option<String>,
+    /// The page they were published on (http or https).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    /// The file they were converted from, e.g. `Hollow_Knight.CT`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+}
+
+/// The longest maker name and page address a pack may give.
+pub const MAX_SOURCE_BY: usize = 100;
+pub const MAX_SOURCE_URL: usize = 400;
+
+/// A page address a pack may give for its source: http(s), no spaces or
+/// control characters.
+pub fn is_source_url(url: &str) -> bool {
+    let rest = url
+        .strip_prefix("https://")
+        .or_else(|| url.strip_prefix("http://"));
+    rest.is_some_and(|r| {
+        !r.is_empty()
+            && !r.starts_with('/')
+            && url.len() <= MAX_SOURCE_URL
+            && !url
+                .chars()
+                .any(|c| c.is_whitespace() || c.is_control() || c == '"' || c == '<' || c == '>')
+    })
 }
 
 impl Meta {

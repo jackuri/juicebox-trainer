@@ -13,8 +13,8 @@ use serde_json::Number;
 use crate::hotkey::Hotkey;
 use crate::numbers::{Num, in_bounds, is_float, to_value};
 use crate::schema::{
-    Address, Capture, Cheat, Impl, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS,
-    SAVE_PLACEHOLDERS, SCHEMA_VERSION, Ui, ValueImpl, parse_offset,
+    Address, Capture, Cheat, Impl, MAX_SOURCE_BY, Operand, Pack, PackArch, PatchImpl, SAVE_CODECS,
+    SAVE_PLACEHOLDERS, SCHEMA_VERSION, Ui, ValueImpl, is_source_url, parse_offset,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -212,6 +212,35 @@ pub fn validate(pack: &Pack) -> Vec<Issue> {
         && !is_date(d)
     {
         cx.error("meta.created", "must be YYYY-MM-DD");
+    }
+    if let Some(src) = &m.source {
+        if let Some(by) = &src.by
+            && (by.trim().is_empty()
+                || by.chars().count() > MAX_SOURCE_BY
+                || by.chars().any(char::is_control))
+        {
+            cx.error(
+                "meta.source.by",
+                format!("must be 1 to {MAX_SOURCE_BY} characters on one line"),
+            );
+        }
+        if let Some(url) = &src.url
+            && !is_source_url(url)
+        {
+            cx.error(
+                "meta.source.url",
+                "must be a web address starting with https:// (or http://)",
+            );
+        }
+        if let Some(file) = &src.file
+            && (file.trim().is_empty()
+                || file.chars().count() > 200
+                || file
+                    .chars()
+                    .any(|c| c.is_control() || c == '/' || c == '\\'))
+        {
+            cx.error("meta.source.file", "must be a file name");
+        }
     }
 
     if pack.cheats.is_empty() {
@@ -788,6 +817,48 @@ mod tests {
             "YYYY-MM-DD",
         );
         has_error(&with(|v| v["meta"]["author"] = " ".into()), "meta.author");
+    }
+
+    #[test]
+    fn source_credit() {
+        let good = with(|v| {
+            v["meta"]["source"] = serde_json::json!({
+                "by": "SomeTableMaker",
+                "url": "https://fearlessrevolution.com/viewtopic.php?t=1",
+                "file": "Game.CT"
+            })
+        });
+        let (pack, issues) = parse(&good).expect("valid");
+        assert!(issues.iter().all(|i| i.severity != Severity::Error));
+        assert_eq!(
+            pack.meta.source.and_then(|s| s.by).as_deref(),
+            Some("SomeTableMaker")
+        );
+        for url in [
+            "javascript:alert(1)",
+            "file:///C:/x",
+            "https://",
+            "https://a b",
+        ] {
+            has_error(
+                &with(|v| v["meta"]["source"] = serde_json::json!({ "url": url })),
+                "meta.source.url",
+            );
+        }
+        has_error(
+            &with(|v| v["meta"]["source"] = serde_json::json!({ "by": "a\nb" })),
+            "meta.source.by",
+        );
+        has_error(
+            &with(|v| v["meta"]["source"] = serde_json::json!({ "file": "..\\x.CT" })),
+            "meta.source.file",
+        );
+        assert!(
+            parse(&with(
+                |v| v["meta"]["source"] = serde_json::json!({ "who": "x" })
+            ))
+            .is_err()
+        );
     }
 
     #[test]

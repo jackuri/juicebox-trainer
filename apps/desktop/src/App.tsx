@@ -5,7 +5,7 @@ import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
 import { Icon, Logo } from "./components/Icon";
 import { LibraryView } from "./components/LibraryView";
-import { PacksView } from "./components/PacksView";
+import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
 import { SessionTools } from "./components/SessionTools";
@@ -40,13 +40,13 @@ export default function App() {
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
   const [view, setView] = useState<View>("cheats");
-  /** A pack file to show in Packs (opened from Explorer or dropped). */
-  const [openPath, setOpenPath] = useState<string | null>(null);
+  /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
+  const [openPath, setOpenPath] = useState<OpenFile | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
 
-  const openOtpack = useCallback((path: string) => {
-    setOpenPath(path);
+  const openOtpack = useCallback((path: string, exe?: string) => {
+    setOpenPath({ path, exe });
     setView("packs");
   }, []);
   const opened = useCallback(() => setOpenPath(null), []);
@@ -227,6 +227,7 @@ export default function App() {
       {view === "games" ? (
         <LibraryView
           onOpenAi={() => setView("ai")}
+          onOpenTable={openOtpack}
           onPlayed={(r) => {
             setError(null);
             setVerdict(null);
