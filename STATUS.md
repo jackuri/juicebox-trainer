@@ -298,7 +298,7 @@ _Last updated: 2026-11-10 — v1.21.0_
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through 98efc39 (web cheats). v1.18.0, v1.19.0 and v1.20.0 are pushed and tagged (CI and Release green,
+  through 98efc39 (web cheats). v1.18.0 – v1.21.0 are pushed and tagged (CI and Release green,
   installers published). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
