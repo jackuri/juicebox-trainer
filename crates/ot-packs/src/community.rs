@@ -28,6 +28,100 @@ pub struct Index {
     #[serde(default)]
     pub updated: Option<String>,
     pub packs: Vec<Entry>,
+    /// Links to Cheat Engine tables on their makers' pages (v1.16.0). Only
+    /// links: the tables themselves stay on the maker's site.
+    #[serde(default)]
+    pub tables: Vec<TableLink>,
+}
+
+/// Sites table links may point to. A link elsewhere is left out of the list.
+pub const TABLE_SITES: &[&str] = &[
+    "fearlessrevolution.com",
+    "www.fearlessrevolution.com",
+    "forum.cheatengine.org",
+    "opencheattables.com",
+    "www.opencheattables.com",
+    "github.com",
+];
+
+/// A Cheat Engine table on its maker's page (`tables/<id>.json` in the
+/// community repository).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TableLink {
+    /// File name in `tables/` (without `.json`).
+    pub id: String,
+    /// The game's name.
+    pub game: String,
+    /// The game's exe, when known.
+    #[serde(default)]
+    pub exe: Option<String>,
+    /// The table's name on its page.
+    pub title: String,
+    /// Who made it.
+    pub by: String,
+    /// Its page (https, on one of [`TABLE_SITES`]).
+    pub url: String,
+    /// Cheats OpenTrainer could use from it when it was shared.
+    #[serde(default)]
+    pub cheats: Option<usize>,
+    /// `YYYY-MM-DD`.
+    #[serde(default)]
+    pub added: Option<String>,
+}
+
+/// The site of a table link (`fearlessrevolution.com`), if it's an https
+/// address on one of [`TABLE_SITES`].
+pub fn table_site(url: &str) -> Option<&'static str> {
+    if url.len() > crate::schema::MAX_SOURCE_URL || !crate::schema::is_source_url(url) {
+        return None;
+    }
+    let rest = url.strip_prefix("https://")?;
+    let host = rest.split(['/', '?', '#']).next()?.to_ascii_lowercase();
+    TABLE_SITES.iter().copied().find(|s| *s == host)
+}
+
+/// Why a table link can't be listed, if it can't.
+pub fn table_problem(t: &TableLink) -> Option<&'static str> {
+    let one_line = |s: &str, max: usize| {
+        !s.trim().is_empty() && s.chars().count() <= max && !s.chars().any(char::is_control)
+    };
+    if !is_slug(&t.id) {
+        Some("bad id")
+    } else if table_site(&t.url).is_none() {
+        Some("not an https page on a known table site")
+    } else if !one_line(&t.game, 120) || !one_line(&t.title, 160) || !one_line(&t.by, 100) {
+        Some("game, title and maker must be short single lines")
+    } else if t
+        .exe
+        .as_deref()
+        .is_some_and(|e| !one_line(e, 120) || e.contains(['/', '\\', ':']))
+    {
+        Some("bad exe")
+    } else {
+        None
+    }
+}
+
+/// An id for a link: the game's name and a short hash of the page, so one
+/// game can have several tables.
+pub fn table_id(game: &str, url: &str) -> String {
+    let mut slug: String = game
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+        .collect();
+    while slug.contains("--") {
+        slug = slug.replace("--", "-");
+    }
+    let slug = slug.trim_matches('-');
+    let slug: String = slug.chars().take(48).collect();
+    let hash = &ot_core::hash::sha256_bytes(url.as_bytes())[..10];
+    if slug.is_empty() {
+        format!("table-{hash}")
+    } else {
+        format!("{}-{hash}", slug.trim_end_matches('-'))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -104,6 +198,21 @@ pub fn parse_index(bytes: &[u8]) -> Result<(Index, Vec<String>), String> {
         why.is_none()
     });
     index.packs.sort_by_key(|e| e.name.to_lowercase());
+    let mut seen = std::collections::BTreeSet::new();
+    index.tables.retain(|t| {
+        let why =
+            table_problem(t).or_else(|| (!seen.insert(t.url.clone())).then_some("listed twice"));
+        if let Some(why) = why {
+            skipped.push(format!("table {}: {why}", t.id));
+        }
+        why.is_none()
+    });
+    index.tables.sort_by(|a, b| {
+        a.game
+            .to_lowercase()
+            .cmp(&b.game.to_lowercase())
+            .then_with(|| a.title.cmp(&b.title))
+    });
     Ok((index, skipped))
 }
 
@@ -177,6 +286,7 @@ mod tests {
             format: 1,
             updated: Some("2026-11-07".into()),
             packs: vec![good.clone(), bad_id, bad_sha, twice],
+            tables: Vec::new(),
         };
         let mut json = serde_json::to_value(&index).unwrap();
         json["futureField"] = serde_json::json!(true);
@@ -192,6 +302,89 @@ mod tests {
                 .contains("newer OpenTrainer")
         );
         assert!(parse_index(b"<html>").is_err());
+    }
+
+    fn link(id: &str, url: &str) -> TableLink {
+        TableLink {
+            id: id.into(),
+            game: "Hollow Knight".into(),
+            exe: Some("hollow_knight.exe".into()),
+            title: "Hollow Knight v1.5 table".into(),
+            by: "TableMaker".into(),
+            url: url.into(),
+            cheats: Some(12),
+            added: Some("2026-11-09".into()),
+        }
+    }
+
+    #[test]
+    fn table_links_only_to_known_sites_over_https() {
+        assert_eq!(
+            table_site("https://fearlessrevolution.com/viewtopic.php?t=1"),
+            Some("fearlessrevolution.com")
+        );
+        assert_eq!(
+            table_site("https://FORUM.CheatEngine.org/viewtopic.php?t=1"),
+            Some("forum.cheatengine.org")
+        );
+        for bad in [
+            "http://fearlessrevolution.com/viewtopic.php?t=1",
+            "https://fearlessrevolution.com.evil.example/x",
+            "https://evil.example/fearlessrevolution.com",
+            "https://user@fearlessrevolution.com/x",
+            "javascript:alert(1)",
+            "https://fearlessrevolution.com/a b",
+        ] {
+            assert_eq!(table_site(bad), None, "{bad}");
+        }
+        assert_eq!(
+            table_problem(&link("hk-1", "https://fearlessrevolution.com/t")),
+            None
+        );
+        let mut bad_exe = link("hk-2", "https://fearlessrevolution.com/t");
+        bad_exe.exe = Some(r"C:\x\hk.exe".into());
+        assert_eq!(table_problem(&bad_exe), Some("bad exe"));
+        let mut two_lines = link("hk-3", "https://fearlessrevolution.com/t");
+        two_lines.by = "a\nb".into();
+        assert!(table_problem(&two_lines).is_some());
+    }
+
+    #[test]
+    fn reads_table_links_and_skips_bad_ones() {
+        let json = serde_json::json!({
+            "format": 1,
+            "packs": [],
+            "tables": [
+                link("zz-1", "https://fearlessrevolution.com/viewtopic.php?t=2"),
+                link("aa-1", "https://evil.example/t"),
+                link("Bad Id", "https://fearlessrevolution.com/viewtopic.php?t=3"),
+                link("zz-2", "https://fearlessrevolution.com/viewtopic.php?t=2"),
+            ],
+        });
+        let (read, skipped) = parse_index(json.to_string().as_bytes()).unwrap();
+        assert_eq!(read.tables.len(), 1);
+        assert_eq!(read.tables[0].id, "zz-1");
+        assert_eq!(skipped.len(), 3, "{skipped:?}");
+        // An older list without links still loads.
+        let (old, _) = parse_index(br#"{"format":1,"packs":[]}"#).unwrap();
+        assert!(old.tables.is_empty());
+    }
+
+    #[test]
+    fn table_ids_are_slugs_unique_per_page() {
+        let a = table_id(
+            "Baldur's Gate 3",
+            "https://fearlessrevolution.com/viewtopic.php?t=1",
+        );
+        let b = table_id(
+            "Baldur's Gate 3",
+            "https://fearlessrevolution.com/viewtopic.php?t=2",
+        );
+        assert!(a.starts_with("baldur-s-gate-3-"), "{a}");
+        assert_ne!(a, b);
+        assert!(is_slug(&a) && is_slug(&b));
+        assert!(table_id("???", "https://x").starts_with("table-"));
+        assert!(is_slug(&table_id(&"x".repeat(200), "https://x")));
     }
 
     #[test]

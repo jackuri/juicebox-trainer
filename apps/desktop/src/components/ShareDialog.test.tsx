@@ -107,6 +107,33 @@ describe("ShareDialog", () => {
     expect(screen.getByRole("button", { name: "Sign in with GitHub" })).toBeInTheDocument();
   });
 
+  it("shares only the table's link in link mode", async () => {
+    mock({ configured: true, signedIn: true, login: "sam" }, {
+      community_share_table: () =>
+        Promise.resolve({ url: "https://github.com/jackuri/opentrainer-packs/pull/9", number: 9, update: false }),
+    });
+    const linked: PackSummary = {
+      ...pack,
+      source: "imported",
+      author: "TableMaker",
+      ai: false,
+      credit: { by: "TableMaker", url: "https://fearlessrevolution.com/viewtopic.php?t=5", file: "Coin_Quest.CT" },
+      tableLink: true,
+    };
+    render(<ShareDialog pack={linked} mode="link" onClose={vi.fn()} />);
+    expect(await screen.findByRole("dialog", { name: "Share the table's link" })).toHaveTextContent("made by TableMaker");
+    expect(screen.getByText("https://fearlessrevolution.com/viewtopic.php?t=5")).toBeInTheDocument();
+    // No permission or version questions: it's only a link.
+    expect(screen.queryByLabelText("Tested on")).not.toBeInTheDocument();
+    const send = screen.getByRole("button", { name: "Share the link" });
+    expect(send).toBeDisabled();
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(send);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("community_share_table", { key: linked.key }));
+    expect(await screen.findByText(/Sent!/)).toBeInTheDocument();
+    expect(invoke).not.toHaveBeenCalledWith("community_share", expect.anything());
+  });
+
   it("says when this version can't share from the app", async () => {
     mock({ configured: false, signedIn: false, login: null });
     render(<ShareDialog pack={pack} onClose={vi.fn()} />);

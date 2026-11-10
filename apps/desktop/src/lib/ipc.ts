@@ -232,6 +232,22 @@ export interface PackSummary {
   cheats: number;
   error: string | null;
   issues: Issue[];
+  /** Who made the cheats and where they were published, if the pack says. */
+  credit?: CheatSource | null;
+  /** The credit names the maker and a page on a known table site: the link can be shared. */
+  tableLink?: boolean;
+}
+
+/** A Cheat Engine table on its maker's page, from the community list (v1.16.0). */
+export interface TableLink {
+  id: string;
+  game: string;
+  exe: string | null;
+  title: string;
+  by: string;
+  url: string;
+  cheats: number | null;
+  added: string | null;
 }
 
 export interface Cheat {
@@ -482,6 +498,8 @@ export interface CommunityList {
   contributeUrl: string;
   updated: string | null;
   packs: CommunityPack[];
+  /** Links to Cheat Engine tables on their makers' pages (empty from older lists). */
+  tables?: TableLink[];
   skipped: string[];
 }
 
@@ -1066,6 +1084,10 @@ export const api = {
   communityShare: (key: string, note: string, permission: boolean) =>
     invoke<SharedPack>("community_share", { key, note, permission }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
+  /** Adds the link to the table a pack came from to the community list (a pull request). */
+  communityShareTable: (key: string) => invoke<SharedPack>("community_share_table", { key }),
+  /** Opens a table's page from the community list (only pages the list has). */
+  communityOpenTable: (url: string) => invoke<void>("community_open_table", { url }),
   communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),
   communityInstall: (id: string, replace: boolean) =>
     invoke<ImportResult>("community_install", { id, replace }),

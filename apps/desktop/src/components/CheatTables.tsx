@@ -1,12 +1,36 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type LibraryGame, type RecentTable, toCommandError } from "../lib/ipc";
-import { dismiss, dismissed, exeFor, lastSearch, matchGame, rememberSearch } from "../lib/tables";
+import { api, type LibraryGame, type RecentTable, type TableLink, toCommandError } from "../lib/ipc";
+import { dismiss, dismissed, exeFor, lastSearch, linksFor, matchGame, rememberSearch, siteOf } from "../lib/tables";
 
 const small = "rounded-lg bg-zinc-800 px-2.5 py-1.5 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700";
 
 /** Look for a free Cheat Engine table for one game, on its maker's site. */
 export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClose: () => void; onError: (m: string) => void }) {
   const [opened, setOpened] = useState(false);
+  /** Tables other players linked on the community list (null while loading). */
+  const [links, setLinks] = useState<TableLink[] | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    api.communityList(false).then(
+      (list) => live && setLinks(linksFor(game, list?.tables ?? [])),
+      () => live && setLinks([]),
+    );
+    return () => {
+      live = false;
+    };
+  }, [game]);
+
+  async function openLink(url: string) {
+    try {
+      await api.communityOpenTable(url);
+      rememberSearch(game.id);
+      setOpened(true);
+    } catch (e) {
+      onError(toCommandError(e).message);
+    }
+  }
+
   async function search(site: "fearless" | "web") {
     try {
       await api.tablesSearch(site, game.name);
@@ -22,6 +46,29 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
         Players share free cheat tables (<code>.CT</code> files) for many games. Open one on its maker&apos;s page and
         download the <code>.CT</code> file: OpenTrainer spots it in your Downloads folder and turns it into cheats.
       </p>
+      {links && links.length > 0 && (
+        <div className="flex flex-col gap-1" aria-label="Tables other players found">
+          <p className="font-medium text-zinc-200">Tables other players found</p>
+          <ul className="flex flex-col gap-1">
+            {links.map((l) => (
+              <li key={l.id} className="flex flex-col items-start gap-1 rounded bg-zinc-900/80 px-2 py-1.5">
+                <span className="min-w-0 break-words">
+                  <span className="text-zinc-100">{l.title}</span>
+                  <span className="text-zinc-400">
+                    {" "}
+                    by {l.by} · {siteOf(l.url)}
+                    {l.cheats != null && ` · ${l.cheats} cheat${l.cheats === 1 ? "" : "s"} OpenTrainer can use`}
+                    {l.added && ` · added ${l.added}`}
+                  </span>
+                </span>
+                <button className={small} aria-label={`Open the page of ${l.title}`} onClick={() => void openLink(l.url)}>
+                  Open its page
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="flex flex-wrap gap-1.5">
         <button className={small} onClick={() => void search("fearless")}>
           Search FearLess Revolution

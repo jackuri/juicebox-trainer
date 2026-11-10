@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-09 — v1.15.0_
+_Last updated: 2026-11-09 — v1.16.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -60,6 +60,19 @@ _Last updated: 2026-11-09 — v1.15.0_
   again; a `javascript:` page address refused. The test pack was removed (kept in packs-removed)
   and the test table deleted. The search buttons weren't clicked (they'd open the browser).
   Installer: `release-out/OpenTrainer_1.15.0_x64-setup.exe`.
+- Real-app test of the 1.16.0 release build (DevTools port, local test copy of the community list
+  via `OT_PACK_INDEX`, 14/14 passed): 2 links read; Baldur's Gate 3's Find a cheat table lists only
+  its link with maker / site / cheats; unlisted and off-site pages refused; a table installed with
+  a FearLess page offers Share the table's link and its dialog opens (not sent); other packs don't
+  offer it. Test pack removed. Installer: `release-out/OpenTrainer_1.16.0_x64-setup.exe`.
+- v1.16.0 Table link directory (cheat-library plan step 2): `community::{TableLink, TABLE_SITES,
+  table_site, table_problem, table_id}`, index `tables` (default empty, so older lists load);
+  `community_open_table` (only listed pages), `github::{send_file, table_link, table_pr_text,
+  community_share_table}`; PackSummary `credit` / `tableLink`; FindTable lists links
+  (`lib/tables.ts` `linksFor`, `siteOf`); ShareDialog `mode="link"`. Community repo commit
+  6c30cda (local, not pushed yet): `tables/<id>.json` allowed in PRs, index builder checks links
+  (same rules) and writes `tables`. The list starts with no links: they come from players
+  sharing them (nothing is copied from FearLess).
 - v1.15.0 Get cheats from tables (cheat-library plan, step 1 of 5; the user picked the recommended
   plan on 2026-11-09 after hearing why bulk-copying FearLess tables isn't an option: permission,
   sign-in, scripts, game updates). `src-tauri/src/tables.rs` (`tables_search` fearless / web,
@@ -214,8 +227,8 @@ _Last updated: 2026-11-09 — v1.15.0_
   works.
 
 ## In progress
-- v1.15.0 is committed locally only (not pushed or tagged yet; waiting for the user).
-- Pushed through v1.14.0; v1.14.0 is tagged and Latest (in-app updates on). v1.10.0 – v1.12.0 were
+- Pushed through v1.15.0; v1.15.0 is tagged and Latest (in-app updates on). v1.16.0 is committed
+  locally only (not pushed or tagged yet; waiting for the user). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { LibraryGame, RecentTable } from "./ipc";
-import { dismiss, exeFor, isDismissed, lastSearch, matchGame, rememberSearch, SEARCH_WINDOW_MS } from "./tables";
+import type { LibraryGame, RecentTable, TableLink } from "./ipc";
+import { dismiss, exeFor, isDismissed, lastSearch, linksFor, matchGame, rememberSearch, SEARCH_WINDOW_MS, siteOf } from "./tables";
 
 function game(id: string, name: string, exe: string | null = null, packExe?: string): LibraryGame {
   return {
@@ -91,5 +91,36 @@ describe("remembered choices", () => {
     expect(isDismissed(t)).toBe(true);
     expect(isDismissed({ ...t, modified: t.modified + 1 })).toBe(false);
     expect(JSON.parse(localStorage.getItem("opentrainer.tablesDismissed") ?? "[]")).toHaveLength(1);
+  });
+});
+
+describe("community table links", () => {
+  const link = (over: Partial<TableLink>): TableLink => ({
+    id: "x",
+    game: "Some Game",
+    exe: null,
+    title: "t",
+    by: "m",
+    url: "https://www.fearlessrevolution.com/viewtopic.php?t=1",
+    cheats: null,
+    added: null,
+    ...over,
+  });
+
+  it("finds the links for a game by exe or exact name", () => {
+    const links = [
+      link({ id: "a", exe: "DEADSPACE2.exe", game: "DS2" }),
+      link({ id: "b", game: "Dead Space 2" }),
+      link({ id: "c", game: "Dead Space" }),
+      link({ id: "d", game: "Baldurs Gate 3" }),
+    ];
+    expect(linksFor(GAMES[1]!, links).map((l) => l.id)).toEqual(["a", "b"]);
+    expect(linksFor(GAMES[2]!, links).map((l) => l.id)).toEqual(["d"]);
+    expect(linksFor(GAMES[3]!, links)).toEqual([]);
+  });
+
+  it("names the site", () => {
+    expect(siteOf("https://www.fearlessrevolution.com/viewtopic.php?t=1")).toBe("fearlessrevolution.com");
+    expect(siteOf("not a url")).toBe("");
   });
 });

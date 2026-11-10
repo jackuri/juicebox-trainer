@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.16.0] - 2026-11-09
+
+### Added
+- **Tables other players found.** The community list can now hold links to Cheat Engine tables
+  on their makers' pages (`tables/<id>.json` in the community repository; only links, never the
+  tables). **Find a cheat table** shows the links for that game (title, maker, site, how many
+  cheats OpenTrainer could use, when it was added) with **Open its page**. Only pages the list has,
+  over https on fearlessrevolution.com, forum.cheatengine.org, opencheattables.com or github.com,
+  are opened.
+- **Share the table's link.** A pack converted from a table, with its maker and a page on one of
+  those sites, gets **Share the table's link** in **Packs**: OpenTrainer sends a pull request that
+  adds only the link (and the maker's name) to the community list.
+
+### Changed
+- The GitHub sharing code is shared between packs and links (one pull-request path).
+
 ## [1.15.0] - 2026-11-09
 
 ### Added

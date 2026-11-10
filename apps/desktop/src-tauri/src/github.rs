@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use base64::Engine as _;
-use ot_packs::store;
+use ot_packs::{community, store};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::State;
@@ -549,11 +549,35 @@ pub async fn share(
     req: &ShareRequest,
     stamp: u64,
 ) -> Result<Shared, CommandError> {
-    use reqwest::Method;
     let pack = shareable(text, req)?;
-    let id = &pack.game.id;
-    let file = format!("packs/{id}/pack.json");
+    let id = pack.game.id.clone();
+    send_file(
+        hub,
+        token,
+        &format!("packs/{id}/pack.json"),
+        text,
+        &format!("pack-{id}"),
+        stamp,
+        |update| format!("{} pack: {id}", if update { "Update" } else { "Add" }),
+        |update, login| pr_text(&pack, req, update, login),
+    )
+    .await
+}
 
+/// Puts one file into the community list through a pull request: from the
+/// player's copy of the list (or the list itself for its owner).
+#[allow(clippy::too_many_arguments)]
+async fn send_file(
+    hub: &Hub,
+    token: &str,
+    file: &str,
+    text: &str,
+    branch_prefix: &str,
+    stamp: u64,
+    commit_message: impl FnOnce(bool) -> String,
+    pr_text: impl FnOnce(bool, &str) -> (String, String),
+) -> Result<Shared, CommandError> {
+    use reqwest::Method;
     let me = hub
         .ok(token, Method::GET, "/user", None, "to say who you are")
         .await?;
@@ -631,7 +655,7 @@ pub async fn share(
         .await?;
     let update = listed == 200;
 
-    let branch = format!("pack-{id}-{stamp}");
+    let branch = format!("{branch_prefix}-{stamp}");
     hub.ok(
         token,
         Method::POST,
@@ -649,7 +673,7 @@ pub async fn share(
         )
         .await?;
     let mut put = json!({
-        "message": format!("{} pack: {}", if update { "Update" } else { "Add" }, pack.game.id),
+        "message": commit_message(update),
         "content": base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
         "branch": branch,
     });
@@ -663,11 +687,11 @@ pub async fn share(
         Method::PUT,
         &format!("/repos/{head_repo}/contents/{file}"),
         Some(&put),
-        "to add the pack",
+        "to add the file",
     )
     .await?;
 
-    let (title, body) = pr_text(&pack, req, update, &login);
+    let (title, body) = pr_text(update, &login);
     let head = if head_repo == COMMUNITY_REPO {
         branch.clone()
     } else {
@@ -679,7 +703,7 @@ pub async fn share(
             Method::POST,
             &format!("/repos/{COMMUNITY_REPO}/pulls"),
             Some(&json!({ "title": title, "head": head, "base": "main", "body": body, "maintainer_can_modify": true })),
-            "to send the pack",
+            "to send your change",
         )
         .await?;
     Ok(Shared {
@@ -730,6 +754,135 @@ pub async fn community_share(
             permission,
         },
         stamp,
+    )
+    .await;
+    if let Err(e) = &result
+        && e.kind == "signedOut"
+    {
+        vault::delete(CREDENTIAL);
+        *lock(&state.login) = None;
+    }
+    result
+}
+
+/// The community-list link for a table a pack was converted from: needs the
+/// maker's name and a page on a known table site (no file is shared).
+pub fn table_link(
+    pack: &ot_packs::Pack,
+    today: &str,
+) -> Result<community::TableLink, CommandError> {
+    let src = pack.meta.source.as_ref();
+    let by = src.and_then(|s| s.by.clone()).ok_or_else(|| {
+        err(
+            "needsCredit",
+            "say who made the table first (convert it again and fill in its maker)",
+        )
+    })?;
+    let url = src.and_then(|s| s.url.clone()).unwrap_or_default();
+    community::table_site(&url).ok_or_else(|| {
+        err(
+            "badRequest",
+            format!(
+                "only links to pages on {} can be listed",
+                community::TABLE_SITES
+                    .iter()
+                    .filter(|s| !s.starts_with("www."))
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        )
+    })?;
+    let title = src
+        .and_then(|s| s.file.as_deref())
+        .map(|f| {
+            f.trim_end_matches(".CT")
+                .trim_end_matches(".ct")
+                .replace('_', " ")
+        })
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| format!("{} table", pack.game.name));
+    let link = community::TableLink {
+        id: community::table_id(&pack.game.name, &url),
+        game: pack.game.name.chars().take(120).collect(),
+        exe: (pack.game.exe != ot_packs::ct::UNKNOWN_EXE).then(|| pack.game.exe.clone()),
+        title: title.chars().take(160).collect(),
+        by: by.chars().take(100).collect(),
+        url,
+        cheats: Some(pack.cheats.len()),
+        added: Some(today.to_string()),
+    };
+    if let Some(why) = community::table_problem(&link) {
+        return Err(err(
+            "badRequest",
+            format!("this link can't be listed: {why}"),
+        ));
+    }
+    Ok(link)
+}
+
+fn table_pr_text(link: &community::TableLink, update: bool, sharer: &str) -> (String, String) {
+    let title = format!(
+        "{} table link: {}",
+        if update { "Update" } else { "Add" },
+        plain(&link.game, 80)
+    );
+    let body = format!(
+        "Shared from OpenTrainer {} by @{sharer}.
+
+         - **Game:** {}{}
+         - **Table:** {}
+         - **Made by:** {}
+         - **Page:** {}
+         - **Cheats OpenTrainer can use:** {}
+
+         Only a link: the table stays on its maker's page. Please check the page is the table's own          page on its maker's site.",
+        env!("CARGO_PKG_VERSION"),
+        plain(&link.game, 80),
+        link.exe
+            .as_deref()
+            .map_or(String::new(), |e| format!(" ({})", plain(e, 80))),
+        plain(&link.title, 120),
+        plain(&link.by, 80),
+        plain(&link.url, 400),
+        link.cheats.map_or_else(|| "not said".to_string(), |c| c.to_string()),
+    );
+    (title, body)
+}
+
+/// Adds the link to the table one of the player's packs was converted from
+/// to the community list (a pull request with `tables/<id>.json`).
+#[tauri::command]
+pub async fn community_share_table(
+    key: String,
+    state: State<'_, GithubState>,
+) -> CmdResult<Shared> {
+    let found = store::all()
+        .into_iter()
+        .find(|f| f.key == key)
+        .ok_or_else(|| err("notFound", format!("no pack '{key}'")))?;
+    let text = found.text.map_err(|e| err("io", e.to_string()))?;
+    let (pack, _) = ot_packs::parse(&text)
+        .map_err(|e| err("invalidPack", format!("the pack isn't valid: {e}")))?;
+    let link = table_link(&pack, &ot_packs::share::today())?;
+    let json = serde_json::to_string_pretty(&link).map_err(|e| err("io", e.to_string()))?
+        + "
+";
+    let token =
+        vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
+    let stamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs());
+    let id = link.id.clone();
+    let result = send_file(
+        &Hub::github()?,
+        &token,
+        &format!("tables/{id}.json"),
+        &json,
+        &format!("table-{}", &id[..id.len().min(40)]),
+        stamp,
+        |update| format!("{} table link: {id}", if update { "Update" } else { "Add" }),
+        |update, login| table_pr_text(&link, update, login),
     )
     .await;
     if let Err(e) = &result
@@ -854,6 +1007,7 @@ mod tests {
             ("POST", p) if p.ends_with("/git/refs") => (201, "{}".into()),
             ("GET", p) if p.contains("/contents/packs/coin-quest/pack.json?ref=") => (404, "{}".into()),
             ("PUT", p) if p.ends_with("/contents/packs/coin-quest/pack.json") => (201, "{}".into()),
+            ("PUT", p) if p.contains("/contents/tables/") => (201, "{}".into()),
             ("POST", "/repos/jackuri/opentrainer-packs/pulls") => (
                 201,
                 json!({ "html_url": "https://github.com/jackuri/opentrainer-packs/pull/7", "number": 7 }).to_string(),
@@ -927,6 +1081,89 @@ mod tests {
         assert!(
             seen.iter()
                 .all(|(_, p, b)| !p.contains("tok") && !b.contains("\"tok\""))
+        );
+    }
+
+    fn credited(url: &str) -> ot_packs::Pack {
+        let mut v: Value = serde_json::from_str(&pack_text("sam")).unwrap();
+        v["meta"]["source"] =
+            json!({ "by": "TableMaker", "url": url, "file": "Coin_Quest_v1.2.CT" });
+        ot_packs::parse(&v.to_string()).unwrap().0
+    }
+
+    #[test]
+    fn table_links_need_the_maker_and_a_known_site() {
+        let link = table_link(
+            &credited("https://fearlessrevolution.com/viewtopic.php?t=99"),
+            "2026-11-09",
+        )
+        .unwrap();
+        assert_eq!(link.game, "Coin Quest");
+        assert_eq!(link.title, "Coin Quest v1.2");
+        assert_eq!(link.by, "TableMaker");
+        assert_eq!(link.added.as_deref(), Some("2026-11-09"));
+        assert!(link.id.starts_with("coin-quest-"), "{}", link.id);
+
+        let elsewhere = table_link(&credited("https://example.com/t/1"), "2026-11-09").unwrap_err();
+        assert!(
+            elsewhere.message.contains("fearlessrevolution.com"),
+            "{}",
+            elsewhere.message
+        );
+        let (anon, _) = ot_packs::parse(&pack_text("sam")).unwrap();
+        assert_eq!(
+            table_link(&anon, "2026-11-09").unwrap_err().kind,
+            "needsCredit"
+        );
+
+        // The pull request text can't mention people or add links.
+        let mut sly = link.clone();
+        sly.by = "@everyone [click](https://evil.example)".into();
+        let (title, body) = table_pr_text(&sly, false, "sam");
+        assert_eq!(title, "Add table link: Coin Quest");
+        assert!(
+            body.contains("@\u{200B}everyone") && body.contains("\\[click\\]\\(https"),
+            "{body}"
+        );
+        assert!(body.contains("Only a link"));
+    }
+
+    #[test]
+    fn shares_a_table_link_as_one_file() {
+        let (hub, seen) = fake(github_like("sam", false));
+        let link = table_link(
+            &credited("https://fearlessrevolution.com/viewtopic.php?t=99"),
+            "2026-11-09",
+        )
+        .unwrap();
+        let json = serde_json::to_string_pretty(&link).unwrap() + "\n";
+        let file = format!("tables/{}.json", link.id);
+        let done = run(send_file(
+            &hub,
+            "tok",
+            &file,
+            &json,
+            "table-x",
+            42,
+            |_| "Add table link".into(),
+            |u, l| table_pr_text(&link, u, l),
+        ))
+        .unwrap();
+        assert_eq!(done.number, 7);
+        let seen = lock(&seen).clone();
+        let put = seen
+            .iter()
+            .find(|(m, p, _)| m == "PUT" && p.ends_with(&file))
+            .expect("the link file is written");
+        let put: Value = serde_json::from_str(&put.2).unwrap();
+        let content = base64::engine::general_purpose::STANDARD
+            .decode(put["content"].as_str().unwrap())
+            .unwrap();
+        let back: community::TableLink = serde_json::from_slice(&content).unwrap();
+        assert_eq!(back, link);
+        assert!(
+            seen.iter()
+                .all(|(m, p, _)| m != "PUT" || !p.contains("/packs/"))
         );
     }
 

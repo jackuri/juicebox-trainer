@@ -130,7 +130,12 @@ In the **Packs** tab:
   the game: click **Turn into cheats**. You can also drop a table on the window or click **Open a
   pack or table…**. Before installing, type who made the table and its page address: they're kept
   with the pack and shown to anyone it's shared with. OpenTrainer never downloads or re-uploads
-  tables itself. OpenTrainer turns its number values (health, money, ammo…, also ones found through
+  tables itself.
+  - **Tables other players found:** **Find a cheat table** also lists tables other players linked
+    for that game, with who made them. **Open its page** opens the table's own page.
+  - **Share a table's link:** after turning a table into cheats (with its maker and page filled
+    in), click **Share the table's link** next to it in **Packs**. Only the link goes to the
+    community list, so other players find the table on its maker's page. OpenTrainer turns its number values (health, money, ammo…, also ones found through
   pointers) into a pack. You see which cheats came over and which entries were left out, and why.
   - **Scripts are never run.** OpenTrainer reads them only to understand them. The common kinds it
     redoes its own safe way: scripts that find a base address (so the values under it come over),

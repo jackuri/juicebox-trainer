@@ -16,13 +16,16 @@ const primary =
 interface Props {
   pack: PackSummary;
   onClose: () => void;
+  /** `link`: share only the link to the Cheat Engine table the pack came from (v1.16.0). */
+  mode?: "pack" | "link";
 }
 
 /**
  * Shares one of the player's packs with the community list. OpenTrainer does
  * the GitHub part; the player only signs in once with a code.
  */
-export function ShareDialog({ pack, onClose }: Props) {
+export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
+  const link = mode === "link";
   const [status, setStatus] = useState<GithubStatus | null>(null);
   const [code, setCode] = useState<DeviceCode | null>(null);
   const [copied, setCopied] = useState(false);
@@ -71,7 +74,7 @@ export function ShareDialog({ pack, onClose }: Props) {
     setError(null);
     setSharing(true);
     try {
-      setShared(await api.communityShare(pack.key, note, tableOk));
+      setShared(link ? await api.communityShareTable(pack.key) : await api.communityShare(pack.key, note, tableOk));
     } catch (e) {
       const err = toCommandError(e);
       if (err.kind === "signedOut") setStatus((s) => (s ? { ...s, signedIn: false, login: null } : s));
@@ -95,14 +98,26 @@ export function ShareDialog({ pack, onClose }: Props) {
     <div
       className="flex flex-col gap-3 rounded-2xl bg-zinc-900/90 p-5 ring-1 ring-emerald-800/70"
       role="dialog"
-      aria-label="Share with the community"
+      aria-label={link ? "Share the table's link" : "Share with the community"}
     >
-      <div>
-        <p className="text-lg font-semibold tracking-tight">Share “{name}” with everyone</p>
-        <p className="text-xs text-zinc-400">
-          OpenTrainer puts your pack on the community list for you. A maintainer checks every pack before it shows up.
-        </p>
-      </div>
+      {link ? (
+        <div>
+          <p className="text-lg font-semibold tracking-tight">Share the link to the {name} table</p>
+          <p className="text-xs text-zinc-400">
+            Adds a link to the table&apos;s page{pack.credit?.by ? ` (made by ${pack.credit.by})` : ""} to the community
+            list, so other players can find it. Only the link is shared: the table stays on its maker&apos;s page. A
+            maintainer checks every link before it shows up.
+          </p>
+          {pack.credit?.url && <p className="mt-1 break-all text-xs text-zinc-300">{pack.credit.url}</p>}
+        </div>
+      ) : (
+        <div>
+          <p className="text-lg font-semibold tracking-tight">Share “{name}” with everyone</p>
+          <p className="text-xs text-zinc-400">
+            OpenTrainer puts your pack on the community list for you. A maintainer checks every pack before it shows up.
+          </p>
+        </div>
+      )}
 
       {error && (
         <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
@@ -147,7 +162,30 @@ export function ShareDialog({ pack, onClose }: Props) {
         </div>
       )}
 
-      {status?.configured && status.signedIn && !shared && (
+      {status?.configured && status.signedIn && !shared && link && (
+        <div className="flex flex-col gap-3 text-sm">
+          <label className="flex items-start gap-2">
+            <input type="checkbox" className="mt-1" checked={tested} onChange={(e) => setTested(e.target.checked)} />
+            The address is the table&apos;s own page on its maker&apos;s site, and the table worked for me.
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className={primary} disabled={sharing || !tested} onClick={() => void share()}>
+              {sharing ? "Sharing…" : "Share the link"}
+            </button>
+            <button className={button} onClick={close} disabled={sharing}>
+              Cancel
+            </button>
+            <span className="ml-auto text-xs text-zinc-500">
+              Signed in to GitHub{status.login ? ` as ${status.login}` : ""} ·{" "}
+              <button className="underline hover:text-zinc-300" onClick={() => void signOut()} disabled={sharing}>
+                Sign out
+              </button>
+            </span>
+          </div>
+        </div>
+      )}
+
+      {status?.configured && status.signedIn && !shared && !link && (
         <div className="flex flex-col gap-3 text-sm">
           <label className="flex flex-col gap-1">
             Which version of the game did you test it on? (optional)
@@ -200,7 +238,8 @@ export function ShareDialog({ pack, onClose }: Props) {
         <div className="flex flex-col gap-2 text-sm" role="status">
           <p className="text-emerald-300">
             Sent! A maintainer will check it and add it to the list, usually within a few days.
-            {shared.update && " It replaces the pack the list already has for this game."}
+            {shared.update &&
+              (link ? " The list already had this link: this updates it." : " It replaces the pack the list already has for this game.")}
           </p>
           <div className="flex gap-2">
             <button className={button} onClick={() => void api.githubOpenPr(shared.url).catch(() => undefined)}>

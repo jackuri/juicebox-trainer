@@ -156,6 +156,7 @@ fn index(dir: &Path, out: &Path) -> bool {
         format: community::FORMAT,
         updated: Some(share::today()),
         packs,
+        tables: Vec::new(),
     };
     let json = match serde_json::to_string_pretty(&index) {
         Ok(j) => j + "\n",

@@ -1203,6 +1203,11 @@ pub struct PackSummary {
     /// Why it can't be loaded, if it can't.
     pub error: Option<String>,
     pub issues: Vec<Issue>,
+    /// Who made the cheats and where they were published, if the pack says.
+    pub credit: Option<ot_packs::schema::Source>,
+    /// The credit names the maker and a page on a known table site, so the
+    /// table's link can be shared with the community list.
+    pub table_link: bool,
 }
 
 fn summarize(found: store::Found) -> PackSummary {
@@ -1220,6 +1225,8 @@ fn summarize(found: store::Found) -> PackSummary {
         cheats: 0,
         error: None,
         issues: Vec::new(),
+        credit: None,
+        table_link: false,
     };
     let text = match found.text {
         Ok(text) => text,
@@ -1239,6 +1246,14 @@ fn summarize(found: store::Found) -> PackSummary {
             s.pack_version = Some(pack.meta.pack_version);
             s.cheats = pack.cheats.len();
             s.issues = warnings;
+            s.table_link = pack.meta.source.as_ref().is_some_and(|src| {
+                src.by.is_some()
+                    && src
+                        .url
+                        .as_deref()
+                        .is_some_and(|u| ot_packs::community::table_site(u).is_some())
+            });
+            s.credit = pack.meta.source;
         }
         Err(e) => {
             s.error = Some(e.to_string());

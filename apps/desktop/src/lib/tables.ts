@@ -2,7 +2,7 @@
  * Cheat Engine tables the player downloads (v1.15.0): which game each one is for, the game the
  * player last searched tables for, and the tables they said "not now" to.
  */
-import type { LibraryGame, RecentTable } from "./ipc";
+import type { LibraryGame, RecentTable, TableLink } from "./ipc";
 
 export const SEARCH_KEY = "opentrainer.tableSearch";
 export const DISMISSED_KEY = "opentrainer.tablesDismissed";
@@ -95,4 +95,24 @@ export function dismiss(t: RecentTable) {
 
 export function isDismissed(t: RecentTable, set = dismissed()): boolean {
   return set.has(tableKey(t));
+}
+
+/** Community-list table links for one game: by exe, else by name. */
+export function linksFor(game: LibraryGame, links: TableLink[]): TableLink[] {
+  const exes = new Set([game.exe ? base(game.exe) : "", game.pack?.exe.toLowerCase() ?? ""].filter(Boolean));
+  const name = squash(game.name);
+  return links.filter((l) => {
+    if (l.exe && exes.has(l.exe.toLowerCase())) return true;
+    const n = squash(l.game);
+    return n.length >= 3 && n === name;
+  });
+}
+
+/** The site a link points to, for showing ("fearlessrevolution.com"). */
+export function siteOf(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
 }

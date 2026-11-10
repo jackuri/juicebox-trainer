@@ -55,6 +55,33 @@ describe("FindTable", () => {
     expect(invoke).toHaveBeenLastCalledWith("tables_search", { site: "web", game: "Hollow Knight" });
   });
 
+  it("lists tables other players linked for this game and opens their pages", async () => {
+    const page = "https://fearlessrevolution.com/viewtopic.php?t=7";
+    invoke.mockImplementation((cmd: string) =>
+      Promise.resolve(
+        cmd === "community_list"
+          ? {
+              url: "",
+              contributeUrl: "",
+              updated: null,
+              packs: [],
+              skipped: [],
+              tables: [
+                { id: "hk-1", game: "Hollow Knight", exe: null, title: "HK v1.5", by: "Maker", url: page, cheats: 9, added: "2026-11-09" },
+                { id: "other-1", game: "Other Game", exe: null, title: "Other", by: "X", url: page + "1", cheats: 1, added: null },
+              ],
+            }
+          : undefined,
+      ),
+    );
+    render(<FindTable game={hk} onClose={vi.fn()} onError={vi.fn()} />);
+    expect(await screen.findByText("HK v1.5")).toBeInTheDocument();
+    expect(screen.getByText(/by Maker · fearlessrevolution.com · 9 cheats OpenTrainer can use · added 2026-11-09/)).toBeInTheDocument();
+    expect(screen.queryByText("Other")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open the page of HK v1.5" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("community_open_table", { url: page }));
+  });
+
   it("shows what went wrong", async () => {
     invoke.mockRejectedValue({ kind: "io", message: "no browser" });
     const onError = vi.fn();

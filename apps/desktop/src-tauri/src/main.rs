@@ -183,6 +183,8 @@ fn main() {
             github::github_open_device_page,
             github::github_open_pr,
             github::community_share,
+            github::community_share_table,
+            sharing::community_open_table,
             sharing::packs_remove,
             sharing::community_list,
             sharing::community_preview,

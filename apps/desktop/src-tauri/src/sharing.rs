@@ -468,6 +468,8 @@ pub struct CommunityList {
     pub contribute_url: &'static str,
     pub updated: Option<String>,
     pub packs: Vec<CommunityPack>,
+    /// Links to Cheat Engine tables on their makers' pages.
+    pub tables: Vec<community::TableLink>,
     /// Entries left out because they were broken.
     pub skipped: Vec<String>,
 }
@@ -538,8 +540,27 @@ pub async fn community_list(
                 entry,
             })
             .collect(),
+        tables: index.tables,
         skipped,
     })
+}
+
+/// Opens a table's page from the community list in the browser: only pages
+/// the list has, on a known table site.
+#[tauri::command]
+pub async fn community_open_table(url: String, state: State<'_, SharingState>) -> CmdResult<()> {
+    let Cached { index, .. } = index(&state, false).await?;
+    if community::table_site(&url).is_none() || !index.tables.iter().any(|t| t.url == url) {
+        return Err(CommandError::new(
+            "badRequest",
+            "that page isn't a table on the community list",
+        ));
+    }
+    std::process::Command::new("explorer.exe")
+        .arg(&url)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    Ok(())
 }
 
 async fn download(state: &SharingState, id: &str) -> CmdResult<(String, Pack, String, Vec<Issue>)> {

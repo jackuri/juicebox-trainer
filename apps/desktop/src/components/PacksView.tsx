@@ -42,7 +42,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   const [filter, setFilter] = useState("");
   const [incoming, setIncoming] = useState<{ from: Incoming; preview: PackPreview } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
-  const [sharing, setSharing] = useState<PackSummary | null>(null);
+  const [sharing, setSharing] = useState<{ pack: PackSummary; mode: "pack" | "link" } | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; path?: string; cheats?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -191,7 +191,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
         </p>
       )}
 
-      {sharing && <ShareDialog pack={sharing} onClose={() => setSharing(null)} />}
+      {sharing && <ShareDialog pack={sharing.pack} mode={sharing.mode} onClose={() => setSharing(null)} />}
 
       {incoming && (
         <InstallDialog
@@ -249,10 +249,24 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
                   aria-label={`Share ${p.name ?? p.key} with everyone`}
                   onClick={() => {
                     setMessage(null);
-                    setSharing(p);
+                    setSharing({ pack: p, mode: "pack" });
                   }}
                 >
                   Share with everyone
+                </button>
+              )}
+              {p.tableLink && (
+                <button
+                  className={button}
+                  disabled={Boolean(p.error)}
+                  aria-label={`Share the table link for ${p.name ?? p.key}`}
+                  title="Add a link to the table's page to the community list (the table itself isn't shared)"
+                  onClick={() => {
+                    setMessage(null);
+                    setSharing({ pack: p, mode: "link" });
+                  }}
+                >
+                  Share the table&apos;s link
                 </button>
               )}
               <button className={button} disabled={Boolean(p.error)} aria-label={`Export ${p.name ?? p.key}`} onClick={() => void exportPack(p)}>
