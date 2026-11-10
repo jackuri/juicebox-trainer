@@ -186,8 +186,8 @@ _Last updated: 2026-11-09 — v1.13.0_
   works.
 
 ## In progress
-- v1.1.0 – v1.9.0 are pushed and tagged (v1.9.0 is Latest, in-app updates on). v1.10.0 – v1.13.0
-  are committed locally only (not pushed or tagged yet; waiting for the user). The community list has its first real shared pack (Species Unknown, merged by the user).
+- Pushed through v1.13.0; v1.13.0 is tagged and Latest (in-app updates on). v1.10.0 – v1.12.0 were
+  released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
   pack were downloaded, the SHA-256 matched and `otpack validate` passed.
