@@ -317,6 +317,188 @@ pub fn entry_for(pack: &Pack, text: &str) -> Entry {
     }
 }
 
+// ----- most wanted (v1.25.0) ------------------------------------------------------------------
+
+/// Where players ask for cheats: the community repository's issues.
+pub const REQUESTS_URL: &str = "https://github.com/jackuri/juicebox-packs/issues";
+/// `wanted.json` refuses to load above this size.
+pub const MAX_WANTED_BYTES: u64 = 512 << 10;
+/// At most this many wanted games are shown.
+pub const MAX_WANTED: usize = 200;
+
+/// A game players asked cheats for (from `wanted.json`, built from the
+/// community repository's "request" issues). Written by anyone: only checked,
+/// short text is kept, and links are made from the issue number.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Wanted {
+    pub game: String,
+    #[serde(default)]
+    pub exe: Option<String>,
+    /// Players who asked (the request and its thumbs-up).
+    pub votes: u32,
+    /// The request's issue number.
+    pub number: u64,
+    /// When it was asked (YYYY-MM-DD).
+    #[serde(default)]
+    pub asked: Option<String>,
+}
+
+/// `wanted.json` next to the `index.json` at `index_url`.
+pub fn wanted_url(index_url: &str) -> String {
+    match index_url.strip_suffix("index.json") {
+        Some(base) => format!("{base}wanted.json"),
+        None => format!("{}/wanted.json", index_url.trim_end_matches('/')),
+    }
+}
+
+/// A game name safe to show: one line, no control or direction characters,
+/// 2 to 80 characters.
+fn clean_game(s: &str) -> Option<String> {
+    let t: String = s
+        .chars()
+        .map(|c| {
+            if c.is_control() || matches!(c, '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}') {
+                ' '
+            } else {
+                c
+            }
+        })
+        .collect();
+    let t = t.split_whitespace().collect::<Vec<_>>().join(" ");
+    (2..=80).contains(&t.chars().count()).then_some(t)
+}
+
+/// A plain exe file name, or `None`.
+fn clean_exe(s: &str) -> Option<String> {
+    let t = s.trim();
+    let ok = t.len() <= 84
+        && t.to_ascii_lowercase().ends_with(".exe")
+        && t.len() > 4
+        && t.chars()
+            .all(|c| c.is_ascii_alphanumeric() || " ._()+-".contains(c));
+    ok.then(|| t.to_string())
+}
+
+/// Parses `wanted.json` leniently: bad entries are left out, the rest are
+/// cleaned and sorted by votes (most first).
+pub fn parse_wanted(bytes: &[u8]) -> Result<Vec<Wanted>, String> {
+    if bytes.len() as u64 > MAX_WANTED_BYTES {
+        return Err("the most-wanted list is too big".into());
+    }
+    let v: serde_json::Value = serde_json::from_slice(bytes)
+        .map_err(|e| format!("the most-wanted list isn't valid: {e}"))?;
+    if v.get("format").and_then(serde_json::Value::as_u64) != Some(1) {
+        return Err("the most-wanted list has an unknown format".into());
+    }
+    let mut list: Vec<Wanted> = v
+        .get("wanted")
+        .and_then(serde_json::Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|e| serde_json::from_value::<Wanted>(e.clone()).ok())
+                .collect()
+        })
+        .unwrap_or_default();
+    list.retain_mut(|w| {
+        let Some(game) = clean_game(&w.game) else {
+            return false;
+        };
+        w.game = game;
+        w.exe = w.exe.as_deref().and_then(clean_exe);
+        w.asked = w
+            .asked
+            .take()
+            .filter(|d| d.len() == 10 && d.bytes().all(|b| b.is_ascii_digit() || b == b'-'));
+        w.votes = w.votes.max(1);
+        w.number > 0
+    });
+    list.sort_by(|a, b| b.votes.cmp(&a.votes).then(a.number.cmp(&b.number)));
+    list.truncate(MAX_WANTED);
+    Ok(list)
+}
+
+/// Percent-encodes a URL query value (UTF-8).
+fn encode(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for b in s.bytes() {
+        match b {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                out.push(b as char)
+            }
+            _ => out.push_str(&format!("%{b:02X}")),
+        }
+    }
+    out
+}
+
+/// The page that asks the community for cheats for a game: the request form,
+/// filled in with the game's name (and exe). `None` for a name that can't be
+/// a game's.
+pub fn request_url(game: &str, exe: Option<&str>) -> Option<String> {
+    let game = clean_game(game)?;
+    let mut url = format!(
+        "{REQUESTS_URL}/new?template=cheat-request.yml&labels=request&title={}&game={}",
+        encode(&format!("Cheats for: {game}")),
+        encode(&game)
+    );
+    if let Some(exe) = exe.and_then(clean_exe) {
+        url.push_str(&format!("&exe={}", encode(&exe)));
+    }
+    Some(url)
+}
+
+/// A request's page (made from its number, never from what people wrote).
+pub fn request_page(number: u64) -> String {
+    format!("{REQUESTS_URL}/{number}")
+}
+
+#[cfg(test)]
+mod wanted_tests {
+    use super::*;
+
+    #[test]
+    fn reads_the_most_wanted_list_carefully() {
+        let json = br#"{"format":1,"updated":"2026-11-11","wanted":[
+            {"game":"Coin Quest","exe":"coin.exe","votes":1,"number":5,"url":"https://evil.example/","asked":"2026-11-10"},
+            {"game":"Hollow\u202e Knight","exe":"C:\\evil\\x.exe","votes":7,"number":4},
+            {"game":"x","votes":9,"number":6},
+            {"nonsense":true},
+            {"game":"No Number","votes":3,"number":0}
+        ]}"#;
+        let list = parse_wanted(json).unwrap();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0].game, "Hollow Knight");
+        assert_eq!(list[0].votes, 7);
+        assert_eq!(list[0].exe, None);
+        assert_eq!(list[1].exe.as_deref(), Some("coin.exe"));
+        assert_eq!(
+            request_page(list[1].number),
+            "https://github.com/jackuri/juicebox-packs/issues/5"
+        );
+        assert!(parse_wanted(br#"{"format":2,"wanted":[]}"#).is_err());
+    }
+
+    #[test]
+    fn asks_with_a_filled_in_form() {
+        let url = request_url("Hollow Knight & Co", Some("hollow_knight.exe")).unwrap();
+        assert_eq!(
+            url,
+            "https://github.com/jackuri/juicebox-packs/issues/new?template=cheat-request.yml&labels=request&title=Cheats%20for%3A%20Hollow%20Knight%20%26%20Co&game=Hollow%20Knight%20%26%20Co&exe=hollow_knight.exe"
+        );
+        assert!(request_url("x", None).is_none());
+        assert!(
+            !request_url("Game", Some("..\\a.bat"))
+                .unwrap()
+                .contains("exe=")
+        );
+        assert_eq!(
+            wanted_url(INDEX_URL),
+            "https://raw.githubusercontent.com/jackuri/juicebox-packs/main/wanted.json"
+        );
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

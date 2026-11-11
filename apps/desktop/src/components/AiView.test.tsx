@@ -133,6 +133,57 @@ describe("AiView", () => {
     expect(screen.getByRole("button", { name: "Start over" })).toBeInTheDocument();
   });
 
+  it("offers to share the pack it made with everyone (v1.25.0)", async () => {
+    const aiPack = {
+      key: "user:testbed-native",
+      source: "user",
+      path: null,
+      id: "testbed-native",
+      name: "Testbed",
+      exe: "testbed_native.exe",
+      arch: "x64",
+      author: "ai",
+      ai: true,
+      packVersion: "1.0.0",
+      cheats: 2,
+      error: null,
+      issues: [],
+    };
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "ai_status"
+        ? Promise.resolve(status())
+        : cmd === "packs_list"
+          ? Promise.resolve([{ ...aiPack, key: "bundled:x", source: "bundled" }, aiPack])
+          : Promise.resolve(undefined),
+    );
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("ai_start", expect.anything()));
+    act(() => {
+      emit?.({ type: "finished", ok: true, summary: "Saved a pack with 2 cheats." });
+      emit?.({ type: "exit" });
+    });
+    fireEvent.click(await screen.findByRole("button", { name: "Share with everyone" }));
+    expect(screen.getByRole("dialog", { name: "Share with the community" })).toBeInTheDocument();
+  });
+
+  it("doesn't offer sharing when it didn't work", async () => {
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "ai_status" ? Promise.resolve(status()) : cmd === "packs_list" ? Promise.resolve([]) : Promise.resolve(undefined),
+    );
+    render(<AiView processes={[game]} games={[testbedGame]} onRefreshProcesses={vi.fn()} />);
+    fireEvent.change(await screen.findByLabelText("Game"), { target: { value: "77" } });
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("ai_start", expect.anything()));
+    act(() => {
+      emit?.({ type: "finished", ok: false, summary: "No cheats found." });
+      emit?.({ type: "exit" });
+    });
+    await screen.findByText("No cheats found.");
+    expect(screen.queryByRole("button", { name: "Share with everyone" })).not.toBeInTheDocument();
+  });
+
   it("makes cheats for the open web game", async () => {
     let open: unknown = null;
     invoke.mockImplementation((cmd: string) =>

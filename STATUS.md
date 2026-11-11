@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-11 — v1.24.1_
+_Last updated: 2026-11-11 — v1.25.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -311,6 +311,10 @@ _Last updated: 2026-11-11 — v1.24.1_
 - v1.24.1 The taskbar / Alt+Tab icon follows the season too (Tauri's set_icon only set the small
   title-bar icon; the big one is set with WM_SETICON ICON_BIG). Checked with WM_GETICON on the built app.
 
+- v1.25.0 Community growth (idea 2 of 3): Share with everyone after the AI helper succeeds; Ask the
+  community for cheats on games without any (GitHub request form) and Most wanted in Packs
+  (community repo builds wanted.json from "request" issues hourly).
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
@@ -321,6 +325,8 @@ _Last updated: 2026-11-11 — v1.24.1_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
+- Next (user's order 2026-11-11): engine-wide instant cheats (Unity / Unreal), then more Cheat
+  Engine table sources besides FearLess (link with credit; open-licence tables included with credit).
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
   on. The benchmark could get web and harder test games (values ×10, scrambled).
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate

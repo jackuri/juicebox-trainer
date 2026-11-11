@@ -1,6 +1,7 @@
 import { Mascot } from "./Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShareDialog } from "./ShareDialog";
+import { MostWanted } from "./Wanted";
 import {
   api,
   type CommunityList,
@@ -32,10 +33,12 @@ interface Props {
   onOpened: () => void;
   /** Go to the Cheats view (after installing a pack). */
   onShowCheats: () => void;
+  /** Go to the AI helper (to make cheats for a most-wanted game). */
+  onOpenAi?: () => void;
 }
 
 /** Your packs, .juice import / export, and the community list. */
-export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
+export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => undefined }: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [community, setCommunity] = useState<CommunityList | null>(null);
   const [communityError, setCommunityError] = useState<string | null>(null);
@@ -294,6 +297,8 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           ))}
         </ul>
       </section>
+
+      <MostWanted onOpenAi={onOpenAi} />
 
       <section className="flex flex-col gap-2 border-t border-zinc-900 pt-4" aria-label="Community packs">
         <div className="flex flex-wrap items-center gap-2">

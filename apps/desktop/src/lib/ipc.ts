@@ -220,6 +220,15 @@ export const PACK_SOURCE_LABEL: Record<PackSource, string> = {
   community: "community",
 };
 
+/** A game players asked cheats for (community "Most wanted", v1.25.0). */
+export interface Wanted {
+  game: string;
+  exe: string | null;
+  votes: number;
+  number: number;
+  asked: string | null;
+}
+
 export interface PackSummary {
   key: string;
   source: PackSource;
@@ -1278,6 +1287,12 @@ export const api = {
   /** Opens a community pack maker's page or support page (only what the list gives). */
   communityOpenCredit: (id: string, which: "page" | "support") => invoke<void>("community_open_credit", { id, which }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
+  /** Games players asked cheats for, most votes first (v1.25.0). */
+  communityWanted: (refresh: boolean) => invoke<Wanted[]>("community_wanted", { refresh }),
+  /** Opens the filled-in request form for a game in the browser. */
+  communityAsk: (game: string, exe: string | null) => invoke<void>("community_ask", { game, exe }),
+  /** Opens a request's page (to vote). */
+  communityOpenRequest: (number: number) => invoke<void>("community_open_request", { number }),
   /** Adds the link to the table a pack came from to the community list (a pull request). */
   communityShareTable: (key: string) => invoke<SharedPack>("community_share_table", { key }),
   /** Opens a table's page from the community list (only pages the list has). */

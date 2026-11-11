@@ -322,7 +322,7 @@ export default function App() {
           }}
         />
       ) : view === "packs" ? (
-        <PacksView openPath={openPath} onOpened={opened} onShowCheats={() => setView("cheats")} />
+        <PacksView openPath={openPath} onOpened={opened} onShowCheats={() => setView("cheats")} onOpenAi={() => setView("ai")} />
       ) : view === "about" ? (
         <AboutView />
       ) : view === "themes" ? (

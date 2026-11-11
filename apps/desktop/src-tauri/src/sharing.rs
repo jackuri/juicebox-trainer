@@ -25,6 +25,8 @@ pub struct SharingState {
     pending: Mutex<Option<String>>,
     /// The last community list download, for a few minutes.
     index: Mutex<Option<Cached>>,
+    /// The last most-wanted list download (v1.25.0), for a few minutes.
+    wanted: Mutex<Option<(Instant, String, Vec<community::Wanted>)>>,
 }
 
 #[derive(Debug, Clone)]
@@ -528,6 +530,44 @@ async fn index(state: &SharingState, refresh: bool) -> CmdResult<Cached> {
     };
     *lock(&state.index) = Some(cached.clone());
     Ok(cached)
+}
+
+/// The games players asked cheats for, most votes first (v1.25.0;
+/// downloaded at most every 10 minutes unless `refresh`).
+#[tauri::command]
+pub async fn community_wanted(
+    refresh: bool,
+    state: State<'_, SharingState>,
+) -> CmdResult<Vec<community::Wanted>> {
+    let url = community::wanted_url(&index_url());
+    if !refresh
+        && let Some((at, u, list)) = lock(&state.wanted).as_ref()
+        && at.elapsed() < CACHE_FOR
+        && *u == url
+    {
+        return Ok(list.clone());
+    }
+    let bytes = fetch(&url, community::MAX_WANTED_BYTES)
+        .await
+        .map_err(|e| CommandError::new("offline", e))?;
+    let list = community::parse_wanted(&bytes).map_err(|e| CommandError::new("badIndex", e))?;
+    *lock(&state.wanted) = Some((Instant::now(), url, list.clone()));
+    Ok(list)
+}
+
+/// Opens the community's request form for a game, filled in (only the game's
+/// name and exe go into it). The player sends it on GitHub.
+#[tauri::command]
+pub async fn community_ask(game: String, exe: Option<String>) -> CmdResult<()> {
+    let url = community::request_url(&game, exe.as_deref())
+        .ok_or_else(|| CommandError::new("badRequest", "that isn't a game name"))?;
+    crate::browser::open_url(&url)
+}
+
+/// Opens a request's page (to add a thumbs-up, or see who's helping).
+#[tauri::command]
+pub async fn community_open_request(number: u64) -> CmdResult<()> {
+    crate::browser::open_url(&community::request_page(number))
 }
 
 /// The community pack list (downloaded at most every 10 minutes unless

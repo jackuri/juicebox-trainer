@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.25.0] - 2026-11-11
+
+### Added
+- **Share what the AI helper made, right away.** When the helper finishes with cheats that work, it
+  offers **Share with everyone** (the usual sharing window, for PC and web games).
+- **Ask the community for cheats.** On the Games tab, a game without cheats has **Ask the community
+  for cheats**: it opens a filled-in request on the community page in your browser (only the game's
+  name and program name go into it; you send it). When players already asked, it shows how many
+  and lets you add your vote instead.
+- **Most wanted** in **Packs**: the games players asked for, most votes first. Games you have get
+  **You have it: make cheats with AI**, so anyone can help.
+
+### Fixed
+- The pack tool for developers is now really called `juicepack` (1.23 renamed only its file).
+
 ## [1.24.1] - 2026-11-11
 
 ### Fixed

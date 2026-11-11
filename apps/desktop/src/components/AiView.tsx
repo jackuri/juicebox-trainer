@@ -1,3 +1,5 @@
+import { ShareDialog } from "./ShareDialog";
+import { WebShareDialog } from "./WebShareDialog";
 import { Mascot } from "./Icon";
 import { useEffect, useState } from "react";
 import { pendingAsk } from "../lib/ai";
@@ -7,6 +9,7 @@ import {
   api,
   onAiEvent,
   onAiInstallProgress,
+  type PackSummary,
   type ProcessInfo,
   type RunningGame,
   type WebGame,
@@ -108,6 +111,10 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  /** The game the helper worked on (to offer sharing what it made, v1.25.0). */
+  const [targetExe, setTargetExe] = useState<string | null>(null);
+  const [sharePack, setSharePack] = useState<PackSummary | null>(null);
+  const [sharing, setSharing] = useState<"pack" | "web" | null>(null);
 
   useEffect(() => {
     api.aiStatus().then(
@@ -148,6 +155,24 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
   const ask = pendingAsk(events);
   const cost = [...events].reverse().find((e) => e.type === "cost");
   const finished = [...events].reverse().find((e) => e.type === "finished");
+  const worked = finished?.type === "finished" && finished.ok;
+
+  // It worked: find the pack it saved, to offer sharing it with everyone.
+  useEffect(() => {
+    if (!worked || webTask || !targetExe) return;
+    let live = true;
+    api.packsList().then(
+      (list) => {
+        const exe = targetExe.toLowerCase();
+        const p = (Array.isArray(list) ? list : []).find((x) => x.source === "user" && x.exe?.toLowerCase() === exe && !x.error);
+        if (live) setSharePack(p ?? null);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, [worked, webTask, targetExe]);
 
   async function start() {
     setError(null);
@@ -157,6 +182,8 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
       setEvents([]);
       const web = kind === "web";
       setWebTask(web);
+      setSharePack(null);
+      setTargetExe(web ? null : (processes.find((p) => p.pid === Number(pid))?.name ?? null));
       await api.aiStart({
         pid: web ? 0 : Number(pid),
         task: web ? "webTrainer" : undefined,
@@ -522,6 +549,17 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
                   >
                     {e.ok && <Mascot mood="wink" className="float-left mr-2 h-9 w-9" />}
                     {e.summary}
+                    {e.ok && (sharePack || (webTask && webGame)) && (
+                      <span className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-emerald-900/40 px-2 py-1.5">
+                        <span className="flex-1 text-xs">These work! Share them with everyone so other players get them too.</span>
+                        <button
+                          className="btn-accent rounded-lg px-3 py-1 text-xs font-semibold"
+                          onClick={() => setSharing(webTask ? "web" : "pack")}
+                        >
+                          Share with everyone
+                        </button>
+                      </span>
+                    )}
                     {e.ok && (
                       <p className="mt-1 text-xs">
                         {webTask
@@ -612,6 +650,8 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
           <p className="text-[11px] text-zinc-600">It reads your message after its current step.</p>
         </form>
       )}
+      {sharing === "pack" && sharePack && <ShareDialog pack={sharePack} onClose={() => setSharing(null)} />}
+      {sharing === "web" && webGame && <WebShareDialog key={webGame.id} game={webGame} onClose={() => setSharing(null)} />}
     </div>
   );
 }

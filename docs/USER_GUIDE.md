@@ -280,6 +280,16 @@ numbers.
    like and click **Start**. It may ask you to read a number or do something in the game, then
    adds the cheats that work to the game's cheats. Keep the game window open while it works.
 
+### Ask for cheats, or help others
+
+- **No cheats for your game?** On the **Games** tab, click **Ask the community for cheats** on it.
+  Your browser opens a request on the community page, already filled in with the game's name; sign
+  in to GitHub and click **Create**. If other players already asked, the button says how many and
+  opens their request instead: add a 👍 there.
+- **Most wanted** (in **Packs**) lists the games players asked for, most votes first. If you have
+  one, click **You have it: make cheats with AI** and share what the helper makes.
+- When the AI helper finishes with cheats that work, it offers **Share with everyone** straight away.
+
 ### Sharing web cheats
 
 - **With friends:** click **Share** next to the game, then **Save to a file**. Send the file to your

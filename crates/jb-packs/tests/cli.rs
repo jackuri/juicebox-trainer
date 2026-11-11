@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn otpack(args: &[&std::ffi::OsStr]) -> (bool, String) {
-    let out = Command::new(env!("CARGO_BIN_EXE_otpack"))
+    let out = Command::new(env!("CARGO_BIN_EXE_juicepack"))
         .args(args)
         .output()
         .unwrap();

@@ -8,8 +8,10 @@ import {
   type PlayResult,
   type StoreKind,
   toCommandError,
+  type Wanted,
 } from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
+import { AskCommunity } from "./Wanted";
 
 const STORE: Record<StoreKind, string> = {
   steam: "Steam",
@@ -29,6 +31,7 @@ interface Props {
 
 /** Games on this PC, with "Play with cheats". */
 export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
+  const [wanted, setWanted] = useState<Wanted[]>([]);
   const [games, setGames] = useState<LibraryGame[] | null>(null);
   const [filter, setFilter] = useState("");
   const [showHidden, setShowHidden] = useState(false);
@@ -41,6 +44,8 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
 
   const load = useCallback(() => {
     api.libraryList().then(setGames, (e: unknown) => setError(friendlyError(e)));
+    // Requests other players made (to show "asked by N" instead of a new request).
+    api.communityWanted(false).then((w) => setWanted(Array.isArray(w) ? w : []), () => undefined);
   }, []);
 
   useEffect(() => load(), [load]);
@@ -237,6 +242,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                     Make one with AI
                   </button>
                 )}
+                {!g.blocked && !g.pack && <AskCommunity game={g} wanted={wanted} onError={setError} />}
                 {!g.blocked &&
                   (findFor === g.id ? (
                     <FindTable game={g} onClose={() => setFindFor(null)} onError={setError} />
