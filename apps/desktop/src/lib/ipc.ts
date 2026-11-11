@@ -1,13 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
-// Types mirror the Rust structs in ot-core and src-tauri/src/commands.rs.
+// Types mirror the Rust structs in jb-core and src-tauri/src/commands.rs.
 
 export type Arch = "x86" | "x64" | "arm64" | "unknown";
 
 export interface AppInfo {
   version: string;
   coreVersion: string;
+  /** This start moved OpenTrainer's packs, saves and settings over (v1.23.0). */
+  movedFromOpenTrainer?: boolean;
 }
 
 export interface ProcessInfo {
@@ -77,7 +79,7 @@ export interface ReadResult {
   bytes: string;
 }
 
-/** A memory region (ot_core::Region). */
+/** A memory region (jb_core::Region). */
 export interface MemoryRegion {
   base: number;
   size: number;
@@ -198,7 +200,7 @@ export interface MyCheatSaved {
   loaded: boolean;
 }
 
-// ----- packs + trainer (mirror ot-packs and commands.rs) -----
+// ----- packs + trainer (mirror jb-packs and commands.rs) -----
 
 export type PackArch = "x86" | "x64";
 export type Ui = "toggle" | "slider" | "number" | "button";
@@ -393,7 +395,7 @@ export interface TrainerView {
   pending: string[];
 }
 
-// ----- presets, own keys (ot-packs settings) -----
+// ----- presets, own keys (jb-packs settings) -----
 
 export interface PresetCheat {
   id: string;
@@ -544,7 +546,7 @@ export interface RecentTable {
   game: string;
   /** The game's exe, when the table says. */
   exe: string | null;
-  /** Cheats OpenTrainer can use from it. */
+  /** Cheats JuiceBox Trainer can use from it. */
   cheats: number;
   /** Why it can't be read, if it can't. */
   error: string | null;
@@ -552,7 +554,7 @@ export interface RecentTable {
 
 /** GitHub sign-in for sharing packs with the community list. */
 export interface GithubStatus {
-  /** This version knows OpenTrainer's GitHub app. */
+  /** This version knows JuiceBox Trainer's GitHub app. */
   configured: boolean;
   signedIn: boolean;
   login: string | null;
@@ -610,9 +612,9 @@ export interface CommunityList {
 }
 
 /** Files dropped on the window (their paths). */
-/** Files OpenTrainer opens as packs: `.otpack`, or a plain pack `.json`. */
+/** Files JuiceBox Trainer opens as packs: `.juice` (`.otpack` from OpenTrainer), a plain pack `.json`, or a table. */
 export function isPackFile(path: string): boolean {
-  return /\.(otpack|json|ct)$/i.test(path.trim());
+  return /\.(juice|otpack|json|ct)$/i.test(path.trim());
 }
 
 /** A Cheat Engine table (converted into a pack when opened). */
@@ -643,7 +645,7 @@ export function onFileDrop(cb: (paths: string[]) => void): () => void {
   };
 }
 
-/** An .otpack opened from Explorer while OpenTrainer runs. */
+/** A .juice pack opened from Explorer while JuiceBox Trainer runs. */
 export function onOtpackOpen(cb: (path: string) => void): () => void {
   return on<string>("otpack-open", cb);
 }
@@ -755,7 +757,7 @@ export interface Signature {
   instructions: DecodedInstr[];
 }
 
-/** Code changes undone at startup after OpenTrainer closed unexpectedly. */
+/** Code changes undone at startup after JuiceBox Trainer closed unexpectedly. */
 export interface Recovery {
   exe: string;
   pid: number;
@@ -795,9 +797,9 @@ export function onTrainerChanged(cb: () => void): () => void {
   };
 }
 
-// ----- save backups (ot-saves, src-tauri/src/saves.rs) -----
+// ----- save backups (jb-saves, src-tauri/src/saves.rs) -----
 
-/** A Steam account on this PC (ot_saves::accounts::SteamAccount). */
+/** A Steam account on this PC (jb_saves::accounts::SteamAccount). */
 export interface SteamAccount {
   /** SteamID64 as text (too big for a JS number). */
   id64: string;
@@ -1284,7 +1286,7 @@ export const api = {
   updateStatus: () => invoke<UpdateStatus>("update_status"),
   updateCheck: () => invoke<UpdateInfo | null>("update_check"),
   updateInstall: () => invoke<void>("update_install"),
-  /** Opens one of OpenTrainer's own pages in the browser. */
+  /** Opens one of JuiceBox Trainer's own pages in the browser. */
   openLink: (which: "releases" | "latest" | "guide" | "contribute" | "node") => invoke<void>("open_link", { which }),
   trainerLoad: (key: string) => invoke<TrainerView>("trainer_load", { key }),
   trainerState: () => invoke<TrainerView | null>("trainer_state"),

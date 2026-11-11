@@ -30,10 +30,10 @@ function summary(over: Partial<PackSummary>): PackSummary {
     source: "bundled",
     path: null,
     id: "testbed-native",
-    name: "OpenTrainer Testbed (x64)",
+    name: "JuiceBox Trainer Testbed (x64)",
     exe: "testbed_native.exe",
     arch: "x64",
-    author: "OpenTrainer",
+    author: "JuiceBox Trainer",
     ai: false,
     packVersion: "1.0.0",
     cheats: 4,
@@ -84,7 +84,7 @@ function view(): TrainerView {
     key: "bundled:testbed-native",
     pack: {
       schema: 1,
-      game: { id: "testbed-native", name: "OpenTrainer Testbed (x64)", exe: "testbed_native.exe", arch: "x64", builds: [] },
+      game: { id: "testbed-native", name: "JuiceBox Trainer Testbed (x64)", exe: "testbed_native.exe", arch: "x64", builds: [] },
       meta: { author: "ai", packVersion: "1.0.0" },
       cheats,
     },
@@ -137,7 +137,7 @@ beforeEach(() => {
           summary({ key: "other", name: "Other game", exe: "other.exe" }),
         ]);
       case "packs_folder":
-        return Promise.resolve("C:\\Users\\me\\AppData\\Roaming\\OpenTrainer\\packs");
+        return Promise.resolve("C:\\Users\\me\\AppData\\Roaming\\JuiceBox Trainer\\packs");
       case "trainer_state":
         return Promise.resolve(loaded ? view() : null);
       case "trainer_load":
@@ -217,7 +217,7 @@ beforeEach(() => {
 describe("TrainerPanel", () => {
   it("lists only packs for this exe and arch, then loads one", async () => {
     render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
-    const load = await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" });
+    const load = await screen.findByRole("button", { name: "Load JuiceBox Trainer Testbed (x64)" });
     expect(screen.queryByText("x86 pack")).not.toBeInTheDocument();
     expect(screen.queryByText("Other game")).not.toBeInTheDocument();
     fireEvent.click(load);
@@ -246,7 +246,7 @@ describe("TrainerPanel", () => {
     expect(invoke).toHaveBeenCalledWith("trainer_load", { key: "bundled:testbed-native" });
 
     fireEvent.click(screen.getByRole("button", { name: "Unload pack" }));
-    expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Load JuiceBox Trainer Testbed (x64)" })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 50));
     expect(invoke.mock.calls.filter(([c]) => c === "trainer_load")).toHaveLength(1);
     expect(screen.queryByRole("switch", { name: "Infinite Health" })).not.toBeInTheDocument();
@@ -254,7 +254,7 @@ describe("TrainerPanel", () => {
     // Going to another tab and back (the panel is rebuilt) still remembers the choice.
     unmount();
     render(<TrainerPanel session={session} onSessionLost={vi.fn()} onShowPacks={vi.fn()} />);
-    expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Load JuiceBox Trainer Testbed (x64)" })).toBeInTheDocument();
     await new Promise((r) => setTimeout(r, 50));
     expect(invoke.mock.calls.filter(([c]) => c === "trainer_load")).toHaveLength(1);
   });
@@ -296,7 +296,7 @@ describe("TrainerPanel", () => {
     expect(within(broken).getByRole("alert")).toHaveTextContent("needs repair");
 
     fireEvent.click(screen.getByRole("button", { name: "Unload pack" }));
-    expect(await screen.findByRole("button", { name: "Load OpenTrainer Testbed (x64)" })).toBeInTheDocument();
+    expect(await screen.findByRole("button", { name: "Load JuiceBox Trainer Testbed (x64)" })).toBeInTheDocument();
   });
 
   it("says it's waiting for the game while a value is being found", async () => {

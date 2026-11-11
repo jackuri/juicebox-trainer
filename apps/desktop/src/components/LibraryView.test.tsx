@@ -44,9 +44,9 @@ beforeEach(() => {
         return Promise.resolve([
           game({
             id: "own:c:\\t.exe",
-            name: "OpenTrainer Testbed",
+            name: "JuiceBox Trainer Testbed",
             store: "own",
-            pack: { key: "bundled:testbed-native", name: "OpenTrainer Testbed (x64)", ai: false, exe: "testbed_native.exe" },
+            pack: { key: "bundled:testbed-native", name: "JuiceBox Trainer Testbed (x64)", ai: false, exe: "testbed_native.exe" },
             autoPreset: "Story mode",
             presets: ["Story mode"],
           }),
@@ -68,9 +68,9 @@ describe("LibraryView", () => {
   it("lists games with their pack, preset and anti-cheat status", async () => {
     render(<LibraryView onPlayed={vi.fn()} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
     const tb = await screen.findByTestId("game-own:c:\\t.exe");
-    expect(within(tb).getByText(/Pack: OpenTrainer Testbed \(x64\)/)).toBeInTheDocument();
+    expect(within(tb).getByText(/Pack: JuiceBox Trainer Testbed \(x64\)/)).toBeInTheDocument();
     expect(within(tb).getByText("Starts with: Story mode")).toBeInTheDocument();
-    expect(within(tb).getByRole("button", { name: "Play OpenTrainer Testbed" })).toHaveTextContent("Play with cheats");
+    expect(within(tb).getByRole("button", { name: "Play JuiceBox Trainer Testbed" })).toHaveTextContent("Play with cheats");
 
     const online = screen.getByTestId("game-steam:2");
     expect(within(online).getByText(/Counter-Strike 2\): not supported/)).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("LibraryView", () => {
   it("plays a game and hands over the session", async () => {
     const played = vi.fn();
     render(<LibraryView onPlayed={played} onOpenAi={vi.fn()} onOpenTable={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Play OpenTrainer Testbed" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Play JuiceBox Trainer Testbed" }));
     await vi.waitFor(() => expect(played).toHaveBeenCalledWith({ session, trainer: null, preset: "Story mode" }));
     expect(invoke).toHaveBeenCalledWith("library_play", { id: "own:c:\\t.exe" });
   });

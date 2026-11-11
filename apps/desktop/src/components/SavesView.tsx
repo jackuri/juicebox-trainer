@@ -188,7 +188,7 @@ export function SavesView({ processes, games, onRefreshProcesses, onOpenAi }: Pr
           />
         ) : (
           <div className="m-auto max-w-sm text-center text-sm text-zinc-400">
-            <p>OpenTrainer backs up a game's saves when the game starts and when it closes.</p>
+            <p>JuiceBox Trainer backs up a game's saves when the game starts and when it closes.</p>
             <p className="mt-2 text-xs text-zinc-500">Add a game on the left to begin.</p>
           </div>
         )}

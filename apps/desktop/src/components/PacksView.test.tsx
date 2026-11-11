@@ -17,10 +17,10 @@ function pack(over: Partial<PackSummary>): PackSummary {
     source: "bundled",
     path: null,
     id: "testbed-native",
-    name: "OpenTrainer Testbed (x64)",
+    name: "JuiceBox Trainer Testbed (x64)",
     exe: "testbed_native.exe",
     arch: "x64",
-    author: "OpenTrainer",
+    author: "JuiceBox Trainer",
     ai: false,
     packVersion: "1.0.0",
     cheats: 5,
@@ -143,7 +143,7 @@ describe("PacksView", () => {
     expect(within(builtIn).queryByRole("button", { name: /Remove/ })).not.toBeInTheDocument();
     expect(within(screen.getByTestId(`pack-${mine.key}`)).getByText(/community/)).toBeInTheDocument();
 
-    fireEvent.click(within(builtIn).getByRole("button", { name: "Export OpenTrainer Testbed (x64)" }));
+    fireEvent.click(within(builtIn).getByRole("button", { name: "Export JuiceBox Trainer Testbed (x64)" }));
     expect(await screen.findByText(/Send this file to share it/)).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("packs_export", { key: "bundled:testbed-native" });
     fireEvent.click(screen.getByRole("button", { name: "Show in folder" }));
@@ -243,7 +243,7 @@ describe("PacksView", () => {
       exe: "unknown.exe",
       author: "Cheat Engine table (imported)",
       cheats: [{ name: "Coins", ui: "number", description: null, patch: false }],
-      skipped: [{ name: "God mode", why: "runs its own code (a script); OpenTrainer never runs code from a table" }],
+      skipped: [{ name: "God mode", why: "runs its own code (a script); JuiceBox Trainer never runs code from a table" }],
       needsExe: true,
       table: true,
       source: { file: "Coin_Quest.CT" },

@@ -1,0 +1,40 @@
+[package]
+name = "jb-core"
+description = "Process attach, memory read/write, module map and the anti-cheat guard."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Same version jb-packs and the app use; the PNG of a game window (screen.rs).
+flate2 = "1.1.11"
+iced-x86 = { version = "1.22.0", default-features = false, features = ["std", "decoder", "intel", "instr_info"] }
+serde.workspace = true
+serde_json.workspace = true
+sha2 = "0.11.1"
+thiserror.workspace = true
+tracing.workspace = true
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Security",
+    "Win32_System_Diagnostics_Debug",
+    "Win32_System_Diagnostics_ToolHelp",
+    "Win32_System_Kernel",
+    "Win32_System_Memory",
+    "Win32_System_ProcessStatus",
+    "Win32_System_Services",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_Storage_Xps",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+testbed-harness.workspace = true
+
+[lints]
+workspace = true

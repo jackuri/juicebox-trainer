@@ -1,6 +1,6 @@
 import type { SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildOptions, LOCAL_TOOLS, OT_TOOLS, type QueryFn, runSession, shortName } from "./agent.js";
+import { buildOptions, LOCAL_TOOLS, JB_TOOLS, type QueryFn, runSession, shortName } from "./agent.js";
 import { AskBridge, NoteBox } from "./bridge.js";
 import { kickoff, SYSTEM_PROMPT } from "./prompt.js";
 import { encode, MAX_NOTE, type Outbound, parseInbound, type StartMessage } from "./protocol.js";
@@ -11,7 +11,7 @@ const start: StartMessage = {
   wishes: ["Infinite health", "Lots of gold"],
   backend: "subscription",
 };
-const mcp = { command: "C:\\OpenTrainer\\opentrainer-desktop.exe", args: ["--mcp"] };
+const mcp = { command: "C:\\JuiceBox Trainer\\juicebox-trainer.exe", args: ["--mcp"] };
 
 function io() {
   const sent: Outbound[] = [];
@@ -76,21 +76,21 @@ describe("options", () => {
     expect(o.tools).toEqual([]);
     expect(o.permissionMode).toBe("dontAsk");
     expect(o.settingSources).toEqual([]);
-    expect(o.allowedTools).toHaveLength(OT_TOOLS.length + 1);
+    expect(o.allowedTools).toHaveLength(JB_TOOLS.length + 1);
     for (const t of o.allowedTools ?? []) {
-      expect(t).toMatch(/^mcp__(ot|ui)__/);
+      expect(t).toMatch(/^mcp__(jb|ui)__/);
     }
-    expect(o.mcpServers?.ot).toEqual({
+    expect(o.mcpServers?.jb).toEqual({
       type: "stdio",
       command: mcp.command,
       args: ["--mcp"],
-      env: { OT_MCP_TOOLS: OT_TOOLS.join(",") },
+      env: { JB_MCP_TOOLS: JB_TOOLS.join(",") },
     });
     expect(o.model).toBe("claude-opus-5-5");
     expect(o.maxBudgetUsd).toBe(5);
     // The subscription backend never uses a stray API key.
     expect(o.env?.ANTHROPIC_API_KEY).toBeUndefined();
-    expect(o.env?.CLAUDE_AGENT_SDK_CLIENT_APP).toBe("opentrainer/0.8.0");
+    expect(o.env?.CLAUDE_AGENT_SDK_CLIENT_APP).toBe("juicebox-trainer/0.8.0");
     process.env.CLAUDE_CODE_ENTRYPOINT = "other-app";
     process.env.CLAUDECODE = "1";
     const clean = buildOptions(start, mcp, io(), new AbortController(), "0.8.0");
@@ -158,7 +158,7 @@ describe("explain a save", () => {
       new AbortController(),
       "0.9.0",
     );
-    expect(o.allowedTools).toEqual(["mcp__ot__save_diff", "mcp__ot__save_read"]);
+    expect(o.allowedTools).toEqual(["mcp__jb__save_diff", "mcp__jb__save_read"]);
     expect(String(o.systemPrompt)).toContain("what changed in the save");
     expect(kickoff({ ...start, task: "explainSave", backup: "17", notes: "bought a sword" })).toContain(
       "bought a sword",
@@ -175,14 +175,14 @@ describe("explain a save", () => {
 
 describe("tool sets (v1.21.0)", () => {
   const listed = (o: ReturnType<typeof buildOptions>) =>
-    String((o.mcpServers?.ot as { env?: Record<string, string> }).env?.OT_MCP_TOOLS).split(",");
+    String((o.mcpServers?.jb as { env?: Record<string, string> }).env?.JB_MCP_TOOLS).split(",");
 
   it("gives local models a smaller set and their own prompt", () => {
     const o = buildOptions({ ...start, backend: "local", model: "qwen3-coder" }, mcp, io(), new AbortController(), "1.21.0");
     expect(listed(o)).toEqual([...LOCAL_TOOLS]);
     expect(listed(o)).not.toContain("unreal_find");
-    expect(o.allowedTools).toContain("mcp__ot__read_struct");
-    expect(o.allowedTools).not.toContain("mcp__ot__unreal_find");
+    expect(o.allowedTools).toContain("mcp__jb__read_struct");
+    expect(o.allowedTools).not.toContain("mcp__jb__unreal_find");
     expect(String(o.systemPrompt)).toContain("Steps for each cheat");
   });
 
@@ -193,7 +193,7 @@ describe("tool sets (v1.21.0)", () => {
     expect(String(yes.systemPrompt)).toContain("read_struct");
     const no = buildOptions({ ...start, pictures: false }, mcp, io(), new AbortController(), "1.21.0");
     expect(listed(no)).not.toContain("game_screenshot");
-    expect(no.allowedTools).not.toContain("mcp__ot__game_screenshot");
+    expect(no.allowedTools).not.toContain("mcp__jb__game_screenshot");
     expect(parseInbound(JSON.stringify({ type: "start", game: { pid: 1, name: "g" }, pictures: false }))).toMatchObject({ pictures: false });
   });
 });
@@ -210,8 +210,8 @@ describe("web games", () => {
   };
 
   afterEach(() => {
-    delete process.env.OT_WEB_LINK;
-    delete process.env.OT_WEB_TOKEN;
+    delete process.env.JB_WEB_LINK;
+    delete process.env.JB_WEB_TOKEN;
   });
 
   it("parses the web game from the start message", () => {
@@ -227,17 +227,17 @@ describe("web games", () => {
   });
 
   it("gets only the web tools, its own prompt, and passes the link to the tool server only", () => {
-    process.env.OT_WEB_LINK = "127.0.0.1:5000";
-    process.env.OT_WEB_TOKEN = "secret";
+    process.env.JB_WEB_LINK = "127.0.0.1:5000";
+    process.env.JB_WEB_TOKEN = "secret";
     const o = buildOptions(webStart, mcp, io(), new AbortController(), "1.20.0");
-    expect(o.allowedTools).toContain("mcp__ot__web_names");
-    expect(o.allowedTools).toContain("mcp__ot__revert_all");
+    expect(o.allowedTools).toContain("mcp__jb__web_names");
+    expect(o.allowedTools).toContain("mcp__jb__revert_all");
     expect(o.allowedTools).toContain("mcp__ui__ask_player");
-    expect(o.allowedTools).not.toContain("mcp__ot__attach");
+    expect(o.allowedTools).not.toContain("mcp__jb__attach");
     expect(o.allowedTools).not.toContain("mcp__rea");
-    expect(Object.keys(o.mcpServers ?? {})).toEqual(["ot", "ui"]);
-    expect(o.mcpServers?.ot).toMatchObject({ env: { OT_WEB_LINK: "127.0.0.1:5000", OT_WEB_TOKEN: "secret" } });
-    expect(o.env?.OT_WEB_TOKEN).toBeUndefined();
+    expect(Object.keys(o.mcpServers ?? {})).toEqual(["jb", "ui"]);
+    expect(o.mcpServers?.jb).toMatchObject({ env: { JB_WEB_LINK: "127.0.0.1:5000", JB_WEB_TOKEN: "secret" } });
+    expect(o.env?.JB_WEB_TOKEN).toBeUndefined();
     expect(String(o.systemPrompt)).toContain("web_names");
     expect(String(o.systemPrompt)).toContain("real money");
     expect(kickoff(webStart)).toContain("https://zombies.example/play");
@@ -260,7 +260,7 @@ describe("runSession", () => {
         message: {
           content: [
             { type: "text", text: "Connecting to your game." },
-            { type: "tool_use", id: "t1", name: "mcp__ot__attach", input: { pid: 42 } },
+            { type: "tool_use", id: "t1", name: "mcp__jb__attach", input: { pid: 42 } },
             { type: "tool_use", id: "t2", name: "mcp__ui__ask_player", input: {} },
           ],
         },
@@ -314,7 +314,7 @@ describe("runSession", () => {
   });
 
   it("shortens tool names", () => {
-    expect(shortName("mcp__ot__scan_first")).toBe("scan_first");
+    expect(shortName("mcp__jb__scan_first")).toBe("scan_first");
     expect(shortName("other")).toBe("other");
   });
 });

@@ -1,7 +1,7 @@
 //! Sharing a pack with the community list on GitHub, done by the app.
 //!
 //! The player signs in once with GitHub's device flow (they type a short code
-//! on github.com; OpenTrainer never sees their password). The token, scoped to
+//! on github.com; JuiceBox Trainer never sees their password). The token, scoped to
 //! public repositories, is kept in Windows Credential Manager. Sharing then
 //! copies the community repository to the player's account (a fork), adds
 //! `packs/<id>/pack.json` on a new branch and opens a pull request. A
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use base64::Engine as _;
-use ot_packs::{community, store};
+use jb_packs::{community, store};
 use serde::Serialize;
 use serde_json::{Value, json};
 use tauri::State;
@@ -23,25 +23,38 @@ use tauri::State;
 use crate::commands::{CmdResult, CommandError};
 
 /// The community repository (`owner/name`).
-pub const COMMUNITY_REPO: &str = "jackuri/opentrainer-packs";
+pub const COMMUNITY_REPO: &str = "jackuri/juicebox-packs";
 const COMMUNITY_OWNER: &str = "jackuri";
-/// OpenTrainer's GitHub OAuth app (public, not a secret; owned by jackuri,
-/// device flow on, tokens don't expire). `OT_GITHUB_CLIENT_ID` overrides it
+/// JuiceBox Trainer's GitHub OAuth app (public, not a secret; owned by jackuri,
+/// device flow on, tokens don't expire). `JB_GITHUB_CLIENT_ID` overrides it
 /// for testing.
 const CLIENT_ID: &str = "Ov23liChvIJtZaXBnMC4";
 /// Where the player types the code. Only this page is opened.
 pub const DEVICE_PAGE: &str = "https://github.com/login/device";
 /// Pull requests the app may open in the browser start with this.
-const PR_PREFIX: &str = "https://github.com/jackuri/opentrainer-packs/pull/";
+const PR_PREFIX: &str = "https://github.com/jackuri/juicebox-packs/pull/";
 /// Write access to public repositories: needed to fork and open the request.
 const SCOPE: &str = "public_repo";
-const CREDENTIAL: &str = "OpenTrainer/github";
+const CREDENTIAL: &str = "JuiceBoxTrainer/github";
+/// Where OpenTrainer (before 1.23.0) kept the sign-in.
+const LEGACY_CREDENTIAL: &str = "OpenTrainer/github";
+
+/// Moves a sign-in kept under OpenTrainer's name to JuiceBox Trainer's
+/// (v1.23.0), so the player stays signed in. Called once at startup.
+pub fn move_legacy_sign_in() {
+    if vault::load(CREDENTIAL).is_none()
+        && let Some(token) = vault::load(LEGACY_CREDENTIAL)
+        && vault::save(CREDENTIAL, &token).is_ok()
+    {
+        vault::delete(LEGACY_CREDENTIAL);
+    }
+}
 const MAX_NOTE: usize = 500;
-/// Author text of packs converted from a Cheat Engine table (`ot_packs::ct`).
+/// Author text of packs converted from a Cheat Engine table (`jb_packs::ct`).
 const TABLE_AUTHOR: &str = "Cheat Engine table (imported)";
 
 fn client_id() -> Option<String> {
-    std::env::var("OT_GITHUB_CLIENT_ID")
+    std::env::var("JB_GITHUB_CLIENT_ID")
         .ok()
         .filter(|s| !s.trim().is_empty())
         .or_else(|| (!CLIENT_ID.is_empty()).then(|| CLIENT_ID.to_string()))
@@ -146,7 +159,7 @@ impl Hub {
     fn new(web: &str, api: &str) -> Result<Self, CommandError> {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let client = reqwest::Client::builder()
-            .user_agent(concat!("OpenTrainer/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("JuiceBoxTrainer/", env!("CARGO_PKG_VERSION")))
             .connect_timeout(Duration::from_secs(10))
             .timeout(Duration::from_secs(30))
             .build()
@@ -250,7 +263,7 @@ fn offline(e: reqwest::Error) -> CommandError {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GithubStatus {
-    /// This build knows OpenTrainer's GitHub app.
+    /// This build knows JuiceBox Trainer's GitHub app.
     pub configured: bool,
     pub signed_in: bool,
     pub login: Option<String>,
@@ -358,7 +371,7 @@ async fn wait_for_token(
             }
             Some("expired_token") => return Err(err("expired", "the code expired; start again")),
             Some("access_denied") => {
-                return Err(err("denied", "you didn't allow OpenTrainer on GitHub"));
+                return Err(err("denied", "you didn't allow JuiceBox Trainer on GitHub"));
             }
             other => {
                 return Err(err(
@@ -427,7 +440,7 @@ pub struct Shared {
 #[derive(Debug, Clone)]
 pub struct ShareRequest {
     pub note: String,
-    /// The pack came from someone else: a file (`.otpack`, `pack.json`) or a
+    /// The pack came from someone else: a file (`.juice`, `pack.json`) or a
     /// Cheat Engine table. Set by the app from where the pack was installed from.
     pub from_someone_else: bool,
     /// The player made it, or its maker allows sharing it.
@@ -435,8 +448,8 @@ pub struct ShareRequest {
 }
 
 /// Checks a pack may be shared; returns the parsed pack.
-pub fn shareable(text: &str, req: &ShareRequest) -> Result<ot_packs::Pack, CommandError> {
-    let (pack, _) = ot_packs::parse(text)
+pub fn shareable(text: &str, req: &ShareRequest) -> Result<jb_packs::Pack, CommandError> {
+    let (pack, _) = jb_packs::parse(text)
         .map_err(|e| err("invalidPack", format!("the pack isn't valid: {e}")))?;
     if pack.cheats.is_empty() {
         return Err(err("invalidPack", "the pack has no cheats"));
@@ -469,7 +482,7 @@ fn plain(s: &str, max: usize) -> String {
 }
 
 fn pr_text(
-    pack: &ot_packs::Pack,
+    pack: &jb_packs::Pack,
     req: &ShareRequest,
     update: bool,
     sharer: &str,
@@ -494,7 +507,7 @@ fn pr_text(
     let more = pack.cheats.len().saturating_sub(names.len());
     let note = plain(&req.note, MAX_NOTE);
     let mut body = format!(
-        "Shared from OpenTrainer {} by @{sharer}.\n\n\
+        "Shared from JuiceBox Trainer {} by @{sharer}.\n\n\
          - **Game:** {} ({}{})\n\
          - **Cheats ({}):** {}{}\n\
          - **Made by:** {}{}\n\
@@ -505,7 +518,7 @@ fn pr_text(
         plain(&g.exe, 80),
         g.arch.map_or(String::new(), |a| format!(
             ", {}",
-            if a == ot_packs::schema::PackArch::X86 {
+            if a == jb_packs::schema::PackArch::X86 {
                 "32-bit"
             } else {
                 "64-bit"
@@ -793,7 +806,7 @@ pub fn with_terms(text: &str, terms: &Terms) -> Result<String, CommandError> {
     let text = serde_json::to_string_pretty(&v).map_err(|e| bad(e.to_string()))?
         + "
 ";
-    match ot_packs::parse(&text) {
+    match jb_packs::parse(&text) {
         Ok(_) => Ok(text),
         Err(e) => {
             let e = e.to_string();
@@ -867,7 +880,7 @@ pub async fn community_share(
 /// The community-list link for a table a pack was converted from: needs the
 /// maker's name and a page on a known table site (no file is shared).
 pub fn table_link(
-    pack: &ot_packs::Pack,
+    pack: &jb_packs::Pack,
     today: &str,
 ) -> Result<community::TableLink, CommandError> {
     let src = pack.meta.source.as_ref();
@@ -904,7 +917,7 @@ pub fn table_link(
     let link = community::TableLink {
         id: community::table_id(&pack.game.name, &url),
         game: pack.game.name.chars().take(120).collect(),
-        exe: (pack.game.exe != ot_packs::ct::UNKNOWN_EXE).then(|| pack.game.exe.clone()),
+        exe: (pack.game.exe != jb_packs::ct::UNKNOWN_EXE).then(|| pack.game.exe.clone()),
         title: title.chars().take(160).collect(),
         by: by.chars().take(100).collect(),
         url,
@@ -927,13 +940,13 @@ fn table_pr_text(link: &community::TableLink, update: bool, sharer: &str) -> (St
         plain(&link.game, 80)
     );
     let body = format!(
-        "Shared from OpenTrainer {} by @{sharer}.
+        "Shared from JuiceBox Trainer {} by @{sharer}.
 
          - **Game:** {}{}
          - **Table:** {}
          - **Made by:** {}
          - **Page:** {}
-         - **Cheats OpenTrainer can use:** {}
+         - **Cheats JuiceBox Trainer can use:** {}
 
          Only a link: the table stays on its maker's page. Please check the page is the table's own          page on its maker's site.",
         env!("CARGO_PKG_VERSION"),
@@ -961,9 +974,9 @@ pub async fn community_share_table(
         .find(|f| f.key == key)
         .ok_or_else(|| err("notFound", format!("no pack '{key}'")))?;
     let text = found.text.map_err(|e| err("io", e.to_string()))?;
-    let (pack, _) = ot_packs::parse(&text)
+    let (pack, _) = jb_packs::parse(&text)
         .map_err(|e| err("invalidPack", format!("the pack isn't valid: {e}")))?;
-    let link = table_link(&pack, &ot_packs::share::today())?;
+    let link = table_link(&pack, &jb_packs::share::today())?;
     let json = serde_json::to_string_pretty(&link).map_err(|e| err("io", e.to_string()))?
         + "
 ";
@@ -1001,12 +1014,12 @@ pub fn web_shareable(
     by: &str,
     notes: Option<&str>,
     today: &str,
-) -> Result<ot_packs::web::WebPack, CommandError> {
+) -> Result<jb_packs::web::WebPack, CommandError> {
     let pack = crate::web::pack_for(dir, id, by, notes, today)?;
-    ot_packs::web::check_pack(&pack, true).map_err(|e| err("badRequest", e))
+    jb_packs::web::check_pack(&pack, true).map_err(|e| err("badRequest", e))
 }
 
-fn web_pr_text(pack: &ot_packs::web::WebPack, update: bool, sharer: &str) -> (String, String) {
+fn web_pr_text(pack: &jb_packs::web::WebPack, update: bool, sharer: &str) -> (String, String) {
     let title = format!(
         "{} web cheats: {}",
         if update { "Update" } else { "Add" },
@@ -1020,7 +1033,7 @@ fn web_pr_text(pack: &ot_packs::web::WebPack, update: bool, sharer: &str) -> (St
         .collect();
     let more = pack.cheats.len().saturating_sub(names.len());
     let mut body = format!(
-        "Shared from OpenTrainer {} by @{sharer}.
+        "Shared from JuiceBox Trainer {} by @{sharer}.
 
          - **Web game:** {}
          - **Address:** {}
@@ -1068,7 +1081,7 @@ pub async fn community_share_web(
         &id,
         &by,
         notes.as_deref(),
-        &ot_packs::share::today(),
+        &jb_packs::share::today(),
     )?;
     let json = serde_json::to_string_pretty(&pack).map_err(|e| err("io", e.to_string()))?
         + "
@@ -1178,7 +1191,7 @@ mod tests {
     }
 
     fn pack_text(author: &str) -> String {
-        let (mut pack, _) = ot_packs::parse(store::BUNDLED[0].1).unwrap();
+        let (mut pack, _) = jb_packs::parse(store::BUNDLED[0].1).unwrap();
         pack.game.id = "coin-quest".into();
         pack.game.name = "Coin Quest".into();
         pack.meta.author = author.into();
@@ -1200,24 +1213,24 @@ mod tests {
         move |m: &str, p: &str, _b: &str| {
             match (m, p) {
             ("GET", "/user") => (200, json!({ "login": login }).to_string()),
-            ("POST", "/repos/jackuri/opentrainer-packs/forks") => {
-                (202, json!({ "full_name": format!("{login}/opentrainer-packs") }).to_string())
+            ("POST", "/repos/jackuri/juicebox-packs/forks") => {
+                (202, json!({ "full_name": format!("{login}/juicebox-packs") }).to_string())
             }
-            ("GET", p) if p == format!("/repos/{login}/opentrainer-packs") => (200, "{}".into()),
+            ("GET", p) if p == format!("/repos/{login}/juicebox-packs") => (200, "{}".into()),
             ("POST", p) if p.ends_with("/merge-upstream") => (200, "{}".into()),
-            ("GET", "/repos/jackuri/opentrainer-packs/git/ref/heads/main") => {
+            ("GET", "/repos/jackuri/juicebox-packs/git/ref/heads/main") => {
                 (200, json!({ "object": { "sha": "abc123" } }).to_string())
             }
-            ("GET", "/repos/jackuri/opentrainer-packs/contents/packs/coin-quest/pack.json") => {
+            ("GET", "/repos/jackuri/juicebox-packs/contents/packs/coin-quest/pack.json") => {
                 if listed { (200, json!({ "sha": "old" }).to_string()) } else { (404, "{}".into()) }
             }
             ("POST", p) if p.ends_with("/git/refs") => (201, "{}".into()),
             ("GET", p) if p.contains("/contents/packs/coin-quest/pack.json?ref=") => (404, "{}".into()),
             ("PUT", p) if p.ends_with("/contents/packs/coin-quest/pack.json") => (201, "{}".into()),
             ("PUT", p) if p.contains("/contents/tables/") || p.contains("/contents/web/") => (201, "{}".into()),
-            ("POST", "/repos/jackuri/opentrainer-packs/pulls") => (
+            ("POST", "/repos/jackuri/juicebox-packs/pulls") => (
                 201,
-                json!({ "html_url": "https://github.com/jackuri/opentrainer-packs/pull/7", "number": 7 }).to_string(),
+                json!({ "html_url": "https://github.com/jackuri/juicebox-packs/pull/7", "number": 7 }).to_string(),
             ),
             _ => (404, json!({ "message": "Not Found" }).to_string()),
         }
@@ -1236,7 +1249,7 @@ mod tests {
         assert_eq!(
             done,
             Shared {
-                url: "https://github.com/jackuri/opentrainer-packs/pull/7".into(),
+                url: "https://github.com/jackuri/juicebox-packs/pull/7".into(),
                 number: 7,
                 update: false
             }
@@ -1250,16 +1263,16 @@ mod tests {
                 .unwrap_or_else(|| panic!("no {c} in {calls:?}"))
         };
         assert!(
-            at("POST /repos/jackuri/opentrainer-packs/forks")
-                < at("POST /repos/sam/opentrainer-packs/git/refs")
+            at("POST /repos/jackuri/juicebox-packs/forks")
+                < at("POST /repos/sam/juicebox-packs/git/refs")
         );
-        let refs = &seen[at("POST /repos/sam/opentrainer-packs/git/refs")].2;
+        let refs = &seen[at("POST /repos/sam/juicebox-packs/git/refs")].2;
         assert!(
             refs.contains("refs/heads/pack-coin-quest-42") && refs.contains("abc123"),
             "{refs}"
         );
         let put: Value = serde_json::from_str(
-            &seen[at("PUT /repos/sam/opentrainer-packs/contents/packs/coin-quest/pack.json")].2,
+            &seen[at("PUT /repos/sam/juicebox-packs/contents/packs/coin-quest/pack.json")].2,
         )
         .unwrap();
         let content = base64::engine::general_purpose::STANDARD
@@ -1272,8 +1285,7 @@ mod tests {
         );
         assert_eq!(put["branch"], "pack-coin-quest-42");
         let pr: Value =
-            serde_json::from_str(&seen[at("POST /repos/jackuri/opentrainer-packs/pulls")].2)
-                .unwrap();
+            serde_json::from_str(&seen[at("POST /repos/jackuri/juicebox-packs/pulls")].2).unwrap();
         assert_eq!(pr["head"], "sam:pack-coin-quest-42");
         assert_eq!(pr["base"], "main");
         assert_eq!(pr["title"], "Add pack: Coin Quest");
@@ -1291,11 +1303,11 @@ mod tests {
         );
     }
 
-    fn credited(url: &str) -> ot_packs::Pack {
+    fn credited(url: &str) -> jb_packs::Pack {
         let mut v: Value = serde_json::from_str(&pack_text("sam")).unwrap();
         v["meta"]["source"] =
             json!({ "by": "TableMaker", "url": url, "file": "Coin_Quest_v1.2.CT" });
-        ot_packs::parse(&v.to_string()).unwrap().0
+        jb_packs::parse(&v.to_string()).unwrap().0
     }
 
     #[test]
@@ -1317,7 +1329,7 @@ mod tests {
             "{}",
             elsewhere.message
         );
-        let (anon, _) = ot_packs::parse(&pack_text("sam")).unwrap();
+        let (anon, _) = jb_packs::parse(&pack_text("sam")).unwrap();
         assert_eq!(
             table_link(&anon, "2026-11-09").unwrap_err().kind,
             "needsCredit"
@@ -1342,16 +1354,16 @@ mod tests {
         assert_eq!(with_terms(&text, &Terms::default()).unwrap(), text);
         let terms = Terms {
             from_maker: true,
-            licence: Some(ot_packs::schema::LICENCE_PERMISSION.into()),
+            licence: Some(jb_packs::schema::LICENCE_PERMISSION.into()),
             support: Some("https://ko-fi.com/sam".into()),
         };
         let shared = with_terms(&text, &terms).unwrap();
-        let (pack, _) = ot_packs::parse(&shared).unwrap();
+        let (pack, _) = jb_packs::parse(&shared).unwrap();
         let src = pack.meta.source.clone().unwrap();
         assert!(src.from_maker);
         assert_eq!(
             src.licence.as_deref(),
-            Some(ot_packs::schema::LICENCE_PERMISSION)
+            Some(jb_packs::schema::LICENCE_PERMISSION)
         );
         let (_, body) = pr_text(&pack, &req(false), false, "sam");
         assert!(body.contains("all rights kept by the maker"), "{body}");
@@ -1381,7 +1393,7 @@ mod tests {
         )
         .unwrap_err();
         assert!(bad.message.contains("Patreon"), "{}", bad.message);
-        let (plain_pack, _) = ot_packs::parse(&text).unwrap();
+        let (plain_pack, _) = jb_packs::parse(&text).unwrap();
         let (_, mit) = pr_text(&plain_pack, &req(false), false, "sam");
         assert!(mit.contains("MIT (the list's default)"), "{mit}");
     }
@@ -1476,7 +1488,7 @@ mod tests {
         let content = base64::engine::general_purpose::STANDARD
             .decode(put["content"].as_str().unwrap())
             .unwrap();
-        assert_eq!(ot_packs::web::parse_pack(&content).unwrap(), pack);
+        assert_eq!(jb_packs::web::parse_pack(&content).unwrap(), pack);
 
         // A game on this PC isn't shared with everyone (files to friends still work).
         std::fs::write(dir.join("web-games.json"), games("http://127.0.0.1:8080/")).unwrap();
@@ -1522,7 +1534,7 @@ mod tests {
 
     #[test]
     fn pack_text_cant_mention_people_or_add_links() {
-        let (mut pack, _) = ot_packs::parse(&pack_text("sam")).unwrap();
+        let (mut pack, _) = jb_packs::parse(&pack_text("sam")).unwrap();
         pack.cheats[0].name = "@org/team see [this](https://evil.example) <img>".into();
         pack.game.name = "Game @everyone\nsecond line".into();
         let r = ShareRequest {
@@ -1638,25 +1650,25 @@ mod tests {
     #[test]
     fn opens_only_community_pull_requests() {
         assert!(is_pr_url(
-            "https://github.com/jackuri/opentrainer-packs/pull/7"
+            "https://github.com/jackuri/juicebox-packs/pull/7"
         ));
         assert!(!is_pr_url(
-            "https://github.com/jackuri/opentrainer-packs/pull/"
+            "https://github.com/jackuri/juicebox-packs/pull/"
         ));
         assert!(!is_pr_url(
-            "https://github.com/jackuri/opentrainer-packs/pull/7?x=1"
+            "https://github.com/jackuri/juicebox-packs/pull/7?x=1"
         ));
         assert!(!is_pr_url(
-            "https://evil.example/jackuri/opentrainer-packs/pull/7"
+            "https://evil.example/jackuri/juicebox-packs/pull/7"
         ));
         assert!(!is_pr_url(
-            "https://github.com/jackuri/opentrainer-packs/pull/7/../../../x"
+            "https://github.com/jackuri/juicebox-packs/pull/7/../../../x"
         ));
     }
 
     #[test]
     fn keeps_the_sign_in_in_credential_manager() {
-        let target = format!("OpenTrainer/test-{}", std::process::id());
+        let target = format!("JuiceBoxTrainer/test-{}", std::process::id());
         vault::save(&target, "secret-token").unwrap();
         assert_eq!(vault::load(&target).as_deref(), Some("secret-token"));
         vault::delete(&target);
@@ -1664,13 +1676,13 @@ mod tests {
     }
 
     /// Runs the real sign-in and share against GitHub. A person approves the
-    /// code (written to `OT_LIVE_CODE_FILE`); shares the pack at `OT_LIVE_PACK`.
+    /// code (written to `JB_LIVE_CODE_FILE`); shares the pack at `JB_LIVE_PACK`.
     #[test]
     #[ignore = "talks to the real GitHub and needs a person to approve the code"]
     fn live_share() {
-        let pack = std::path::PathBuf::from(std::env::var("OT_LIVE_PACK").unwrap());
-        let code_file = std::env::var("OT_LIVE_CODE_FILE").unwrap();
-        let text = ot_packs::share::open_path(&pack, None).unwrap().text;
+        let pack = std::path::PathBuf::from(std::env::var("JB_LIVE_PACK").unwrap());
+        let code_file = std::env::var("JB_LIVE_CODE_FILE").unwrap();
+        let text = jb_packs::share::open_path(&pack, None).unwrap().text;
         let hub = Hub::github().unwrap();
         let client = client_id().unwrap();
         let (code, device, interval) = run(start_device(&hub, &client)).unwrap();
@@ -1685,7 +1697,8 @@ mod tests {
             .unwrap()
             .as_secs();
         let note = ShareRequest {
-            note: "Test of the app's sharing by OpenTrainer's developer; will be closed.".into(),
+            note: "Test of the app's sharing by JuiceBox Trainer's developer; will be closed."
+                .into(),
             from_someone_else: true,
             permission: true,
         };

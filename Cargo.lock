@@ -1904,6 +1904,71 @@ dependencies = [
 ]
 
 [[package]]
+name = "jb-core"
+version = "1.23.0"
+dependencies = [
+ "flate2",
+ "iced-x86",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "testbed-harness",
+ "thiserror 2.0.21",
+ "tracing",
+ "windows",
+]
+
+[[package]]
+name = "jb-mcp"
+version = "1.23.0"
+dependencies = [
+ "jb-core",
+ "jb-packs",
+ "jb-saves",
+ "serde",
+ "serde_json",
+ "testbed-harness",
+ "tracing",
+]
+
+[[package]]
+name = "jb-packs"
+version = "1.23.0"
+dependencies = [
+ "flate2",
+ "jb-core",
+ "roxmltree",
+ "serde",
+ "serde_json",
+ "testbed-harness",
+ "thiserror 2.0.21",
+ "tracing",
+ "zip",
+]
+
+[[package]]
+name = "jb-saves"
+version = "1.23.0"
+dependencies = [
+ "base64 0.23.1",
+ "crc32fast",
+ "flate2",
+ "jb-core",
+ "md-5",
+ "roxmltree",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha1",
+ "sha2 0.11.1",
+ "similar",
+ "testbed-harness",
+ "thiserror 2.0.21",
+ "tracing",
+ "windows",
+]
+
+[[package]]
 name = "jiff"
 version = "0.2.39"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2062,6 +2127,32 @@ checksum = "a5a3cc660ba5d72bce0b3bb295bf20847ccbb40fd423f3f05b61273672e561fe"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "juicebox-trainer"
+version = "1.23.0"
+dependencies = [
+ "base64 0.22.1",
+ "flate2",
+ "jb-core",
+ "jb-mcp",
+ "jb-packs",
+ "jb-saves",
+ "qrcode",
+ "reqwest",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-single-instance",
+ "tauri-plugin-updater",
+ "tracing",
+ "tracing-subscriber",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]
@@ -2601,32 +2692,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7e036b411754132fd6b74e94b74e9a13c5cf606fa93d1885c35860d3060820b1"
 
 [[package]]
-name = "opentrainer-desktop"
-version = "1.22.0"
-dependencies = [
- "base64 0.22.1",
- "flate2",
- "ot-core",
- "ot-mcp",
- "ot-packs",
- "ot-saves",
- "qrcode",
- "reqwest",
- "rustls",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-single-instance",
- "tauri-plugin-updater",
- "tracing",
- "tracing-subscriber",
- "webview2-com",
- "windows",
-]
-
-[[package]]
 name = "option-ext"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2654,71 +2719,6 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
-]
-
-[[package]]
-name = "ot-core"
-version = "1.22.0"
-dependencies = [
- "flate2",
- "iced-x86",
- "serde",
- "serde_json",
- "sha2 0.11.1",
- "testbed-harness",
- "thiserror 2.0.21",
- "tracing",
- "windows",
-]
-
-[[package]]
-name = "ot-mcp"
-version = "1.22.0"
-dependencies = [
- "ot-core",
- "ot-packs",
- "ot-saves",
- "serde",
- "serde_json",
- "testbed-harness",
- "tracing",
-]
-
-[[package]]
-name = "ot-packs"
-version = "1.22.0"
-dependencies = [
- "flate2",
- "ot-core",
- "roxmltree",
- "serde",
- "serde_json",
- "testbed-harness",
- "thiserror 2.0.21",
- "tracing",
- "zip",
-]
-
-[[package]]
-name = "ot-saves"
-version = "1.22.0"
-dependencies = [
- "base64 0.23.1",
- "crc32fast",
- "flate2",
- "md-5",
- "ot-core",
- "roxmltree",
- "rusqlite",
- "serde",
- "serde_json",
- "sha1",
- "sha2 0.11.1",
- "similar",
- "testbed-harness",
- "thiserror 2.0.21",
- "tracing",
- "windows",
 ]
 
 [[package]]
@@ -4319,15 +4319,15 @@ dependencies = [
 
 [[package]]
 name = "testbed-harness"
-version = "1.22.0"
+version = "1.23.0"
 dependencies = [
- "ot-core",
+ "jb-core",
  "serde_json",
 ]
 
 [[package]]
 name = "testbed-native"
-version = "1.22.0"
+version = "1.23.0"
 
 [[package]]
 name = "thiserror"

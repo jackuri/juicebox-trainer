@@ -16,7 +16,7 @@ const onThisPc = (url: string) => {
 
 /**
  * Shares the cheats saved for a web game (v1.19.0): as a file to give to friends, or on the community
- * list (OpenTrainer does the GitHub part, like for packs).
+ * list (JuiceBox Trainer does the GitHub part, like for packs).
  */
 export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () => void }) {
   const [by, setBy] = useState("");
@@ -135,7 +135,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
 
       <section className="flex flex-col gap-2 rounded-xl bg-zinc-950/50 p-3" aria-label="Give to friends">
         <p className="font-medium">Give them to friends</p>
-        <p className="text-xs text-zinc-400">Saves a small file. Your friend opens it in OpenTrainer (Web games, then “Open a cheats file”).</p>
+        <p className="text-xs text-zinc-400">Saves a small file. Your friend opens it in JuiceBox Trainer (Web games, then “Open a cheats file”).</p>
         <div className="flex flex-wrap items-center gap-2">
           <button className={button} disabled={!by.trim()} onClick={() => void save()}>
             Save to a file
@@ -169,7 +169,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
           </div>
         ) : !status ? (
           <>
-            <p className="text-xs text-zinc-400">Puts them on OpenTrainer&apos;s community list, where other players of this game find them.</p>
+            <p className="text-xs text-zinc-400">Puts them on JuiceBox Trainer&apos;s community list, where other players of this game find them.</p>
             <button className={`${button} self-start`} disabled={!by.trim()} onClick={() => void startSharing()}>
               Share with everyone…
             </button>
@@ -189,7 +189,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
           </div>
         ) : !status.signedIn ? (
           <>
-            <p className="text-xs text-zinc-400">You need a free GitHub account (where the list lives). You sign in once; OpenTrainer never sees your password.</p>
+            <p className="text-xs text-zinc-400">You need a free GitHub account (where the list lives). You sign in once; JuiceBox Trainer never sees your password.</p>
             <button className={`${primary} self-start`} onClick={() => void signIn()}>
               Sign in with GitHub
             </button>

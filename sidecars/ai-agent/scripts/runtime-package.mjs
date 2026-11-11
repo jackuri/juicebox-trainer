@@ -31,11 +31,11 @@ for (const name of Object.keys(own.dependencies)) {
 }
 
 const runtime = {
-  name: "opentrainer-ai-helper",
+  name: "juicebox-ai-helper",
   version: own.version,
   private: true,
   type: "module",
-  description: "OpenTrainer's AI helper (downloaded by the app on first use).",
+  description: "JuiceBox Trainer's AI helper (downloaded by the app on first use).",
   dependencies,
 };
 writeFileSync(join(root, "dist", "package.json"), JSON.stringify(runtime, null, 2) + "\n");

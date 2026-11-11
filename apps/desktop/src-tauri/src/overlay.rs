@@ -1,7 +1,7 @@
 //! The overlay: a small see-through window that stays on top of the game and
 //! lists the cheats, their keys and which are on.
 //!
-//! It's a separate window of OpenTrainer, not drawn inside the game (nothing
+//! It's a separate window of JuiceBox Trainer, not drawn inside the game (nothing
 //! is injected). Mouse clicks go through it to the game. It shows over games
 //! in windowed or borderless mode; exclusive fullscreen hides it (PLAN §8).
 
@@ -87,7 +87,7 @@ pub async fn overlay_set(show: bool, app: AppHandle) -> CmdResult<bool> {
         return Ok(false);
     }
     let w = WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::App("index.html#overlay".into()))
-        .title("OpenTrainer overlay")
+        .title("JuiceBox Trainer overlay")
         .inner_size(WIDTH, HEIGHT)
         .transparent(true)
         .decorations(false)

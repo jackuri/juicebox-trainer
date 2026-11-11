@@ -3,9 +3,9 @@
 //!
 //! Updates are read from the project's public GitHub releases. Release builds
 //! made by the release workflow (public repository, updater key set) get
-//! `OT_UPDATES=1`; every other build can't update itself, and its Update
+//! `JB_UPDATES=1`; every other build can't update itself, and its Update
 //! button opens the newest release to download instead. For testing, a debug build also turns
-//! them on when `OT_UPDATE_URL` names a local `latest.json`.
+//! them on when `JB_UPDATE_URL` names a local `latest.json`.
 
 use std::sync::Mutex;
 
@@ -16,15 +16,15 @@ use tauri_plugin_updater::UpdaterExt;
 use crate::commands::{CmdResult, CommandError};
 
 /// Where releases are listed.
-pub const RELEASES_URL: &str = "https://github.com/jackuri/opentrainer/releases";
+pub const RELEASES_URL: &str = "https://github.com/jackuri/juicebox-trainer/releases";
 /// The newest release, with its installer.
-const LATEST_RELEASE_URL: &str = "https://github.com/jackuri/opentrainer/releases/latest";
+const LATEST_RELEASE_URL: &str = "https://github.com/jackuri/juicebox-trainer/releases/latest";
 const LATEST_JSON: &str =
-    "https://github.com/jackuri/opentrainer/releases/latest/download/latest.json";
+    "https://github.com/jackuri/juicebox-trainer/releases/latest/download/latest.json";
 
 /// Set by the release workflow when the repository is public.
 const BUILT_WITH_UPDATES: bool =
-    matches!(option_env!("OT_UPDATES"), Some(v) if v.len() == 1 && v.as_bytes()[0] == b'1');
+    matches!(option_env!("JB_UPDATES"), Some(v) if v.len() == 1 && v.as_bytes()[0] == b'1');
 
 #[derive(Default)]
 pub struct UpdateState {
@@ -41,7 +41,7 @@ fn test_url() -> Option<Url> {
     if !cfg!(debug_assertions) {
         return None;
     }
-    let url = std::env::var("OT_UPDATE_URL").ok()?;
+    let url = std::env::var("JB_UPDATE_URL").ok()?;
     Url::parse(&url).ok()
 }
 
@@ -70,22 +70,22 @@ pub fn update_status() -> UpdateStatus {
         version: env!("CARGO_PKG_VERSION"),
         enabled,
         off_reason: (!enabled).then_some(
-            "This copy can't update itself (it wasn't made by OpenTrainer's release build). Update \
-             opens the download page: download the newest OpenTrainer setup file and run it.",
+            "This copy can't update itself (it wasn't made by JuiceBox Trainer's release build). Update \
+             opens the download page: download the newest JuiceBox Trainer setup file and run it.",
         ),
         releases_url: RELEASES_URL,
     }
 }
 
-/// Opens one of OpenTrainer's own web pages in the browser. Only these
+/// Opens one of JuiceBox Trainer's own web pages in the browser. Only these
 /// fixed addresses can be opened.
 #[tauri::command]
 pub async fn open_link(which: String) -> CmdResult<()> {
     let url = match which.as_str() {
         "releases" => RELEASES_URL,
         "latest" => LATEST_RELEASE_URL,
-        "guide" => "https://github.com/jackuri/opentrainer/blob/main/docs/USER_GUIDE.md",
-        "contribute" => ot_packs::community::CONTRIBUTE_URL,
+        "guide" => "https://github.com/jackuri/juicebox-trainer/blob/main/docs/USER_GUIDE.md",
+        "contribute" => jb_packs::community::CONTRIBUTE_URL,
         "node" => "https://nodejs.org/",
         _ => {
             return Err(CommandError::new(
@@ -140,7 +140,7 @@ pub async fn update_check(
 }
 
 /// Puts the game's original code back and stops everything, as on exit
-/// (the installer closes OpenTrainer).
+/// (the installer closes JuiceBox Trainer).
 fn before_install(app: &AppHandle) {
     app.state::<crate::commands::AppState>().shutdown();
     app.state::<crate::ai::AiState>().shutdown();
@@ -148,7 +148,7 @@ fn before_install(app: &AppHandle) {
 }
 
 /// Downloads, checks and installs the update found by `update_check`.
-/// OpenTrainer closes and the new version starts.
+/// JuiceBox Trainer closes and the new version starts.
 #[tauri::command]
 pub async fn update_install(app: AppHandle, state: State<'_, UpdateState>) -> CmdResult<()> {
     let update = state
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn off_unless_built_for_a_public_release() {
         // Plain test builds aren't release builds and have no test URL.
-        if std::env::var_os("OT_UPDATE_URL").is_none() && !BUILT_WITH_UPDATES {
+        if std::env::var_os("JB_UPDATE_URL").is_none() && !BUILT_WITH_UPDATES {
             let s = update_status();
             assert!(!s.enabled);
             assert!(s.off_reason.unwrap().contains("download page"));

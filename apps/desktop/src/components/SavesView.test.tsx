@@ -98,7 +98,7 @@ const files: SaveFile[] = [
 const codes: QuickCode[] = [
   {
     packKey: "bundled:testbed-native",
-    packName: "OpenTrainer Testbed (x64)",
+    packName: "JuiceBox Trainer Testbed (x64)",
     id: "save_max_gold",
     name: "999,999 gold (in the save file)",
     codec: "json",
@@ -135,7 +135,7 @@ const testbedProcess: ProcessInfo = {
 };
 
 function overview(g: Partial<SaveGame> = {}): SavesOverview {
-  return { games: [{ ...game, ...g }], steamRunning: false, root: "C:\\Users\\me\\AppData\\Local\\OpenTrainer\\saves" };
+  return { games: [{ ...game, ...g }], steamRunning: false, root: "C:\\Users\\me\\AppData\\Local\\JuiceBox Trainer\\saves" };
 }
 
 beforeEach(() => {

@@ -45,7 +45,7 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
     <div className="flex w-full flex-col gap-2 rounded-lg bg-zinc-950/60 p-2.5 text-xs ring-1 ring-zinc-800" role="group" aria-label={`Find a cheat table for ${game.name}`}>
       <p className="text-zinc-300">
         Players share free cheat tables (<code>.CT</code> files) for many games. Open one on its maker&apos;s page and
-        download the <code>.CT</code> file: OpenTrainer spots it in your Downloads folder and turns it into cheats.
+        download the <code>.CT</code> file: JuiceBox Trainer spots it in your Downloads folder and turns it into cheats.
       </p>
       {links && links.length > 0 && links[0] && (
         <button
@@ -66,7 +66,7 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
                   <span className="text-zinc-400">
                     {" "}
                     by {l.by} · {siteOf(l.url)}
-                    {l.cheats != null && ` · ${l.cheats} cheat${l.cheats === 1 ? "" : "s"} OpenTrainer can use`}
+                    {l.cheats != null && ` · ${l.cheats} cheat${l.cheats === 1 ? "" : "s"} JuiceBox Trainer can use`}
                     {l.added && ` · added ${l.added}`}
                   </span>
                 </span>
@@ -117,7 +117,7 @@ export function DownloadedTables({
   const [hidden, setHidden] = useState(dismissed);
 
   const load = useCallback(() => {
-    // Only while OpenTrainer is on screen.
+    // Only while JuiceBox Trainer is on screen.
     if (document.hidden) return;
     api.tablesRecent().then((list) => setTables(Array.isArray(list) ? list : []), () => undefined);
   }, []);
@@ -154,7 +154,7 @@ export function DownloadedTables({
             <span className="text-zinc-400">
               {" "}
               · {game ? `for ${game.name}` : `for "${t.game}"`} ·{" "}
-              {t.cheats === 0 ? "only scripts (nothing OpenTrainer can use)" : `${t.cheats} cheat${t.cheats === 1 ? "" : "s"} OpenTrainer can use`}
+              {t.cheats === 0 ? "only scripts (nothing JuiceBox Trainer can use)" : `${t.cheats} cheat${t.cheats === 1 ? "" : "s"} JuiceBox Trainer can use`}
             </span>
           </span>
           <button

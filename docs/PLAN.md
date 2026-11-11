@@ -1,4 +1,4 @@
-# OpenTrainer — Product & Technical Plan (v0 draft)
+# JuiceBox Trainer — Product & Technical Plan (v0 draft)
 
 > Working name. One free, open-source Windows app that combines a **WeMod/Wand-style game trainer** with a
 > **Save Wizard-style save editor** for **PC single-player games**, plus a built-in **AI agent that creates
@@ -77,8 +77,8 @@
 See §5. Entry points: "Create with AI" on a game card, "Fix with AI" on a broken cheat, "Explain this save".
 
 ### 2.5 Packs
-- Plain-file cheat packs (§4), stored in `%APPDATA%/OpenTrainer/packs/<game-id>/`.
-- Import/export `.otpack` (zip). Optional community index later as a GitHub repo of packs (no game data in
+- Plain-file cheat packs (§4), stored in `%APPDATA%/JuiceBox Trainer/packs/<game-id>/`.
+- Import/export `.juice` (zip). Optional community index later as a GitHub repo of packs (no game data in
   packs — only signatures, offsets, codec paths, metadata).
 - Badges: verified (tested on this exact exe hash) / AI-made / community / broken-on-this-version.
 
@@ -87,18 +87,18 @@ See §5. Entry points: "Create with AI" on a game card, "Fix with AI" on a broke
 ## 3. Architecture
 
 ```
-opentrainer/
+juicebox-trainer/
 ├─ apps/desktop/                 Tauri 2 app (React + TypeScript + Tailwind UI)
 │  └─ src-tauri/                 Rust shell: commands, window mgmt, overlay window, tray, hotkeys
 ├─ crates/
-│  ├─ ot-core/                   process enum/attach, memory read/write/query, scanner, pointer scanner,
+│  ├─ jb-core/                   process enum/attach, memory read/write/query, scanner, pointer scanner,
 │  │                             AOB search, freeze loop, patch engine, x86/x64 assembler (iced-x86),
 │  │                             module map, exe hashing, ANTI-CHEAT GUARD
-│  ├─ ot-packs/                  pack schema (serde + JSON Schema), loader, validator, resolver
-│  ├─ ot-saves/                  locator, snapshots, codecs (plugin trait), checksum fixers, diff
-│  └─ ot-mcp/                    MCP server (stdio) exposing ot-core + ot-saves as GUARDED tools for the AI
+│  ├─ jb-packs/                  pack schema (serde + JSON Schema), loader, validator, resolver
+│  ├─ jb-saves/                  locator, snapshots, codecs (plugin trait), checksum fixers, diff
+│  └─ jb-mcp/                    MCP server (stdio) exposing jb-core + jb-saves as GUARDED tools for the AI
 ├─ sidecars/
-│  └─ ai-agent/                  Node/TS: Claude Agent SDK; connects ot-mcp + REA MCP; shells out to `um`
+│  └─ ai-agent/                  Node/TS: Claude Agent SDK; connects jb-mcp + REA MCP; shells out to `um`
 ├─ testbed/                      fake games for CI (see §7)
 ├─ packs/examples/               example packs targeting testbed games
 └─ docs/
@@ -108,11 +108,11 @@ opentrainer/
 `OpenProcess`/`ReadProcessMemory`/`WriteProcessMemory`/`VirtualQueryEx`/`VirtualAllocEx`, and a web UI that's
 fast to iterate. REA is Node and `um` is Python, so they run as sidecars rather than being linked in.
 
-**Key rule:** the AI never gets raw process access. Everything it does to a game goes through `ot-mcp`, which
-calls the same `ot-core` functions as the UI, through the same anti-cheat guard and the same logging. AI output
+**Key rule:** the AI never gets raw process access. Everything it does to a game goes through `jb-mcp`, which
+calls the same `jb-core` functions as the UI, through the same anti-cheat guard and the same logging. AI output
 is **declarative pack data**, never arbitrary native code executed by the app.
 
-### 3.1 Anti-cheat guard (ot-core)
+### 3.1 Anti-cheat guard (jb-core)
 Before any attach/write, block if any of these are true:
 - A known anti-cheat process/service/driver is running or loaded in the target (EasyAntiCheat, BEService /
   BattlEye, vgc / vgk, EA Javelin, Ricochet, ACE, nProtect GameGuard, XIGNCODE, mhyprot, etc.).
@@ -145,7 +145,7 @@ Driven by `um scan` engine detection and universal-modder's engine playbooks:
 
 ## 4. Cheat pack format (v1)
 
-`packs/<game-id>/pack.json` (JSON Schema lives in `crates/ot-packs/schema/pack.v1.json`):
+`packs/<game-id>/pack.json` (JSON Schema lives in `crates/jb-packs/schema/pack.v1.json`):
 
 ```json
 {
@@ -192,7 +192,7 @@ on; unknown fields rejected by the validator.
 The app itself has no paywall; AI costs are whatever the user's chosen backend costs (zero for local).
 
 ### 5.2 Tools the agent gets
-- `ot-mcp` (guarded): `list_processes`, `attach`, `scan_first`, `scan_next`, `read`, `write_test`,
+- `jb-mcp` (guarded): `list_processes`, `attach`, `scan_first`, `scan_next`, `read`, `write_test`,
   `find_what_writes` (hardware breakpoint, single-player only), `make_aob`, `pointer_scan`, `verify_aob_unique`,
   `apply_cheat`, `revert_all`, `save_snapshot`, `save_diff`, `codec_read`, `pack_write`, `pack_validate`.
 - **REA MCP** (static analysis: Ghidra/PE/IL2CPP/.NET) — optional; app must work without it.
@@ -218,7 +218,7 @@ signature / re-derives via REA diff of old vs new function, re-tests, bumps pack
 
 ### 5.5 Agent guardrails
 - System prompt includes `safety.md`; anti-cheat guard enforced in code anyway.
-- Agent may only write to game memory through `ot-mcp`; every write logged and revertible.
+- Agent may only write to game memory through `jb-mcp`; every write logged and revertible.
 - Back up saves before the first cheat is ever applied to a game.
 - Show token/cost estimate before long runs; cancel button always visible.
 
@@ -260,6 +260,7 @@ Proposed to the user after 1.20, in the order recommended:
 | 1.0.0 | Release | Installer (NSIS, per-user, `.otpack` file association), signing-ready release workflow (unsigned until a certificate exists), auto-update (off until the repo is public), user / developer / release docs, `.otpack` import/export, community pack list (GitHub repo index), AI engine downloaded on first use. The repo stays private for now (user's choice) |
 | 1.1.0 | Polish | "Browse…" pickers for games and save folders, plain `pack.json` import, auto-load the only pack on attach, "Find pointers" from scanner results, "Copy as pack cheat" for pointer paths. Added after 1.0.0 from STATUS follow-ups (no new dependencies) |
 | 1.2.0 | Look | New look in the style of modern trainer apps (user's request: "like Wand / WeMod"): sidebar, navy + blue-violet theme, cheat cards with big switches and key caps, game cards with generated covers, new icon colours. Own design; no other app's branding or art |
+| 1.23.0 | Rename to JuiceBox Trainer | User's choice 2026-11-11 (JUICE: Jackuri's Ultimate In-game Cheat Engine; JUCE_BOY was considered: JUCE is an existing framework's trademark and "Boy" leans on Nintendo's). `jb_core::names` (name, folders, id; `move_legacy_folders` on GUI start: `%APPDATA%\OpenTrainer` renamed or merged, `%LOCALAPPDATA%\OpenTrainer` entry by entry minus the old program files, `org.opentrainer.desktop` folders; never overwrites or deletes); GitHub sign-in moved in Credential Manager; NSIS `installerHooks` run OpenTrainer's uninstaller silently (it deletes only its program files); `.juice` / `.juiceweb` written, `.otpack` / `.otweb` read and `.otpack` still associated; crates `jb-*`, `juicebox-trainer.exe`, `juicepack`, `JB_*`, MCP server `jb`; icon from the user's picture (cut out of its background); release file `JuiceBoxTrainer_<v>_x64-setup.exe`. Kept on purpose: localStorage keys `opentrainer.*`, the pack schema id, the `otpack.json` manifest inside packs, `.opentrainer-release-keys` |
 | 1.22.0 | Clear problem messages | User's pick 2026-11-11 (idea 5 of the simplicity list). `problems.rs`: `%LOCALAPPDATA%\OpenTrainer\problems.json` (last 30, `problem` event, Help page); game closed: `AttachedProcess::exit_code` / `exit_time`, exit codes in plain words, Windows' "Application Error" 1000 record via `EvtQuery` (module, code, offset) a few seconds later, cheats on (`Trainer::active_cheats`, frozen list entries), the session's last change (toggles, sets, keys, phone); `settle` attaches the report to `processExited` errors and a 2 s watcher notices exits on any screen; `page_watch.rs`: WebView2 `ProcessFailed` (webview2-com 0.39.1, already in the tree) for the web game window (report + `web_reload`) and the main window (report + reload); panics recorded; `lib/explain.ts` plain errors in player screens; `browser.rs` `ShellExecuteW` for https links (Explorer opened Documents for FearLess searches); known table page as the main button. A FearLess topic finder was looked at: FearLess search sits behind a bot check and search engines refuse honest automated clients, so not done |
 | 1.21.0 | Smarter AI helpers | User's go-ahead 2026-11-10 (all five ideas of §5.6). `ot_core::screen` (biggest visible window of the pid, `PrintWindow` with full content, screen copy when black, box-scaled to ≤ 1280 px, RGB PNG); ot-mcp `game_screenshot` (MCP image content), `read_struct` (rows of i32 / f32 / f64 / pointer with hints), `known_cheats` (installed packs for the exe, the cached community list, notes), `note_save` (≤ 600 characters, 10 per key, `exe:` / `engine:` / `site:` keys); web `web_screenshot` (link `screenshot`: the game window's HWND), `web_near` (page helper v4 `near`); tried checks in `pack_write` and `web_cheats_save`; `OT_MCP_TOOLS` limits listed tools (web, local models with `LOCAL_PROMPT`); the app keeps the downloaded community list in `%LOCALAPPDATA%` for `known_cheats`; AI screen: pictures on/off, Opus or Sonnet; `scripts/ai-bench.mjs` (simulated player on testbed_native, checks on a fresh game). Live Unity Mono objects (like `unreal_find`) left out: no Unity game to test on |
 | 1.20.0 | AI helper for web games | User's go-ahead 2026-11-10. App `web_link.rs`: while a `webTrainer` session runs, a local link (127.0.0.1, new port, 128-bit token from `remote::token`, one request per connection, 1 MB cap) passes on only the page helper's `info` / `names` / `find` / `next` / `results` / `read` / `set` / `lock` / `unlock` (locks only with `ai:` ids) plus `game` and `saveCheats` (checked `WebCheat`s merged by place, `web-cheats-changed` event), and only while the session's game is the open one; it stops when the helper exits. `ot-mcp` `web` module: `web_game`, `web_names`, `web_find`, `web_next`, `web_results`, `web_read`, `web_set`, `web_lock`, `web_unlock`, `web_cheats_save` (listed only with a link; `OT_WEB_LINK` / `OT_WEB_TOKEN`), every set / lock recorded and undone by `revert_all` or exit. Sidecar: task `webTrainer` with `WEB_PROMPT` (names first, then guided search; play-fair scope), only the web tools, link env given to the tool server only. Page helper v3: `names`. UI: Find cheats with AI in a web game's cheats, "What kind of game?" in the AI helper |
@@ -302,11 +303,11 @@ Proposed to the user after 1.20, in the order recommended:
 ---
 
 ## 8. Decisions (confirmed by the user, 2026-11-07, before v0.8.0)
-1. Final name: **OpenTrainer** (kept).
+1. Final name: **JuiceBox Trainer** (kept).
 2. Default AI backend: **Claude subscription via the Claude Agent SDK** (signed-in Claude Code). API key and
    local models remain options in Settings.
 3. Community pack hub: **a GitHub-repo index** (public repo listing packs; the app downloads from it). Built
-   with `.otpack` import/export (v1.0 or earlier).
+   with `.juice` import/export (v1.0 or earlier).
 4. Exclusive-fullscreen overlay: **accept the limitation** (windowed/borderless only; no in-process overlay).
 
 ## 9. Notes on the two source repos

@@ -37,7 +37,7 @@ function Preview({ theme }: { theme: Theme }) {
   );
 }
 
-/** Pick how OpenTrainer looks. The choice is shown at once and remembered. */
+/** Pick how JuiceBox Trainer looks. The choice is shown at once and remembered. */
 export function ThemeView() {
   const [current, setCurrent] = useState(loadTheme);
 
@@ -50,7 +50,7 @@ export function ThemeView() {
     <main className="flex min-h-0 flex-col gap-5 overflow-y-auto p-6 text-sm" aria-label="Themes">
       <section>
         <h2 className="text-2xl font-semibold tracking-tight">Themes</h2>
-        <p className="text-zinc-400">Pick a look for OpenTrainer. It changes straight away, and the in-game overlay follows.</p>
+        <p className="text-zinc-400">Pick a look for JuiceBox Trainer. It changes straight away, and the in-game overlay follows.</p>
       </section>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
         {THEMES.map((t) => {

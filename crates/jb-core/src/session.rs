@@ -1,0 +1,832 @@
+//! An attached target process. The only way to touch another process's memory.
+
+use std::ffi::c_void;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
+
+use tracing::{info, warn};
+use windows::Win32::Foundation::WAIT_TIMEOUT;
+use windows::Win32::System::Diagnostics::Debug::{
+    FlushInstructionCache, ReadProcessMemory, WriteProcessMemory,
+};
+use windows::Win32::System::Memory::{
+    MEM_COMMIT, MEM_IMAGE, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_PROTECTION_FLAGS,
+    VirtualProtectEx, VirtualQueryEx,
+};
+use windows::Win32::System::Threading::{
+    GetExitCodeProcess, GetProcessTimes, PROCESS_QUERY_INFORMATION, PROCESS_SYNCHRONIZE,
+    PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE, WaitForSingleObject,
+};
+
+use crate::address::{self, AddressExpr};
+use crate::aob::Pattern;
+use crate::error::{Error, Result};
+use crate::guard::{self, Verdict};
+use crate::journal::{self, CodeChange, JournalTarget, Ledger};
+use crate::memory::{Region, decode_protect};
+use crate::modules::{self, Module};
+use crate::process::{self, Arch, ProcessInfo};
+use crate::win::OwnedHandle;
+
+/// How often the guard is re-run while attached. Anti-cheat that starts after
+/// we attached (e.g. a launcher that spawns it) is caught within this window.
+pub const GUARD_RECHECK_INTERVAL: Duration = Duration::from_secs(5);
+
+/// A process JuiceBox Trainer is attached to.
+///
+/// Created only by [`AttachedProcess::attach`], which runs the anti-cheat guard
+/// first. While attached, every read and write re-runs the guard at most every
+/// [`GUARD_RECHECK_INTERVAL`]; once it blocks, the session stays blocked.
+#[derive(Debug)]
+pub struct AttachedProcess {
+    handle: OwnedHandle,
+    info: ProcessInfo,
+    modules: Mutex<Vec<Module>>,
+    last_guard_check: Mutex<Instant>,
+    blocked: Mutex<Option<Verdict>>,
+    /// Process start time, with the pid naming this run of the game.
+    started: Option<u64>,
+    /// Code changes made through this session, for restore. Also serializes
+    /// code writes.
+    ledger: Mutex<Ledger>,
+}
+
+fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+impl AttachedProcess {
+    /// Attaches to `pid` if, and only if, the anti-cheat guard allows it.
+    pub fn attach(pid: u32) -> Result<Self> {
+        let verdict = guard::check(pid);
+        if !verdict.allowed {
+            warn!(pid, target = %verdict.target, "attach blocked by guard: {verdict}");
+            return Err(Error::Blocked(Box::new(verdict)));
+        }
+        let handle = process::open(
+            pid,
+            PROCESS_VM_READ
+                | PROCESS_VM_WRITE
+                | PROCESS_VM_OPERATION
+                | PROCESS_QUERY_INFORMATION
+                | PROCESS_SYNCHRONIZE,
+        )?;
+        let arch = process::arch_of(&handle);
+        let exe_path = process::exe_path_of(&handle);
+        let name = exe_path
+            .as_deref()
+            .map(|p| process::file_name(p).to_string())
+            .unwrap_or_else(|| verdict.target.clone());
+        let parent_pid = process::snapshot_processes()
+            .ok()
+            .and_then(|l| l.into_iter().find(|p| p.pid == pid))
+            .map(|p| p.parent_pid)
+            .unwrap_or(0);
+        let modules = modules::modules_of(pid, arch)?;
+        let started = process::start_time_of(&handle);
+        if !verdict.notes.is_empty() {
+            info!(
+                pid,
+                "{verdict}; re-checked every {GUARD_RECHECK_INTERVAL:?}"
+            );
+        }
+        info!(pid, %name, %arch, modules = modules.len(), "attached");
+        Ok(Self {
+            handle,
+            info: ProcessInfo {
+                pid,
+                parent_pid,
+                name,
+                exe_path,
+                arch,
+                threads: 0,
+            },
+            modules: Mutex::new(modules),
+            last_guard_check: Mutex::new(Instant::now()),
+            blocked: Mutex::new(None),
+            started,
+            ledger: Mutex::new(Ledger::default()),
+        })
+    }
+
+    /// Keeps a crash-safe journal of code changes in `dir` (see
+    /// [`crate::journal`]). Changes an earlier run left for this same run of
+    /// the game are taken over, so detaching restores them too. Returns how
+    /// many were taken over.
+    pub fn enable_journal(&self, dir: &std::path::Path) -> Result<usize> {
+        let started = self
+            .started
+            .ok_or_else(|| Error::Journal("the game's start time could not be read".into()))?;
+        std::fs::create_dir_all(dir)
+            .map_err(|e| Error::Journal(format!("could not create {}: {e}", dir.display())))?;
+        let target = JournalTarget {
+            path: dir.join(journal::file_name(self.pid(), started)),
+            pid: self.pid(),
+            started,
+            exe: self.info.name.clone(),
+        };
+        lock(&self.ledger).attach_file(target)
+    }
+
+    /// Detaches. (Dropping the value does the same.)
+    pub fn detach(self) {}
+
+    pub fn pid(&self) -> u32 {
+        self.info.pid
+    }
+
+    pub fn arch(&self) -> Arch {
+        self.info.arch
+    }
+
+    pub fn info(&self) -> &ProcessInfo {
+        &self.info
+    }
+
+    /// True while the target process is still running.
+    pub fn is_alive(&self) -> bool {
+        // SAFETY: the handle was opened with SYNCHRONIZE and is valid.
+        unsafe { WaitForSingleObject(self.handle.raw(), 0) == WAIT_TIMEOUT }
+    }
+
+    /// How the process ended (its exit code), or `None` while it runs or if
+    /// Windows won't say.
+    pub fn exit_code(&self) -> Option<u32> {
+        if self.is_alive() {
+            return None;
+        }
+        let mut code = 0u32;
+        // SAFETY: the handle was opened with PROCESS_QUERY_INFORMATION and is valid.
+        unsafe { GetExitCodeProcess(self.handle.raw(), &raw mut code) }.ok()?;
+        // STILL_ACTIVE (259) can't be told apart from a real 259 here.
+        (code != 259).then_some(code)
+    }
+
+    /// When the process ended, or `None` while it runs.
+    pub fn exit_time(&self) -> Option<std::time::SystemTime> {
+        if self.is_alive() {
+            return None;
+        }
+        use windows::Win32::Foundation::FILETIME;
+        let (mut created, mut exited, mut kernel, mut user) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        // SAFETY: the handle was opened with PROCESS_QUERY_INFORMATION and is valid.
+        unsafe {
+            GetProcessTimes(
+                self.handle.raw(),
+                &raw mut created,
+                &raw mut exited,
+                &raw mut kernel,
+                &raw mut user,
+            )
+        }
+        .ok()?;
+        // 100 ns ticks since 1601-01-01.
+        let ticks = (u64::from(exited.dwHighDateTime) << 32) | u64::from(exited.dwLowDateTime);
+        let unix = ticks.checked_sub(116_444_736_000_000_000)?;
+        Some(std::time::UNIX_EPOCH + std::time::Duration::from_nanos(unix * 100))
+    }
+
+    /// The module map captured at attach (or the last refresh).
+    pub fn modules(&self) -> Vec<Module> {
+        lock(&self.modules).clone()
+    }
+
+    /// Re-reads the module map from the target.
+    pub fn refresh_modules(&self) -> Result<Vec<Module>> {
+        self.gate()?;
+        let fresh = modules::modules_of(self.pid(), self.arch())?;
+        *lock(&self.modules) = fresh.clone();
+        Ok(fresh)
+    }
+
+    /// Runs the anti-cheat guard now. If it blocks, this session is blocked
+    /// for good: every later read or write fails with [`Error::Blocked`].
+    pub fn recheck_guard(&self) -> Result<()> {
+        let verdict = guard::check(self.pid());
+        *lock(&self.last_guard_check) = Instant::now();
+        if verdict.allowed {
+            Ok(())
+        } else {
+            warn!(
+                pid = self.pid(),
+                "guard blocked an attached session: {verdict}"
+            );
+            *lock(&self.blocked) = Some(verdict.clone());
+            Err(Error::Blocked(Box::new(verdict)))
+        }
+    }
+
+    /// Gate in front of every memory operation.
+    fn gate(&self) -> Result<()> {
+        if let Some(v) = lock(&self.blocked).clone() {
+            return Err(Error::Blocked(Box::new(v)));
+        }
+        if !self.is_alive() {
+            return Err(Error::ProcessExited { pid: self.pid() });
+        }
+        // Claim the recheck before running it so parallel scan threads don't
+        // all re-run the guard at once.
+        let due = {
+            let mut last = lock(&self.last_guard_check);
+            let due = last.elapsed() >= GUARD_RECHECK_INTERVAL;
+            if due {
+                *last = Instant::now();
+            }
+            due
+        };
+        if due {
+            self.recheck_guard()?;
+        }
+        Ok(())
+    }
+
+    fn check_range(&self, address: u64, len: usize) -> Result<()> {
+        let limit = self.arch().address_limit();
+        let end = address.checked_add(len as u64);
+        match end {
+            Some(end) if address != 0 && end <= limit => Ok(()),
+            _ => Err(Error::AddressOutOfRange {
+                address,
+                len,
+                arch: self.arch(),
+            }),
+        }
+    }
+
+    /// Resolves an address expression (`0x…`, `module.exe+0x…` or a pointer
+    /// path like `[[module.exe+0x…]+0x10]+0x8`, which reads the target).
+    pub fn resolve(&self, expr: &str) -> Result<u64> {
+        match address::parse(expr)? {
+            AddressExpr::Absolute(a) => Ok(a),
+            AddressExpr::ModuleOffset { module, offset } => {
+                let cached = modules::find(&lock(&self.modules), &module).map(|m| m.base);
+                let base = match cached {
+                    Some(b) => b,
+                    // The module may have loaded after attach.
+                    None => modules::find(&self.refresh_modules()?, &module)
+                        .map(|m| m.base)
+                        .ok_or_else(|| Error::ModuleNotFound(module.clone()))?,
+                };
+                base.checked_add(offset)
+                    .ok_or_else(|| Error::InvalidAddress(expr.to_string()))
+            }
+            AddressExpr::Pointer { base, offsets } => {
+                let start = self.resolve_expr(&base, expr)?;
+                self.resolve_chain(start, &offsets)
+            }
+        }
+    }
+
+    fn resolve_expr(&self, e: &AddressExpr, input: &str) -> Result<u64> {
+        match e {
+            AddressExpr::Absolute(a) => Ok(*a),
+            AddressExpr::ModuleOffset { module, offset } => self
+                .module(module)?
+                .base
+                .checked_add(*offset)
+                .ok_or_else(|| Error::InvalidAddress(input.to_string())),
+            AddressExpr::Pointer { .. } => Err(Error::InvalidAddress(input.to_string())),
+        }
+    }
+
+    /// Reads exactly `buf.len()` bytes at `address`.
+    pub fn read_into(&self, address: u64, buf: &mut [u8]) -> Result<()> {
+        self.gate()?;
+        self.check_range(address, buf.len())?;
+        let mut read = 0usize;
+        // SAFETY: `buf` is valid for `buf.len()` bytes; the handle has VM_READ.
+        let ok = unsafe {
+            ReadProcessMemory(
+                self.handle.raw(),
+                address as usize as *const c_void,
+                buf.as_mut_ptr().cast(),
+                buf.len(),
+                Some(&mut read),
+            )
+        };
+        if ok.is_err() || read != buf.len() {
+            return Err(Error::Read {
+                address,
+                len: buf.len(),
+            });
+        }
+        Ok(())
+    }
+
+    pub fn read_bytes(&self, address: u64, len: usize) -> Result<Vec<u8>> {
+        let mut buf = vec![0u8; len];
+        self.read_into(address, &mut buf)?;
+        Ok(buf)
+    }
+
+    /// Writes `data` at `address`. Every write is logged.
+    pub fn write_bytes(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.write_raw(address, data)?;
+        info!(
+            pid = self.pid(),
+            address = format_args!("{address:#X}"),
+            len = data.len(),
+            "memory write"
+        );
+        Ok(())
+    }
+
+    /// Like [`write_bytes`](Self::write_bytes) without the per-write log line.
+    /// Only the freezer uses this; it logs each freeze once instead.
+    pub(crate) fn write_bytes_quiet(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.write_raw(address, data)
+    }
+
+    fn write_raw(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.gate()?;
+        self.check_range(address, data.len())?;
+        let mut written = 0usize;
+        // SAFETY: `data` is valid for `data.len()` bytes; the handle has VM_WRITE|VM_OPERATION.
+        let ok = unsafe {
+            WriteProcessMemory(
+                self.handle.raw(),
+                address as usize as *const c_void,
+                data.as_ptr().cast(),
+                data.len(),
+                Some(&mut written),
+            )
+        };
+        if ok.is_err() || written != data.len() {
+            warn!(
+                pid = self.pid(),
+                address = format_args!("{address:#X}"),
+                len = data.len(),
+                "write failed"
+            );
+            return Err(Error::Write {
+                address,
+                len: data.len(),
+            });
+        }
+        Ok(())
+    }
+
+    pub fn read_value(&self, address: u64, ty: crate::ValueType) -> Result<crate::Value> {
+        let bytes = self.read_bytes(address, ty.size(self.arch()))?;
+        crate::Value::from_bytes(ty, &bytes, self.arch()).ok_or(Error::Read {
+            address,
+            len: bytes.len(),
+        })
+    }
+
+    pub fn write_value(&self, address: u64, value: &crate::Value) -> Result<()> {
+        self.write_bytes(address, &value.to_bytes(self.arch()))
+    }
+
+    /// Reads a pointer-sized value (4 bytes on x86, 8 on x64).
+    pub fn read_pointer(&self, address: u64) -> Result<u64> {
+        match self.read_value(address, crate::ValueType::Ptr)? {
+            crate::Value::Ptr(p) => Ok(p),
+            _ => unreachable!("read_value(Ptr) returns Value::Ptr"),
+        }
+    }
+
+    /// Changes code at `address` from `original` to `patched`, verifying the
+    /// bytes first. The change is recorded (and journaled, if enabled) before
+    /// it is written, and undone by [`revert_code`](Self::revert_code),
+    /// [`restore_code`](Self::restore_code) or detaching.
+    ///
+    /// Returns `false` if the bytes were already `patched`. Fails with
+    /// [`Error::BytesMismatch`] if they are neither, and with
+    /// [`Error::CodeOverlap`] if another recorded change owns any of them.
+    /// Callers check `patched` first (see [`crate::code::check_patch`]).
+    pub fn apply_code(&self, address: u64, original: &[u8], patched: &[u8]) -> Result<bool> {
+        if original.len() != patched.len() || original.is_empty() {
+            return Err(Error::PatchRejected(
+                "original and new bytes must be the same, non-zero length".into(),
+            ));
+        }
+        let mut ledger = lock(&self.ledger);
+        check_owner(&ledger, address, original, patched)?;
+        let found = self.read_bytes(address, patched.len())?;
+        let change = CodeChange {
+            address,
+            original: original.to_vec(),
+            written: patched.to_vec(),
+        };
+        if found == patched {
+            // Already patched (e.g. left by an earlier run): track it so it
+            // is restored like any other change.
+            if ledger.get(address).is_none() {
+                ledger.insert(change);
+                ledger.persist()?;
+            }
+            return Ok(false);
+        }
+        if found != original {
+            return Err(mismatch(address, original, &found));
+        }
+        // Journal first: a crash right after the write must still find it.
+        let before = ledger.insert(change);
+        if let Err(e) = ledger.persist() {
+            restore_entry(&mut ledger, address, before);
+            return Err(e);
+        }
+        if let Err(e) = self.write_code(address, patched) {
+            restore_entry(&mut ledger, address, before);
+            let _ = ledger.persist();
+            return Err(e);
+        }
+        Ok(true)
+    }
+
+    /// Undoes [`apply_code`](Self::apply_code): puts `original` back if the
+    /// bytes are `patched`. Returns `false` if they were already `original`.
+    /// Fails with [`Error::BytesMismatch`] if they are neither (nothing is
+    /// written) and with [`Error::CodeOverlap`] if another change owns them.
+    pub fn revert_code(&self, address: u64, original: &[u8], patched: &[u8]) -> Result<bool> {
+        if original.len() != patched.len() || original.is_empty() {
+            return Err(Error::PatchRejected(
+                "original and new bytes must be the same, non-zero length".into(),
+            ));
+        }
+        let mut ledger = lock(&self.ledger);
+        check_owner(&ledger, address, original, patched)?;
+        let found = self.read_bytes(address, patched.len())?;
+        let wrote = if found == original {
+            false
+        } else if found == patched {
+            self.write_code(address, original)?;
+            true
+        } else {
+            return Err(mismatch(address, patched, &found));
+        };
+        if ledger.remove(address).is_some()
+            && let Err(e) = ledger.persist()
+        {
+            warn!(pid = self.pid(), "{e}");
+        }
+        Ok(wrote)
+    }
+
+    /// Code changes currently recorded for this session.
+    pub fn code_changes(&self) -> Vec<CodeChange> {
+        lock(&self.ledger).all()
+    }
+
+    /// Restores every recorded code change. Returns what could not be
+    /// restored. Bytes that are neither original nor patched any more are left
+    /// alone and forgotten; other failures (guard, access) stay recorded.
+    pub fn restore_code(&self) -> Vec<Error> {
+        let mut problems = Vec::new();
+        for c in self.code_changes() {
+            match self.revert_code(c.address, &c.original, &c.written) {
+                Ok(_) => {}
+                Err(e @ Error::BytesMismatch { .. }) => {
+                    warn!(pid = self.pid(), "not restored: {e}");
+                    let mut ledger = lock(&self.ledger);
+                    ledger.remove(c.address);
+                    let _ = ledger.persist();
+                    problems.push(e);
+                }
+                Err(e) => {
+                    warn!(pid = self.pid(), "not restored: {e}");
+                    problems.push(e);
+                }
+            }
+        }
+        problems
+    }
+
+    /// Writes code bytes at `address`: makes the page writable for the write,
+    /// restores its protection and flushes the instruction cache. Logged like
+    /// every other write. Only reached through the checked paths above.
+    fn write_code(&self, address: u64, data: &[u8]) -> Result<()> {
+        self.gate()?;
+        self.check_range(address, data.len())?;
+        let ptr = address as usize as *const c_void;
+        let mut old = PAGE_PROTECTION_FLAGS(0);
+        // SAFETY: plain Win32 call on our handle (opened with VM_OPERATION).
+        unsafe {
+            VirtualProtectEx(
+                self.handle.raw(),
+                ptr,
+                data.len(),
+                PAGE_EXECUTE_READWRITE,
+                &mut old,
+            )
+        }
+        .map_err(|e| Error::win32("VirtualProtectEx", e))?;
+        let written = self.write_raw(address, data);
+        let mut ignored = PAGE_PROTECTION_FLAGS(0);
+        // SAFETY: restores the protection we just changed on the same range.
+        let _ = unsafe { VirtualProtectEx(self.handle.raw(), ptr, data.len(), old, &mut ignored) };
+        // SAFETY: flushes the written range in the target; harmless if it fails.
+        let _ = unsafe { FlushInstructionCache(self.handle.raw(), Some(ptr), data.len()) };
+        written?;
+        info!(
+            pid = self.pid(),
+            address = format_args!("{address:#X}"),
+            len = data.len(),
+            "code write"
+        );
+        Ok(())
+    }
+
+    /// Follows a pointer chain the way Cheat Engine does: for each offset,
+    /// read the pointer at the current address and add the offset.
+    /// `[[base]+o1]+o2`. With no offsets the result is `base`.
+    pub fn resolve_chain(&self, base: u64, offsets: &[i64]) -> Result<u64> {
+        let mut address = base;
+        for &offset in offsets {
+            let p = self.read_pointer(address)?;
+            if p == 0 {
+                return Err(Error::NullPointer { at: address });
+            }
+            address = p
+                .checked_add_signed(offset)
+                .ok_or_else(|| Error::InvalidAddress(format!("{p:#X}{offset:+#X}")))?;
+        }
+        Ok(address)
+    }
+
+    /// Finds a loaded module by name (refreshing the map once if needed).
+    pub fn module(&self, name: &str) -> Result<Module> {
+        if let Some(m) = modules::find(&lock(&self.modules), name) {
+            return Ok(m.clone());
+        }
+        modules::find(&self.refresh_modules()?, name)
+            .cloned()
+            .ok_or_else(|| Error::ModuleNotFound(name.to_string()))
+    }
+
+    /// The main executable's module (the first module whose name matches the
+    /// process name).
+    pub fn main_module(&self) -> Result<Module> {
+        self.module(&self.info.name)
+    }
+
+    /// Reads the readable parts of a module's image: `(start, bytes)` per
+    /// contiguous run. Pages that can't be read are skipped.
+    pub fn module_image(&self, module: &Module) -> Result<Vec<(u64, Vec<u8>)>> {
+        let mut runs: Vec<(u64, u64)> = Vec::new();
+        for r in self.regions()? {
+            let start = r.base.max(module.base);
+            let end = (r.base + r.size).min(module.end());
+            if start >= end || !r.readable {
+                continue;
+            }
+            match runs.last_mut() {
+                Some(last) if last.1 == start => last.1 = end,
+                _ => runs.push((start, end)),
+            }
+        }
+        let mut out = Vec::new();
+        for (start, end) in runs {
+            let len = usize::try_from(end - start).map_err(|_| Error::Read {
+                address: start,
+                len: usize::MAX,
+            })?;
+            let mut buf = vec![0u8; len];
+            match self.read_into(start, &mut buf) {
+                Ok(()) => out.push((start, buf)),
+                Err(e @ (Error::Blocked(_) | Error::ProcessExited { .. })) => return Err(e),
+                // A page may have been decommitted since the region walk.
+                Err(_) => {}
+            }
+        }
+        Ok(out)
+    }
+
+    /// Searches the readable parts of a module's image for `pattern`.
+    /// Returns at most `limit` match addresses, lowest first.
+    pub fn aob_scan(&self, module: &Module, pattern: &Pattern, limit: usize) -> Result<Vec<u64>> {
+        Ok(find_in_image(&self.module_image(module)?, pattern, limit))
+    }
+
+    /// SHA-256 of the target's executable file, if its path is known.
+    pub fn exe_sha256(&self) -> Option<String> {
+        let path = self.info.exe_path.as_deref()?;
+        crate::hash::sha256_file(path).ok()
+    }
+
+    /// Committed memory regions of the target.
+    pub fn regions(&self) -> Result<Vec<Region>> {
+        self.gate()?;
+        let limit = self.arch().address_limit();
+        let mut out = Vec::new();
+        let mut address: u64 = 0;
+        while address < limit {
+            let mut mbi = MEMORY_BASIC_INFORMATION::default();
+            // SAFETY: `mbi` is a valid out-buffer of the size we pass.
+            let n = unsafe {
+                VirtualQueryEx(
+                    self.handle.raw(),
+                    Some(address as usize as *const c_void),
+                    &mut mbi,
+                    size_of::<MEMORY_BASIC_INFORMATION>(),
+                )
+            };
+            if n == 0 {
+                break;
+            }
+            let base = mbi.BaseAddress as u64;
+            let size = mbi.RegionSize as u64;
+            if size == 0 {
+                break;
+            }
+            if mbi.State == MEM_COMMIT {
+                let (readable, writable, executable) = decode_protect(mbi.Protect.0);
+                out.push(Region {
+                    base,
+                    size,
+                    protect: mbi.Protect.0,
+                    readable,
+                    writable,
+                    executable,
+                    image: mbi.Type == MEM_IMAGE,
+                });
+            }
+            match base.checked_add(size) {
+                Some(next) if next > address => address = next,
+                _ => break,
+            }
+        }
+        Ok(out)
+    }
+
+    /// The committed region holding `address`, if any.
+    pub fn region_at(&self, address: u64) -> Result<Option<Region>> {
+        self.gate()?;
+        if address >= self.arch().address_limit() {
+            return Ok(None);
+        }
+        let mut mbi = MEMORY_BASIC_INFORMATION::default();
+        // SAFETY: `mbi` is a valid out-buffer of the size we pass.
+        let n = unsafe {
+            VirtualQueryEx(
+                self.handle.raw(),
+                Some(address as usize as *const c_void),
+                &mut mbi,
+                size_of::<MEMORY_BASIC_INFORMATION>(),
+            )
+        };
+        if n == 0 || mbi.State != MEM_COMMIT {
+            return Ok(None);
+        }
+        let (readable, writable, executable) = decode_protect(mbi.Protect.0);
+        Ok(Some(Region {
+            base: mbi.BaseAddress as u64,
+            size: mbi.RegionSize as u64,
+            protect: mbi.Protect.0,
+            readable,
+            writable,
+            executable,
+            image: mbi.Type == MEM_IMAGE,
+        }))
+    }
+
+    /// Reads `len` bytes at `address` wherever it can, page by page (for the
+    /// memory viewer). Bytes on pages that can't be read are 0 and marked
+    /// `false` in the second list.
+    pub fn read_partial(&self, address: u64, len: usize) -> Result<(Vec<u8>, Vec<bool>)> {
+        self.gate()?;
+        self.check_range(address, len)?;
+        let mut bytes = vec![0u8; len];
+        let mut ok = vec![false; len];
+        let mut at = 0usize;
+        while at < len {
+            let addr = address + at as u64;
+            let page_end = (addr | (PAGE_SIZE - 1)) + 1;
+            let n = usize::try_from(page_end - addr)
+                .unwrap_or(len)
+                .min(len - at);
+            let chunk = &mut bytes[at..at + n];
+            if self.read_into(addr, chunk).is_ok() {
+                ok[at..at + n].fill(true);
+            } else {
+                chunk.fill(0);
+            }
+            at += n;
+        }
+        Ok((bytes, ok))
+    }
+
+    /// Changes bytes the player typed in the memory viewer. Data is written
+    /// directly; code (an executable region) goes through
+    /// [`apply_code`](Self::apply_code), so it is checked, journaled and put
+    /// back on detach like a cheat's patch. Read-only memory is refused.
+    pub fn edit_bytes(&self, address: u64, data: &[u8]) -> Result<ByteEdit> {
+        if data.is_empty() || data.len() > MAX_EDIT {
+            return Err(Error::PatchRejected(format!(
+                "change between 1 and {MAX_EDIT} bytes at a time"
+            )));
+        }
+        let region = self
+            .region_at(address)?
+            .filter(|r| r.readable && address + data.len() as u64 <= r.base + r.size)
+            .ok_or(Error::Read {
+                address,
+                len: data.len(),
+            })?;
+        let current = self.read_bytes(address, data.len())?;
+        if current == data {
+            return Ok(ByteEdit::Unchanged);
+        }
+        if region.executable {
+            self.apply_code(address, &current, data)?;
+            return Ok(ByteEdit::Code);
+        }
+        if !region.writable {
+            return Err(Error::PatchRejected(
+                "this memory is read-only, so it can't be changed".into(),
+            ));
+        }
+        self.write_bytes(address, data)?;
+        Ok(ByteEdit::Data)
+    }
+}
+
+/// Page size used to split reads.
+const PAGE_SIZE: u64 = 0x1000;
+/// Bytes the memory viewer changes at most at once.
+pub const MAX_EDIT: usize = 64;
+
+/// What [`AttachedProcess::edit_bytes`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ByteEdit {
+    /// The bytes already had that value.
+    Unchanged,
+    /// Data was written.
+    Data,
+    /// Code was changed; it is put back when JuiceBox Trainer detaches.
+    Code,
+}
+
+/// Matches of `pattern` in an image read by [`AttachedProcess::module_image`].
+pub(crate) fn find_in_image(image: &[(u64, Vec<u8>)], pattern: &Pattern, limit: usize) -> Vec<u64> {
+    let mut out = Vec::new();
+    for (start, buf) in image {
+        if out.len() >= limit {
+            break;
+        }
+        for at in pattern.find_all(buf, limit - out.len()) {
+            out.push(start + at as u64);
+        }
+    }
+    out
+}
+
+fn mismatch(address: u64, expected: &[u8], found: &[u8]) -> Error {
+    Error::BytesMismatch {
+        address,
+        expected: crate::aob::hex_string(expected),
+        found: crate::aob::hex_string(found),
+    }
+}
+
+/// Fails if a recorded change other than exactly `original → patched` at
+/// `address` owns any of these bytes.
+fn check_owner(ledger: &Ledger, address: u64, original: &[u8], patched: &[u8]) -> Result<()> {
+    if let Some(other) = ledger.overlap(address, patched.len()) {
+        return Err(Error::CodeOverlap { address, other });
+    }
+    match ledger.get(address) {
+        Some(c) if c.original != original || c.written != patched => Err(Error::CodeOverlap {
+            address,
+            other: address,
+        }),
+        _ => Ok(()),
+    }
+}
+
+fn restore_entry(ledger: &mut Ledger, address: u64, before: Option<CodeChange>) {
+    match before {
+        Some(c) => {
+            ledger.insert(c);
+        }
+        None => {
+            ledger.remove(address);
+        }
+    }
+}
+
+impl Drop for AttachedProcess {
+    fn drop(&mut self) {
+        if self.is_alive() {
+            let problems = self.restore_code();
+            if !problems.is_empty() {
+                warn!(
+                    pid = self.info.pid,
+                    "{} code change(s) could not be restored",
+                    problems.len()
+                );
+            }
+        } else {
+            // The game is gone and its code changes with it.
+            lock(&self.ledger).delete_file();
+        }
+        info!(pid = self.info.pid, name = %self.info.name, "detached");
+    }
+}

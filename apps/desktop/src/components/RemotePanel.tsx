@@ -74,7 +74,7 @@ export function RemotePanel() {
       {!status && (
         <p className="text-xs text-zinc-500">
           Use your phone as a remote for these cheats. Your phone must be on the same Wi-Fi as this PC. Windows may ask
-          to let OpenTrainer through the firewall: allow it on private networks.
+          to let JuiceBox Trainer through the firewall: allow it on private networks.
         </p>
       )}
       {status && (

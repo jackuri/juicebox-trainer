@@ -1,11 +1,11 @@
-// The AI helper benchmark (v1.21.0, PLAN.md §5.6 step 1): runs the real AI helper on OpenTrainer's
+// The AI helper benchmark (v1.21.0, PLAN.md §5.6 step 1): runs the real AI helper on JuiceBox Trainer's
 // own test game (testbed_native) with a simulated player who answers from the game's real state,
 // then checks the cheat pack it saved on a freshly started copy of the game (so cheats that only
 // worked until a restart don't count). Prints a score table and writes target/ai-bench/<time>.json.
 //
 // It uses your Claude login (or ANTHROPIC_API_KEY with --api-key) and costs a little each run: the
 // budget per scenario is capped (--budget, default $1.50). Everything it writes (packs, notes, save
-// backups, logs) goes to a folder under target/ai-bench, never to your own OpenTrainer folders.
+// backups, logs) goes to a folder under target/ai-bench, never to your own JuiceBox Trainer folders.
 //
 //   node scripts/ai-bench.mjs                      # x64 with the best model
 //   node scripts/ai-bench.mjs x64 x86 x64-cheaper  # several scenarios
@@ -18,9 +18,9 @@ import path from "node:path";
 import { createInterface } from "node:readline";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")), "..");
-// OT_BENCH_SIDECAR / OT_BENCH_MCP: another build to compare with (e.g. an older version).
-const SIDECAR = process.env.OT_BENCH_SIDECAR ?? path.join(ROOT, "sidecars", "ai-agent", "dist", "index.js");
-const MCP = process.env.OT_BENCH_MCP ?? path.join(ROOT, "target", "debug", "ot-mcp.exe");
+// JB_BENCH_SIDECAR / JB_BENCH_MCP: another build to compare with (e.g. an older version).
+const SIDECAR = process.env.JB_BENCH_SIDECAR ?? path.join(ROOT, "sidecars", "ai-agent", "dist", "index.js");
+const MCP = process.env.JB_BENCH_MCP ?? path.join(ROOT, "target", "debug", "jb-mcp.exe");
 const TESTBED = {
   x64: path.join(ROOT, "target", "testbed", "debug", "testbed_native.exe"),
   x86: path.join(ROOT, "target", "testbed", "i686-pc-windows-msvc", "debug", "testbed_native.exe"),
@@ -46,7 +46,7 @@ for (const s of scenarios) if (!SCENARIOS[s]) throw new Error(`unknown scenario 
 for (const f of [SIDECAR, ...new Set(scenarios.map((s) => TESTBED[SCENARIOS[s].testbed]))]) {
   if (!existsSync(f)) throw new Error(`missing ${f}: run npm run build:agent and cargo test first`);
 }
-if (!existsSync(MCP)) spawnSync("cargo", ["build", "-p", "ot-mcp"], { cwd: ROOT, stdio: "inherit" });
+if (!existsSync(MCP)) spawnSync("cargo", ["build", "-p", "jb-mcp"], { cwd: ROOT, stdio: "inherit" });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -160,7 +160,7 @@ async function runHelper(name, sc, sandbox) {
   for (const k of Object.keys(env)) if (/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK_)/i.test(k)) delete env[k];
   mkdirSync(env.APPDATA, { recursive: true });
   mkdirSync(env.LOCALAPPDATA, { recursive: true });
-  Object.assign(env, { OT_MCP_COMMAND: MCP, OT_MCP_ARGS: "[]", OT_APP_VERSION: "bench" });
+  Object.assign(env, { JB_MCP_COMMAND: MCP, JB_MCP_ARGS: "[]", JB_APP_VERSION: "bench" });
   const helper = spawn("node", [SIDECAR], { env, stdio: ["pipe", "pipe", "pipe"] });
   const send = (m) => helper.stdin.write(JSON.stringify(m) + "\n");
   const log = [];
@@ -249,7 +249,7 @@ function toolServer(env) {
 
 /** Checks the saved pack on a fresh copy of the game: which stats its cheats really control. */
 async function verify(sc, sandbox) {
-  const packsDir = path.join(sandbox, "Roaming", "OpenTrainer", "packs");
+  const packsDir = path.join(sandbox, "Roaming", "JuiceBox Trainer", "packs");
   const packs = existsSync(packsDir)
     ? readdirSync(packsDir)
         .map((d) => path.join(packsDir, d, "pack.json"))

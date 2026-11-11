@@ -1,4 +1,4 @@
-//! `testbed_native` — a tiny fake "game" that OpenTrainer attaches to in tests.
+//! `testbed_native` — a tiny fake "game" that JuiceBox Trainer attaches to in tests.
 //!
 //! It keeps player stats on the heap behind a pointer chain:
 //!
@@ -8,7 +8,7 @@
 //!
 //! Commands are read line by line from stdin. With `--json` every reply is a
 //! single JSON line, which is the side channel integration tests use to check
-//! values after OpenTrainer writes them. Build with `--features shifted` to get
+//! values after JuiceBox Trainer writes them. Build with `--features shifted` to get
 //! a layout with different offsets.
 //!
 //! Four small pieces of code are written in inline assembly so their bytes are
@@ -107,7 +107,7 @@ fn new_world() -> *mut World {
 }
 
 // All game-state access goes through volatile reads/writes because another
-// process (OpenTrainer) changes these values behind the compiler's back.
+// process (JuiceBox Trainer) changes these values behind the compiler's back.
 
 /// Loads the static root with code at a fixed byte pattern (marker 3).
 #[inline(never)]
@@ -306,9 +306,9 @@ fn human_state() -> String {
 const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | save | load | tick | help | quit";
 
 /// Where `save` writes, like a Unity game: `AppData\LocalLow\TestCo\Testbed`.
-/// Tests point it elsewhere with `OT_TESTBED_SAVE_DIR`.
+/// Tests point it elsewhere with `JB_TESTBED_SAVE_DIR`.
 fn save_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("OT_TESTBED_SAVE_DIR") {
+    if let Some(dir) = std::env::var_os("JB_TESTBED_SAVE_DIR") {
         return Some(PathBuf::from(dir));
     }
     let profile = std::env::var_os("USERPROFILE")?;
@@ -322,7 +322,7 @@ fn save_dir() -> Option<PathBuf> {
 }
 
 /// Writes `<exe>_Datapp.info` (company and product) like a Unity game, so
-/// OpenTrainer's save locator finds the save folder.
+/// JuiceBox Trainer's save locator finds the save folder.
 fn write_app_info() {
     let Ok(exe) = std::env::current_exe() else {
         return;
@@ -453,7 +453,7 @@ unsafe extern "system" {
 fn main() {
     // Report crashes to Windows like a game started from Explorer or Steam,
     // even when the starting program turned crash reports off (Node does),
-    // so tests see Windows' crash record (OpenTrainer 1.22's "why it closed").
+    // so tests see Windows' crash record (JuiceBox Trainer 1.22's "why it closed").
     // Programs Node starts directly are also in its job object, which skips
     // the report: tests start the testbed through cmd for that.
     // SAFETY: plain Win32 call with no pointers.
@@ -469,7 +469,7 @@ fn main() {
     } else {
         let _ = writeln!(
             out,
-            "OpenTrainer testbed ({}, pid {}) — a fake game for testing. {HELP}",
+            "JuiceBox Trainer testbed ({}, pid {}) — a fake game for testing. {HELP}",
             if cfg!(target_pointer_width = "64") {
                 "x64"
             } else {

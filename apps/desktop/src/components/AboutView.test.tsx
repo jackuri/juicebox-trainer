@@ -48,7 +48,7 @@ describe("AboutView", () => {
     });
     render(<AboutView />);
     fireEvent.click(await screen.findByRole("button", { name: "Update" }));
-    expect(await screen.findByText("Updating to OpenTrainer 1.0.1 (2026-11-20)…")).toBeInTheDocument();
+    expect(await screen.findByText("Updating to JuiceBox Trainer 1.0.1 (2026-11-20)…")).toBeInTheDocument();
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("update_install", undefined));
     expect(screen.getByRole("button", { name: "Updating…" })).toBeDisabled();
 

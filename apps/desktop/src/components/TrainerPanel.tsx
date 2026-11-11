@@ -153,7 +153,7 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
           <p className="text-sm text-zinc-400">
             No pack for this game yet. Get one in Packs (open a pack file, or install one from the community
             list), make one with the AI helper, or find values yourself with the Scanner. Your packs are in{" "}
-            <code className="text-xs">{folder ?? "%APPDATA%\\OpenTrainer\\packs"}</code>.
+            <code className="text-xs">{folder ?? "%APPDATA%\\JuiceBox Trainer\\packs"}</code>.
           </p>
         )}
         <div className="flex gap-2">

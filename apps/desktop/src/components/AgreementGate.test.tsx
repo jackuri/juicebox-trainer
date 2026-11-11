@@ -20,7 +20,7 @@ describe("AgreementGate", () => {
         <p>The app</p>
       </AgreementGate>,
     );
-    expect(await screen.findByRole("dialog", { name: "Before you use OpenTrainer" })).toBeInTheDocument();
+    expect(await screen.findByRole("dialog", { name: "Before you use JuiceBox Trainer" })).toBeInTheDocument();
     expect(screen.getByText(/Never use cheats in games with strangers/)).toBeInTheDocument();
     expect(screen.getByText(/not responsible for anything that happens/)).toBeInTheDocument();
     expect(screen.queryByText("The app")).not.toBeInTheDocument();

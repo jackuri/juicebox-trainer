@@ -29,7 +29,7 @@ describe("friendlyError", () => {
     );
   });
 
-  it("keeps OpenTrainer's own messages and wraps technical ones", () => {
+  it("keeps JuiceBox Trainer's own messages and wraps technical ones", () => {
     expect(friendlyError({ kind: "webGame", message: "the game page took too long to answer", verdict: null })).toBe(
       "the game page took too long to answer",
     );

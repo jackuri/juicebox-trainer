@@ -1,4 +1,4 @@
-// OpenTrainer's web testbed: a tiny fake game (never a real one).
+// JuiceBox Trainer's web testbed: a tiny fake game (never a real one).
 // - gold: a number in a JavaScript object (window.game.player.gold), like most HTML5 games
 // - health (32-bit integer at 0x1000) and ammo (32-bit float at 0x2000): in a WebAssembly memory
 //   exported by a module, like a game built with Emscripten or a console emulator

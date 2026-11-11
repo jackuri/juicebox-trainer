@@ -179,7 +179,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                 {g.blocked ? (
                   <span className="text-amber-400">Online / anti-cheat ({g.blocked.replace(/^anti-cheat found:? ?/, "") || "found"}): not supported</span>
                 ) : g.antiCheat && !g.pack ? (
-                  <span className="text-amber-300" title="OpenTrainer checks when the game runs and only attaches while its anti-cheat isn't running">
+                  <span className="text-amber-300" title="JuiceBox Trainer checks when the game runs and only attaches while its anti-cheat isn't running">
                     Has {g.antiCheat}: works only when the game runs without it
                   </span>
                 ) : g.pack ? (
@@ -194,7 +194,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                   <span className="text-amber-300">Has {g.antiCheat}: works only when the game runs without it</span>
                 )}
                 {g.autoPreset && <span className="text-sky-300">Starts with: {g.autoPreset}</span>}
-                {g.launch.kind === "manual" && !g.blocked && <span>You start it yourself; OpenTrainer waits for it</span>}
+                {g.launch.kind === "manual" && !g.blocked && <span>You start it yourself; JuiceBox Trainer waits for it</span>}
               </p>
               <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">
                 <button

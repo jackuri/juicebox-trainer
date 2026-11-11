@@ -1,4 +1,4 @@
-# OpenTrainer — instructions for Claude Code
+# JuiceBox Trainer — instructions for Claude Code
 
 Read `docs/PLAN.md` before doing anything. It is the source of truth for scope, architecture and roadmap.
 
@@ -11,12 +11,12 @@ A free, open-source Windows app: game trainer (WeMod/Wand style) + save manager/
 - Never deserialize BinaryFormatter or unpickle pickle saves — parse bytes structurally.
 - AI-generated cheats are declarative pack data. The app never executes arbitrary AI-written native code;
   code caves go through the validated `cave` op.
-- The AI agent touches games only via `ot-mcp` (guarded, logged, revertible).
+- The AI agent touches games only via `jb-mcp` (guarded, logged, revertible).
 - Never commit game files, extracted assets, decompiled code or unpacked EXEs. Tests use `testbed/` only.
 
 ## Tech stack
 - Tauri 2 + React + TypeScript + Tailwind (`apps/desktop`)
-- Rust workspace (`crates/ot-core`, `ot-packs`, `ot-saves`, `ot-mcp`), `windows` crate, `iced-x86`
+- Rust workspace (`crates/jb-core`, `jb-packs`, `jb-saves`, `jb-mcp`), `windows` crate, `iced-x86`
 - Node/TS sidecar `sidecars/ai-agent` using the Claude Agent SDK; external tools: REA MCP (optional), `um` CLI
 - Target: Windows 10/11 x64. Games may be x64 or x86 (handle WOW64).
 

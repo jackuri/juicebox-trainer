@@ -23,7 +23,7 @@ interface Props {
 }
 
 /**
- * Shares one of the player's packs with the community list. OpenTrainer does
+ * Shares one of the player's packs with the community list. JuiceBox Trainer does
  * the GitHub part; the player only signs in once with a code.
  */
 export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
@@ -81,7 +81,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     setError(null);
     setSharing(true);
     try {
-      // MIT is the list's default: it isn't written into the pack, so older OpenTrainer versions can still read it.
+      // MIT is the list's default: it isn't written into the pack, so older JuiceBox Trainer versions can still read it.
       const licence = terms === "mit" ? undefined : terms === "permission" ? LICENCE_PERMISSION : otherTerms.trim();
       const fromMaker = fromSomeoneElse ? madeBy === "me" : !pack.ai;
       setShared(
@@ -132,7 +132,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
         <div>
           <p className="text-lg font-semibold tracking-tight">Share “{name}” with everyone</p>
           <p className="text-xs text-zinc-400">
-            OpenTrainer puts your pack on the community list for you. A maintainer checks every pack before it shows up.
+            JuiceBox Trainer puts your pack on the community list for you. A maintainer checks every pack before it shows up.
           </p>
         </div>
       )}
@@ -157,7 +157,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
       {status?.configured && !status.signedIn && !code && (
         <div className="flex flex-col gap-2 text-sm text-zinc-300">
           <p>
-            You need a free GitHub account (the site where the community list lives). You sign in once; OpenTrainer does
+            You need a free GitHub account (the site where the community list lives). You sign in once; JuiceBox Trainer does
             the rest. It never sees your password.
           </p>
           <button className={`${primary} self-start`} onClick={() => void signIn()}>

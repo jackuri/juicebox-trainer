@@ -1,4 +1,4 @@
-// OpenTrainer phone remote. Shows the loaded pack's cheats and sends the same
+// JuiceBox Trainer phone remote. Shows the loaded pack's cheats and sends the same
 // actions as the trainer's own buttons. Text is always set with textContent.
 "use strict";
 
@@ -19,14 +19,14 @@ async function send(body) {
   try {
     const r = await fetch("/api/action", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "X-OpenTrainer": "1" },
+      headers: { "Content-Type": "application/json", "X-JuiceBox": "1" },
       body: JSON.stringify(body),
     });
     const data = await r.json();
     if (!r.ok) statusLine.textContent = data.error || "That didn't work.";
     else update(data);
   } catch {
-    statusLine.textContent = "Can't reach OpenTrainer.";
+    statusLine.textContent = "Can't reach JuiceBox Trainer.";
   }
 }
 
@@ -76,9 +76,9 @@ function build(view) {
 function update(view) {
   if (!view.pack) {
     shape = "";
-    title.textContent = "OpenTrainer";
+    title.textContent = "JuiceBox Trainer";
     statusLine.textContent = "Connected";
-    main.replaceChildren(el("p", "empty", "Load a pack in OpenTrainer on your PC, then its cheats show here."));
+    main.replaceChildren(el("p", "empty", "Load a pack in JuiceBox Trainer on your PC, then its cheats show here."));
     return;
   }
   title.textContent = view.pack.game;
@@ -108,14 +108,14 @@ async function poll() {
   try {
     const r = await fetch("/api/state", { cache: "no-store" });
     if (r.status === 401) {
-      statusLine.textContent = "Not paired any more. Scan the QR code in OpenTrainer again.";
+      statusLine.textContent = "Not paired any more. Scan the QR code in JuiceBox Trainer again.";
       main.replaceChildren();
       shape = "";
       return;
     }
     update(await r.json());
   } catch {
-    statusLine.textContent = "Can't reach OpenTrainer. Is it still running?";
+    statusLine.textContent = "Can't reach JuiceBox Trainer. Is it still running?";
   }
 }
 

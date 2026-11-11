@@ -26,14 +26,14 @@ export interface OpenFile {
 }
 
 interface Props {
-  /** An .otpack opened from Explorer, dropped on the window, or a downloaded table. */
+  /** A .juice pack opened from Explorer, dropped on the window, or a downloaded table. */
   openPath: OpenFile | null;
   onOpened: () => void;
   /** Go to the Cheats view (after installing a pack). */
   onShowCheats: () => void;
 }
 
-/** Your packs, .otpack import / export, and the community list. */
+/** Your packs, .juice import / export, and the community list. */
 export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [community, setCommunity] = useState<CommunityList | null>(null);
@@ -221,10 +221,10 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           </button>
         </div>
         <p className="text-xs text-zinc-500">
-          Share a pack by sending its <code>.otpack</code> file. To open one, double-click it, drop it on this window or use
+          Share a pack by sending its <code>.juice</code> file. To open one, double-click it, drop it on this window or use
           “Open a pack or table…”. A plain <code>pack.json</code> (e.g. from a forum or the community repository) opens the
           same way. So does a Cheat Engine table (<code>.CT</code>): its number values (health, money…) become a pack;
-          its scripts are left out, because OpenTrainer never runs code from a file.
+          its scripts are left out, because JuiceBox Trainer never runs code from a file.
         </p>
         {packs === null && <p className="text-sm text-zinc-500">Loading…</p>}
         <ul className="flex flex-col gap-2">
@@ -319,7 +319,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
             onClick={() =>
               setMessage({
                 text: (packs ?? []).some((p) => p.source === "user" || p.source === "imported")
-                  ? "Click “Share with everyone” next to one of your packs above. OpenTrainer does the rest."
+                  ? "Click “Share with everyone” next to one of your packs above. JuiceBox Trainer does the rest."
                   : "Make a pack first (with the AI helper, or open a Cheat Engine table), then click “Share with everyone” next to it.",
               })
             }
@@ -328,7 +328,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           </button>
         </div>
         <p className="text-xs text-zinc-500">
-          Packs made by other players. Each one is checked like any pack before it's installed, and OpenTrainer still refuses
+          Packs made by other players. Each one is checked like any pack before it's installed, and JuiceBox Trainer still refuses
           games with anti-cheat.
         </p>
         {loadingCommunity && !community && <p className="text-sm text-zinc-500">Loading the list…</p>}
@@ -509,7 +509,7 @@ export function InstallDialog({ preview: p, fromCommunity, busy, onInstall, onCa
       )}
       {empty && (
         <p className="rounded bg-amber-950/40 px-2 py-1.5 text-xs text-amber-200" role="status">
-          Nothing in this table can be used by OpenTrainer: everything in it is a script or something only Cheat Engine
+          Nothing in this table can be used by JuiceBox Trainer: everything in it is a script or something only Cheat Engine
           understands (see below).
         </p>
       )}

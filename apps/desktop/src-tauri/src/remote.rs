@@ -310,7 +310,7 @@ struct Response {
 
 fn text(status: &'static str, body: &str) -> Response {
     let html = format!(
-        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>OpenTrainer</title><body style=\"font-family:system-ui;background:#0e111a;color:#eceef6;padding:24px\"><p>{body}</p>"
+        "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>JuiceBox Trainer</title><body style=\"font-family:system-ui;background:#0e111a;color:#eceef6;padding:24px\"><p>{body}</p>"
     );
     Response {
         status,
@@ -333,7 +333,7 @@ fn route(req: &Request, shared: &Shared, backend: &dyn Backend) -> Response {
     if !host_ok(req.header("host")) {
         return text(
             "403 Forbidden",
-            "Open the remote by the PC's address shown in OpenTrainer.",
+            "Open the remote by the PC's address shown in JuiceBox Trainer.",
         );
     }
     let authed = shared.authed(req.cookie("ot"));
@@ -352,7 +352,7 @@ fn route(req: &Request, shared: &Shared, backend: &dyn Backend) -> Response {
             },
             None => text(
                 "403 Forbidden",
-                "This pairing code was already used or is out of date. Scan the QR code in OpenTrainer again.",
+                "This pairing code was already used or is out of date. Scan the QR code in JuiceBox Trainer again.",
             ),
         },
         ("GET", "/") if authed => Response {
@@ -363,7 +363,7 @@ fn route(req: &Request, shared: &Shared, backend: &dyn Backend) -> Response {
         },
         ("GET", "/") => text(
             "401 Unauthorized",
-            "Not paired. In OpenTrainer, open Phone remote and scan the QR code with this phone.",
+            "Not paired. In JuiceBox Trainer, open Phone remote and scan the QR code with this phone.",
         ),
         ("GET", "/app.js") => Response {
             status: "200 OK",
@@ -373,7 +373,7 @@ fn route(req: &Request, shared: &Shared, backend: &dyn Backend) -> Response {
         },
         ("GET", "/api/state") if authed => json("200 OK", &backend.view()),
         ("POST", "/api/action") if authed => {
-            if req.header("x-opentrainer") != Some("1") {
+            if req.header("x-juicebox") != Some("1") {
                 return json(
                     "403 Forbidden",
                     &serde_json::json!({ "error": "missing header" }),
@@ -572,7 +572,7 @@ mod tests {
             )
         };
         assert!(post("").starts_with("HTTP/1.1 403"));
-        assert!(post("X-OpenTrainer: 1\r\n").starts_with("HTTP/1.1 200"));
+        assert!(post("X-JuiceBox: 1\r\n").starts_with("HTTP/1.1 200"));
         assert_eq!(fake.acts.lock().unwrap()[0].op, "toggle");
 
         server.forget_devices();

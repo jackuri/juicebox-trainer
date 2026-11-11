@@ -1,6 +1,6 @@
 [package]
 name = "testbed-native"
-description = "Fake native 'game' used by OpenTrainer tests. Not a real game."
+description = "Fake native 'game' used by JuiceBox Trainer tests. Not a real game."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

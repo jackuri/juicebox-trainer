@@ -1,6 +1,6 @@
-//! The player's agreement (v1.18.0): before using OpenTrainer, the player reads
+//! The player's agreement (v1.18.0): before using JuiceBox Trainer, the player reads
 //! the warning about fair use and the waiver, and signs by typing their name.
-//! It's kept in `%APPDATA%\OpenTrainer\agreement.json` with the date and the
+//! It's kept in `%APPDATA%\JuiceBox Trainer\agreement.json` with the date and the
 //! agreement's version; a new version is shown again.
 
 use std::path::PathBuf;
@@ -33,7 +33,11 @@ pub struct AgreementStatus {
 }
 
 fn file() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("OpenTrainer").join("agreement.json"))
+    std::env::var_os("APPDATA").map(|a| {
+        PathBuf::from(a)
+            .join(jb_core::names::FOLDER)
+            .join("agreement.json")
+    })
 }
 
 fn read(path: &std::path::Path) -> Option<Signed> {
@@ -89,7 +93,7 @@ pub fn agreement_status() -> AgreementStatus {
 #[tauri::command]
 pub fn agreement_sign(name: String) -> CmdResult<AgreementStatus> {
     let path = file().ok_or_else(|| CommandError::new("noAppData", "%APPDATA% is not set"))?;
-    sign_at(&path, &name, &ot_packs::share::today())?;
+    sign_at(&path, &name, &jb_packs::share::today())?;
     Ok(status_at(Some(&path)))
 }
 
@@ -100,7 +104,7 @@ pub fn require() -> CmdResult<()> {
     } else {
         Err(CommandError::new(
             "needsAgreement",
-            "read and sign OpenTrainer's agreement first",
+            "read and sign JuiceBox Trainer's agreement first",
         ))
     }
 }

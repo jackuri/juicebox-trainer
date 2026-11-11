@@ -1,18 +1,18 @@
 # Status
 
-_Last updated: 2026-11-11 — v1.22.0_
+_Last updated: 2026-11-11 — v1.23.0_
 
 ## Done
-- CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
+- CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
   (its CI and Release runs started on GitHub).
 - v0.1.0 skeleton: workspace, Tauri app boots, testbed game (x64/x86/shifted), CI, check + bump scripts.
 - v0.2.0 core memory: process list, guarded attach/detach, typed read/write, module map, regions,
   anti-cheat guard with tests, desktop UI to attach and read/write.
 - v0.3.0 scanner: multithreaded first/next scans, address list, 50 ms freeze loop, manual-tools UI.
 - v0.4.0 packs: v1 schema, validator, `value` and `patch` ops, safe-patch checker, trainer runtime,
-  build-hash check, hotkeys, pack store, `otpack` CLI, example packs, Trainer tab.
+  build-hash check, hotkeys, pack store, `juicepack` CLI, example packs, Trainer tab.
 - v0.5.0 stability: checked code writes, crash-safe journal with recovery, pointer scanner,
-  signature maker, pointer paths in the address list, `Try OpenTrainer.cmd` launcher (stops a
+  signature maker, pointer paths in the address list, `Try JuiceBox Trainer.cmd` launcher (stops a
   leftover dev server, keeps errors on screen).
 - v0.6.0 Saves I: save locator (Unity, Unreal, Steam Cloud, named folders), backups on game start /
   exit / attach / by hand with notes, content-deduplicated store with retention, compare (text lines
@@ -22,7 +22,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   (registry, also backed up / compared / restored), gzip / zlib / Base64 wrappers and CRC32 / MD5 /
   SHA-1 / SHA-256 checksums recomputed on save, hex view with number inspector, quick codes from
   packs (validated placeholders), guarded saving (game closed, guard, backup first). All checks pass.
-- v0.8.0 AI I: guarded `ot-mcp` tool server (20 tools, logged, every change revertible, guard on
+- v0.8.0 AI I: guarded `jb-mcp` tool server (20 tools, logged, every change revertible, guard on
   attach, saves backed up), AI helper sidecar (Claude Agent SDK, no built-in tools, dontAsk
   permissions, isolated settings, budget cap), "Make a trainer (AI)" view with step-by-step
   Done / Yes / No prompts. Live test drives a whole agent session against the testbed. PLAN §8
@@ -35,7 +35,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   analysis MCP server, AI settings remembered.
 - v0.9.2 AI IV: IL2CPP metadata names (self-calibrating; verified on a real format-39 file, read-only,
   game not started), Unreal version + tips (verified on real UE 4.19 / 5.7 exes), anti-cheat note in
-  game_classes, better name search. Manual probes (`OT_IL2CPP_PROBE`, `OT_DOTNET_PROBE`, ignored
+  game_classes, better name search. Manual probes (`JB_IL2CPP_PROBE`, `JB_DOTNET_PROBE`, ignored
   tests) read a real game's files on this PC; no game data is committed.
 - v0.9.3 AI V: Unreal object reader (`unreal_find`): classes, properties (type + offset) and live
   object values for UE 4.23+ / UE5 games, self-calibrating layout, memory-search fallback when the
@@ -55,23 +55,23 @@ _Last updated: 2026-11-11 — v1.22.0_
   (same files and npm command as the app) in a temp folder, and the helper loads with it.
 - Real-app test of the 1.15.0 release build (DevTools port, 14/14 passed): Find a cheat table on
   every playable game (25), its panel; a test table written to the real Downloads folder showed up
-  within seconds with "2 cheats OpenTrainer can use"; Turn into cheats → install dialog (script
+  within seconds with "2 cheats JuiceBox Trainer can use"; Turn into cheats → install dialog (script
   listed as not imported) → credit typed → installed pack has author + `meta.source`; not offered
   again; a `javascript:` page address refused. The test pack was removed (kept in packs-removed)
   and the test table deleted. The search buttons weren't clicked (they'd open the browser).
-  Installer: `release-out/OpenTrainer_1.15.0_x64-setup.exe`.
+  Installer: `release-out/JuiceBoxTrainer_1.15.0_x64-setup.exe`.
 - Real-app test of the 1.16.0 release build (DevTools port, local test copy of the community list
-  via `OT_PACK_INDEX`, 14/14 passed): 2 links read; Baldur's Gate 3's Find a cheat table lists only
+  via `JB_PACK_INDEX`, 14/14 passed): 2 links read; Baldur's Gate 3's Find a cheat table lists only
   its link with maker / site / cheats; unlisted and off-site pages refused; a table installed with
   a FearLess page offers Share the table's link and its dialog opens (not sent); other packs don't
-  offer it. Test pack removed. Installer: `release-out/OpenTrainer_1.16.0_x64-setup.exe`.
+  offer it. Test pack removed. Installer: `release-out/JuiceBoxTrainer_1.16.0_x64-setup.exe`.
 - Real-app test of the 1.17.0 release build (DevTools port, local test copy of the community list,
   14/14 passed): credit / badge / terms / maker buttons on a community pack, MIT shown for a pack
   without terms, unknown link kinds and packs without credit refused, the share dialog asks who
   made the table, the three kinds of terms and a support page (not sent). It found a bug, fixed:
   a credited table pack (author = maker's name) was called "a file" in the share dialog; now a
   pack whose credit names a `.CT` file counts as a table. Test pack removed. Installer:
-  `release-out/OpenTrainer_1.17.0_x64-setup.exe`.
+  `release-out/JuiceBoxTrainer_1.17.0_x64-setup.exe`.
 - Real-app test of the 1.18.0 release build (DevTools port, testbed/web on a local server, 29/29
   passed): agreement first, web_open refused before signing, sign needs the box + a name, saved
   with the date; Web games tab + play-fair note; add (plain http elsewhere refused), open, helper
@@ -82,7 +82,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   read again every few seconds. Older real-app tests (1.13 to 1.17) re-run on 1.18 with a
   temporary test signature: 101/101. The user's own agreement / web-games files were backed up and
   restored (none existed, so the user still signs it themselves). Installer:
-  `release-out/OpenTrainer_1.18.0_x64-setup.exe`.
+  `release-out/JuiceBoxTrainer_1.18.0_x64-setup.exe`.
 - v1.18.0 Agreement + web games I (user request: web games like outbreakweb.com, which the user
   says is a fan-made co-op site where you invite friends; a warning and a waiver every player
   signs). `src-tauri/src/{agreement.rs, web.rs, web_agent.js}`, `components/{AgreementGate,
@@ -94,7 +94,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   saves 25, themes 34, Downloads tables 14, table links 14, credit and terms 14). Review fixes:
   MIT is no longer written into shared packs (it's the default; older versions can still read
   them, only packs with other terms or the maker badge need 1.17); the Downloads check pauses
-  while OpenTrainer is hidden.
+  while JuiceBox Trainer is hidden.
 - v1.17.0 Creator invitations (cheat-library plan step 3; the user chose "let makers choose"
   their terms): `schema::Source` `licence` / `support` / `from_maker`, `SUPPORT_SITES`,
   `is_support_url`; `github::{Terms, with_terms}` and terms lines in the PR text; community `Entry`
@@ -130,7 +130,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   previews, each theme applied + saved + right colour scheme, remembered after a reload, scanlines
   in the terminal theme; screenshots of Themes / Games / Save backups in every theme looked right.
   The test put the saved theme back to the default. Installer:
-  `release-out/OpenTrainer_1.14.0_x64-setup.exe`.
+  `release-out/JuiceBoxTrainer_1.14.0_x64-setup.exe`.
 - v1.13.0 SQLite saves: `codec::sqlite` with `rusqlite` 0.41.1 (`bundled`, `serialize`, no default
   features; the user asked for it on 2026-11-09). Workspace `rust-version` is now 1.89 (rusqlite's).
   Fields `Table[rowid].Column` (names quoted like JSON keys when odd), one-cell UPDATE with
@@ -140,17 +140,17 @@ _Last updated: 2026-11-11 — v1.22.0_
   (module label, live refresh + highlight, inspector, write seen by the game, read-only header
   refused), XML / YAML / SQLite saves opened and edited through the real IPC, SQLite file still
   valid afterwards, editor shows the SQLite save, account view answers. Installer:
-  `release-out/OpenTrainer_1.13.0_x64-setup.exe`.
+  `release-out/JuiceBoxTrainer_1.13.0_x64-setup.exe`.
 - v1.12.0 Memory viewer: `AttachedProcess::{read_partial, region_at, edit_bytes}` + `ByteEdit`,
   commands `memory_view` (max 4096 bytes) / `memory_edit`, `MemoryViewer` tab ("Memory") and a ⌗
   button in the address list. Live test against the testbed (x64 + x86): partial read across a
   region gap, data edit seen by the game, header refused, code edit restored on detach.
-- v1.11.0 Account copy: `ot_saves::accounts` (accounts, view, plan, copy, rewrite_ids),
+- v1.11.0 Account copy: `jb_saves::accounts` (accounts, view, plan, copy, rewrite_ids),
   `Reason::BeforeAccountCopy`, `Library::add_folder_as`, commands `saves_accounts`,
   `saves_account_plan`, `saves_account_copy`, `AccountCopyPanel` in Save backups (hidden unless the
   game has per-account saves and the PC knows 2+ accounts). Tested with a fake Steam folder only;
   not tried with a real game or real second account.
-- v1.10.0 Save formats: `codec::xml` (roxmltree, already a dependency of ot-packs; DTDs refused,
+- v1.10.0 Save formats: `codec::xml` (roxmltree, already a dependency of jb-packs; DTDs refused,
   element text + attributes, CDATA, repeated names `Item[2]`), `codec::yaml` (own block-style
   scanner: maps, lists, quotes, comments, `---` documents as `doc1.…`; flow / alias / block text
   read-only; anything else = hex), `codec::lzstring` (bit-identical to the JS library, test vectors
@@ -158,23 +158,23 @@ _Last updated: 2026-11-11 — v1.22.0_
   `/` in keys, loose section names and Godot multi-line `{`/`[` values (read-only), `codec::ess`
   (Skyrim LE/SE + Fallout 4 header summary, read-only), "GDEC" Godot encrypted note. Save codes
   accept `xml` / `yaml`. Tested with files made in the tests only (no real game saves).
-- v1.9.0 Find a value: `ot_core::finder::ValueFinder` (i32 + f32 + f64 at once; typed numbers with
+- v1.9.0 Find a value: `jb_core::finder::ValueFinder` (i32 + f32 + f64 at once; typed numbers with
   `,` separators; decimals match within one unit of the last digit; unknown start = one i32 snapshot
   split into i32 + f32 by `Scan::next_as`). Commands `finder_start/next/results/reset` and
   `my_cheat_save` (writes `packs\mine-<exe>\pack.json`, next free F-key, build sha, checks the path
   leads to the found address, loads it if no other pack is loaded). UI: Cheats → "Find a value" tab
   (tries each place with a test number and restores the real one; Keep/Set; Use it now = address
   list + freeze; Save = static module address, or pointer scan → restart → find again → filter).
-  Pending save kept in localStorage; pointer results only live while OpenTrainer stays open.
+  Pending save kept in localStorage; pointer results only live while JuiceBox Trainer stays open.
   Scanner values refresh every 1 s while visible. Real-app test (release build + testbed via
   DevTools) passed: found gold, kept 9999, saved after restart as `testbed_native.exe+0x49200`
   `[0x10, 0x10, 0xC]`, the Trainer toggle held it.
 - v1.8.1 One entry per running game: `running_games` keeps one process per game (pack exe, else
-  most memory via `ot_core::memory_in_use`, else biggest exe, else lowest PID); helpers stay under
+  most memory via `jb_core::memory_in_use`, else biggest exe, else lowest PID); helpers stay under
   "Show all running programs". The Play button's `pick()` still uses pack exe / biggest exe (memory
   is too low 4 s after launch to judge); a Unity game's tiny stub exe may lose to its launcher there.
 - v1.8.0 Hide games: `library_set_hidden(id, hidden)` keeps hidden ids in
-  `%APPDATA%\OpenTrainer\hidden-games.json` (broken file = nothing hidden); `LibraryGame.hidden`;
+  `%APPDATA%\JuiceBox Trainer\hidden-games.json` (broken file = nothing hidden); `LibraryGame.hidden`;
   Games tab Hide / Unhide buttons, "Show hidden (N)" switch, "Hidden" badge, all-hidden message.
   Only the Games list changes (the Cheats game picker still lists running hidden games).
 - v1.7.0 Official no-anti-cheat modes: `guard::check` (running game) treats install markers alone as
@@ -187,7 +187,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   always run their anti-cheat and stay blocked.
   All checks pass (live tests run with no anti-cheat running; while any game's anti-cheat runs,
   every attach on the PC is refused, tests included).
-- v1.6.0 Hooked pointers: `ot_core::capture` reads a register at a code address with a hardware
+- v1.6.0 Hooked pointers: `jb_core::capture` reads a register at a code address with a hardware
   execute breakpoint (attach as debugger, arm DR0 on all threads, resume flag on hits, optional
   `when` register = value, disarm, detach); live-tested on x64 and x86 testbeds. Pack schema
   `address.capture {register, add?, when?}` (aob only, no operand, needs arch). Trainer: captured
@@ -210,7 +210,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   and an independent security review (0 high, 3 medium, 6 low, all fixed). Community repo PR check
   also drops persisted credentials (pushed).
 - v1.4.1 Update button: About has one **Update** button (check → install → restart; builds
-  without updates open releases/latest). The user chose to make `jackuri/opentrainer` **public**
+  without updates open releases/latest). The user chose to make `jackuri/juicebox-trainer` **public**
   (done 2026-11-08 after a scan for secrets / binaries found none). The user added the
   `TAURI_SIGNING_PRIVATE_KEY` secret (2026-11-08); the v1.4.1 release was built with in-app updates
   on and has `latest.json` + `.sig` (fetched publicly without a sign-in). 1.4.1 is the first
@@ -221,11 +221,11 @@ _Last updated: 2026-11-11 — v1.22.0_
   Community repo commit a295e09 (local, not pushed): PR check = pack files only, index rebuilt on
   main. OAuth app registered under jackuri (client ID in `github.rs`, device flow on, tokens
   don't expire). Real share tested 2026-11-08 as jackuri (owner path: branch in the list repo):
-  PR jackuri/opentrainer-packs#1 had only the pack file and the right text, its check passed; closed.
+  PR jackuri/juicebox-packs#1 had only the pack file and the right text, its check passed; closed.
   The fork path (other players) is tested against a fake GitHub only. `github::tests::live_share`
   (ignored) repeats the real test.
 - v1.3.0 Cheat Engine tables: the user asked for a ready library of cheats (importing Wand/WeMod's
-  was declined: their cheats are proprietary and locked). `ot_packs::ct` converts `.CT` tables'
+  was declined: their cheats are proprietary and locked). `jb_packs::ct` converts `.CT` tables'
   value entries into packs (roxmltree, DTDs off, 16 MiB / 20k entries / depth 32 / 500 cheats);
   scripts, fixed addresses, script symbols, text/AoB values are listed as skipped. Opened through the
   normal pack preview (`share::open_path(path, exe)`), with "Choose the game's exe" when the table
@@ -258,7 +258,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   `pack.json` import (picker and drop), the only pack for a game loads by itself on attach (not
   again after Unload), "Get a pack…" from an empty Trainer tab, "Find pointers" on scanner results,
   "Copy as pack cheat" on pointer paths (checked: a pack with the copied cheat passes
-  `otpack validate`). All checks pass.
+  `juicepack validate`). All checks pass.
 - Hand-tested by the user on v0.10.0: reported working.
 - Hand-tested by the user on v0.5.0: Trainer tab with the testbed pack (Infinite Health, +1000 gold)
   works.
@@ -269,7 +269,7 @@ _Last updated: 2026-11-11 — v1.22.0_
 
 - v1.20.0 AI helper for web games: the app's local link to its game window for the AI's tool
   server (token, whitelisted calls, the helper's own locks only, undone at the end), ten `web_`
-  tools in ot-mcp, the sidecar's web task and prompt, Find cheats with AI in Web games. All
+  tools in jb-mcp, the sidecar's web task and prompt, Find cheats with AI in Web games. All
   checks pass. Real-app test of the release build (testbed/web, a scripted stand-in for the
   helper that starts the real tool server through the real sidecar settings): 47/47, including
   the link refusing a wrong token, the player's keys call and "unlock everything", the helper's
@@ -297,18 +297,22 @@ _Last updated: 2026-11-11 — v1.22.0_
   with 15 questions, $0.77; 1.21 cheaper model 3/3 with 7 questions, $0.22.
 
 - v1.22.0 Clear problem messages: why a game closed (exit code, Windows crash record, cheats on,
-  last change), web game pages that crash or freeze (Reload game), OpenTrainer's screen restarts
+  last change), web game pages that crash or freeze (Reload game), JuiceBox Trainer's screen restarts
   itself, Help page with recent problems and common questions, plain error messages, web links
   through `ShellExecuteW` (FearLess search opened Documents), known table page as the main button.
+
+- v1.23.0 Rename to JuiceBox Trainer: names, folders moved on first start, installer removes
+  OpenTrainer, `.juice` / `.juiceweb` (old endings still open), new icon, community repo text.
+  The GitHub repositories are renamed when this version is pushed.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.22.0 are pushed and tagged (CI and Release green,
   installers published). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
-- The community packs repository is live and public: https://github.com/jackuri/opentrainer-packs
+- The community packs repository is live and public: https://github.com/jackuri/juicebox-packs
   (one demo pack for the testbed; its "Check packs" workflow is green). The live `index.json` and
-  pack were downloaded, the SHA-256 matched and `otpack validate` passed.
+  pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
@@ -362,7 +366,7 @@ _Last updated: 2026-11-11 — v1.22.0_
 - The AI helper trusts the player's answers; a wrong "Done" or "Yes" (e.g. healing instead of taking
   damage) can make it patch the wrong code. It asks the player to confirm in game before saving.
 - Find what writes attaches as a debugger. Single-player games with DRM that refuses debuggers may
-  close or complain; OpenTrainer doesn't hide from them (by design). Only one debugger can attach,
+  close or complain; JuiceBox Trainer doesn't hide from them (by design). Only one debugger can attach,
   so it fails if another (e.g. Visual Studio) is attached.
 - Pack repair needs the cheat's code to still exist and look mostly the same (60% of the old
   signature's fixed bytes); static-address value cheats need a new pointer scan instead.
@@ -395,7 +399,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   checksums, and encryption, aren't detected (encrypted saves open as hex and are not decrypted).
 - Every attached program is added to Save backups (it can be removed there). Its saves are backed
   up at attach only if a save folder was found.
-- Steam Cloud: OpenTrainer can't stop Steam from syncing; it warns and tells you to keep the local
+- Steam Cloud: JuiceBox Trainer can't stop Steam from syncing; it warns and tells you to keep the local
   copy if Steam asks.
 - Account copy: only finds saves whose folder path names the account; a game that keeps one save
   file per account in a shared folder (`save_<id>.dat` next to each other) isn't offered. Short
@@ -403,7 +407,7 @@ _Last updated: 2026-11-11 — v1.22.0_
   upload copied files until the game saves once with that account. Copying between PCs isn't done.
 - Backups of files the game has locked are listed as "couldn't be read" and the rest is backed up.
 - The user isn't a developer: test instructions should be double-click-first (see
-  `Try OpenTrainer.cmd`), not terminal-first.
+  `Try JuiceBox Trainer.cmd`), not terminal-first.
 - Crash recovery covers code patches. Frozen values need no recovery (they just stop).
 - If recovery is blocked by the guard (anti-cheat started meanwhile), the journal is kept and tried
   again next start; it is deleted once the game closes.

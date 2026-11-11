@@ -21,7 +21,7 @@ describe("keyFromEvent", () => {
 });
 
 describe("chordFromButtons", () => {
-  it("orders buttons like ot-packs", () => {
+  it("orders buttons like jb-packs", () => {
     expect(chordFromButtons([12, 5, 4])).toBe("LB+RB+DPadUp");
     expect(chordFromButtons([0, 6, 7])).toBe("LT+RT+A");
     expect(chordFromButtons([99])).toBe("");

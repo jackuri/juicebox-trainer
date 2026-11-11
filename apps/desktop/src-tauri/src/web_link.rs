@@ -1,6 +1,6 @@
 //! The AI helper's link to the web game window (v1.20.0).
 //!
-//! The helper's guarded tool server (`opentrainer-desktop --mcp`, the ot-mcp
+//! The helper's guarded tool server (`juicebox-trainer --mcp`, the jb-mcp
 //! tools) runs as its own process, but the game window lives in this one. So
 //! while a helper session for a web game runs, the app listens on a local port
 //! (127.0.0.1 only, a new port each time) for one-line JSON requests that
@@ -333,7 +333,7 @@ impl Game for AppGame {
             .get_webview_window(crate::web::LABEL)
             .ok_or("the game window is closed")?;
         let hwnd = w.hwnd().map_err(|e| e.to_string())?;
-        let shot = ot_core::screen::capture_window(hwnd.0 as isize, ot_core::screen::MAX_SIDE)?;
+        let shot = jb_core::screen::capture_window(hwnd.0 as isize, jb_core::screen::MAX_SIDE)?;
         Ok(json!({
             "png": base64::engine::general_purpose::STANDARD.encode(&shot.png),
             "width": shot.width,

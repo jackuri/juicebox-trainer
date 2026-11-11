@@ -1,7 +1,7 @@
-// OpenTrainer AI helper sidecar. The app starts it with:
-//   OT_MCP_COMMAND  the guarded tool server (opentrainer-desktop.exe or ot-mcp.exe)
-//   OT_MCP_ARGS     its arguments as a JSON array, e.g. ["--mcp"]
-//   OT_APP_VERSION  the app version (for the User-Agent)
+// JuiceBox Trainer AI helper sidecar. The app starts it with:
+//   JB_MCP_COMMAND  the guarded tool server (juicebox-trainer.exe or jb-mcp.exe)
+//   JB_MCP_ARGS     its arguments as a JSON array, e.g. ["--mcp"]
+//   JB_APP_VERSION  the app version (for the User-Agent)
 // and talks to it with JSON lines (see protocol.ts).
 
 import { createInterface } from "node:readline";
@@ -15,11 +15,11 @@ function send(m: Outbound): void {
 }
 
 function mcpCommand(): McpCommand | null {
-  const command = process.env.OT_MCP_COMMAND;
+  const command = process.env.JB_MCP_COMMAND;
   if (!command) return null;
   let args: string[] = [];
   try {
-    const parsed: unknown = JSON.parse(process.env.OT_MCP_ARGS ?? "[]");
+    const parsed: unknown = JSON.parse(process.env.JB_MCP_ARGS ?? "[]");
     if (Array.isArray(parsed)) args = parsed.filter((a): a is string => typeof a === "string");
   } catch {
     // No arguments.
@@ -27,7 +27,7 @@ function mcpCommand(): McpCommand | null {
   return { command, args };
 }
 
-const version = process.env.OT_APP_VERSION ?? "dev";
+const version = process.env.JB_APP_VERSION ?? "dev";
 const bridge = new AskBridge(send);
 const notes = new NoteBox();
 const abort = new AbortController();
@@ -49,7 +49,7 @@ lines.on("line", (line) => {
   } else if (m.type === "start" && !running) {
     const mcp = mcpCommand();
     if (!mcp) {
-      send({ type: "finished", ok: false, summary: "The app didn't say how to start its tools (OT_MCP_COMMAND)." });
+      send({ type: "finished", ok: false, summary: "The app didn't say how to start its tools (JB_MCP_COMMAND)." });
       return;
     }
     running = true;

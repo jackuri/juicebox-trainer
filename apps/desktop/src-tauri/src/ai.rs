@@ -1,12 +1,12 @@
 //! The "Make a trainer" AI helper (PLAN.md §5). Starts the Node sidecar
 //! (`sidecars/ai-agent`), which runs the Claude Agent SDK with this app as its
-//! only tool server (`opentrainer-desktop --mcp`, the guarded ot-mcp tools),
+//! only tool server (`juicebox-trainer --mcp`, the guarded jb-mcp tools),
 //! and relays its messages to the UI as `ai-event`s.
 //!
-//! In the installed app the helper's own scripts ship with OpenTrainer
+//! In the installed app the helper's own scripts ship with JuiceBox Trainer
 //! (`<install>\ai-agent`), but the Claude engine they need (Anthropic's Agent
 //! SDK, about 330 MB) isn't ours to ship: the player downloads it from npm on
-//! first use, into `%LOCALAPPDATA%\org.opentrainer.desktop\ai-helper`.
+//! first use, into `%LOCALAPPDATA%\org.juiceboxtrainer.desktop\ai-helper`.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -96,7 +96,7 @@ fn bundled_dir() -> Option<PathBuf> {
 fn local_dir() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|d| {
         PathBuf::from(d)
-            .join("org.opentrainer.desktop")
+            .join(jb_core::names::IDENTIFIER)
             .join("ai-helper")
     })
 }
@@ -121,16 +121,16 @@ fn wanted(dir: &Path) -> Option<Value> {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub enum Download {
-    /// Development build or `OT_AI_AGENT`: nothing to download.
+    /// Development build or `JB_AI_AGENT`: nothing to download.
     NotNeeded,
     Missing,
-    /// This OpenTrainer needs another engine version.
+    /// This JuiceBox Trainer needs another engine version.
     Outdated,
     Ready,
 }
 
 fn download_state() -> Download {
-    if std::env::var_os("OT_AI_AGENT").is_some() || repo_script().is_some() {
+    if std::env::var_os("JB_AI_AGENT").is_some() || repo_script().is_some() {
         return Download::NotNeeded;
     }
     let (Some(bundled), Some(local)) = (bundled_dir(), local_dir()) else {
@@ -146,7 +146,7 @@ fn download_state() -> Download {
 }
 
 /// Copies the shipped scripts over the downloaded copy when they differ
-/// (after OpenTrainer was updated). The engine is left alone.
+/// (after JuiceBox Trainer was updated). The engine is left alone.
 fn refresh_scripts() {
     let (Some(bundled), Some(local)) = (bundled_dir(), local_dir()) else {
         return;
@@ -165,10 +165,10 @@ fn refresh_scripts() {
     }
 }
 
-/// The sidecar script: `OT_AI_AGENT`, the repository's build (development),
+/// The sidecar script: `JB_AI_AGENT`, the repository's build (development),
 /// or the downloaded copy.
 fn sidecar_script() -> Option<PathBuf> {
-    if let Some(p) = std::env::var_os("OT_AI_AGENT") {
+    if let Some(p) = std::env::var_os("JB_AI_AGENT") {
         return Some(PathBuf::from(p));
     }
     if let Some(repo) = repo_script() {
@@ -193,7 +193,7 @@ fn engine_path() -> Option<PathBuf> {
 }
 
 /// Claude settings inherited from another Claude program (e.g. when
-/// OpenTrainer was started from one) that would confuse the engine.
+/// JuiceBox Trainer was started from one) that would confuse the engine.
 fn is_inherited_claude_var(key: &str) -> bool {
     let k = key.to_ascii_uppercase();
     k == "CLAUDECODE"
@@ -253,7 +253,7 @@ pub struct AiStatus {
     pub signed_in: Option<bool>,
 }
 
-const NODE_MISSING: &str = "The AI helper needs Node.js (free). Install the LTS version from https://nodejs.org, then reopen OpenTrainer.";
+const NODE_MISSING: &str = "The AI helper needs Node.js (free). Install the LTS version from https://nodejs.org, then reopen JuiceBox Trainer.";
 
 fn problem() -> Option<String> {
     if !node_works() {
@@ -268,7 +268,7 @@ fn problem() -> Option<String> {
         }
         Download::Outdated => {
             return Some(
-                "This version of OpenTrainer needs a newer AI engine (about 330 MB to download)."
+                "This version of JuiceBox Trainer needs a newer AI engine (about 330 MB to download)."
                     .into(),
             );
         }
@@ -276,7 +276,7 @@ fn problem() -> Option<String> {
     }
     if sidecar_script().is_none() {
         return Some(
-            "The AI helper isn't built yet. Run `npm run build:agent` (Try OpenTrainer.cmd does this).".into(),
+            "The AI helper isn't built yet. Run `npm run build:agent` (Try JuiceBox Trainer.cmd does this).".into(),
         );
     }
     None
@@ -316,7 +316,7 @@ fn install_engine(app: &AppHandle) -> Result<(), String> {
     let say = |text: &str| {
         let _ = app.emit("ai-install-progress", text);
     };
-    let bundled = bundled_dir().ok_or("this copy of OpenTrainer has no AI helper scripts")?;
+    let bundled = bundled_dir().ok_or("this copy of JuiceBox Trainer has no AI helper scripts")?;
     let local = local_dir().ok_or("%LOCALAPPDATA% is not set")?;
     if !node_works() {
         return Err(NODE_MISSING.into());
@@ -419,7 +419,7 @@ pub struct AiStartRequest {
     #[serde(default)]
     pub pid: u32,
     /// `trainer` (default), `explainSave` or `webTrainer` (v1.20.0: the web
-    /// game open in OpenTrainer's game window).
+    /// game open in JuiceBox Trainer's game window).
     #[serde(default)]
     pub task: Option<String>,
     /// For `webTrainer`: the web game's id (it must be the one that's open).
@@ -512,12 +512,12 @@ pub async fn ai_start(
             .unwrap_or_default();
         json!({ "pid": 0, "name": name, "exe": exe })
     } else {
-        let process = ot_core::list_processes()?
+        let process = jb_core::list_processes()?
             .into_iter()
             .find(|p| p.pid == request.pid)
             .ok_or_else(|| CommandError::new("notFound", "that game isn't running any more"))?;
         // Refuse up front (and for free) if the guard would.
-        let verdict = ot_core::guard::check(request.pid);
+        let verdict = jb_core::guard::check(request.pid);
         if !verdict.allowed {
             let mut e = CommandError::new("blocked", verdict.to_string());
             e.verdict = Some(Box::new(verdict));
@@ -532,7 +532,7 @@ pub async fn ai_start(
     let script =
         sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
     let exe = std::env::current_exe()
-        .map_err(|e| CommandError::new("io", format!("can't find OpenTrainer's exe: {e}")))?;
+        .map_err(|e| CommandError::new("io", format!("can't find JuiceBox Trainer's exe: {e}")))?;
     let mut command = Command::new("node");
     for (k, _) in std::env::vars_os() {
         if k.to_str().is_some_and(is_inherited_claude_var) {
@@ -541,14 +541,14 @@ pub async fn ai_start(
     }
     if let Some(l) = &link {
         command
-            .env("OT_WEB_LINK", &l.addr)
-            .env("OT_WEB_TOKEN", &l.token);
+            .env("JB_WEB_LINK", &l.addr)
+            .env("JB_WEB_TOKEN", &l.token);
     }
     let mut child = command
         .arg(&script)
-        .env("OT_MCP_COMMAND", &exe)
-        .env("OT_MCP_ARGS", r#"["--mcp"]"#)
-        .env("OT_APP_VERSION", env!("CARGO_PKG_VERSION"))
+        .env("JB_MCP_COMMAND", &exe)
+        .env("JB_MCP_ARGS", r#"["--mcp"]"#)
+        .env("JB_APP_VERSION", env!("CARGO_PKG_VERSION"))
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

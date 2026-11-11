@@ -4,20 +4,20 @@ import { type Problem, toCommandError } from "./ipc";
  * Error messages in plain words, each with what to try (v1.22.0). The
  * engine's messages are precise but technical ("could not read 4 byte(s) at
  * 0x1A2B3C"); players see these instead. Kinds not listed keep their message,
- * which OpenTrainer already writes for players.
+ * which JuiceBox Trainer already writes for players.
  */
 const PLAIN: Record<string, string> = {
   accessDenied:
-    "Windows didn't let OpenTrainer into this game. Close OpenTrainer, then right-click it and choose \"Run as administrator\", and try again.",
+    "Windows didn't let JuiceBox Trainer into this game. Close JuiceBox Trainer, then right-click it and choose \"Run as administrator\", and try again.",
   processNotFound: "That game isn't running any more. Start it again, then pick it in the list.",
   processExited: "The game closed. Start it again, then click Play to use cheats.",
   notAttached: "No game is connected yet. Start the game and click Play (or pick it in the list) first.",
   read:
-    "OpenTrainer couldn't read that value right now. If you're on a menu or a loading screen, get into the game first and try again. If the game was updated, the cheat may need fixing.",
+    "JuiceBox Trainer couldn't read that value right now. If you're on a menu or a loading screen, get into the game first and try again. If the game was updated, the cheat may need fixing.",
   nullPointer:
     "That value isn't there yet. Load your save and get into the game, then try again. If it keeps happening after a game update, the cheat needs fixing.",
   write:
-    "The game didn't let OpenTrainer change that value. Get into the game (not a menu) and try again.",
+    "The game didn't let JuiceBox Trainer change that value. Get into the game (not a menu) and try again.",
   needsRepair:
     "The game was updated, so this cheat no longer fits it. Click Repair, or ask the AI helper to make the cheat again.",
   signatureNotFound:
@@ -45,7 +45,7 @@ export function friendlyError(e: unknown): string {
   const plain = PLAIN[err.kind];
   if (plain) return plain;
   if (TECHNICAL.has(err.kind)) {
-    return `Something went wrong (${err.message}). Try again; if it keeps happening, restart the game and OpenTrainer.`;
+    return `Something went wrong (${err.message}). Try again; if it keeps happening, restart the game and JuiceBox Trainer.`;
   }
   return err.message;
 }

@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.23.0] - 2026-11-11
+
+### Changed
+- **OpenTrainer is now JuiceBox Trainer** (JUICE: Jackuri's Ultimate In-game Cheat Engine), with a
+  new juice-box icon. Installing it removes the old OpenTrainer program, and on its first start
+  JuiceBox Trainer moves your packs, cheats, save backups, settings, AI notes and its screen's own
+  settings into its folders (`%APPDATA%\JuiceBox Trainer`, `%LOCALAPPDATA%\JuiceBox Trainer`).
+  Nothing is deleted; a note says so the first time. Your GitHub sign-in for sharing comes along.
+- Packs are now `.juice` files and web cheats `.juiceweb` files. `.otpack` and `.otweb` files
+  from OpenTrainer still open (double-clicking `.otpack` too).
+- The projects on GitHub are now `jackuri/juicebox-trainer` and `jackuri/juicebox-packs`; the old
+  addresses forward to them, so older versions still find updates and the community list.
+- For developers: the crates are `jb-core`, `jb-packs`, `jb-saves` and `jb-mcp`, the app is
+  `juicebox-trainer.exe`, the pack tool is `juicepack`, and environment variables start with `JB_`.
+
 ## [1.22.0] - 2026-11-11
 
 ### Added

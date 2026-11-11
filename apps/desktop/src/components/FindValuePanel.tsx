@@ -248,7 +248,7 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
       const r = await api.pointerScan(hex(phase.hit.address), { maxDepth: 4, maxOffset: 0x1000, maxResults: 5000 });
       if (r.paths.length === 0) {
         setError(
-          `${label} can't be saved as a cheat: OpenTrainer found no way to find it again after a restart. You can still use it now.`,
+          `${label} can't be saved as a cheat: JuiceBox Trainer found no way to find it again after a restart. You can still use it now.`,
         );
         setPhase(back);
         return;
@@ -286,7 +286,7 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
     } catch (e) {
       const err = toCommandError(e);
       if (err.kind === "noScan") {
-        setError(`OpenTrainer was closed since, so it has to start again: click "Save as a cheat" below.`);
+        setError(`JuiceBox Trainer was closed since, so it has to start again: click "Save as a cheat" below.`);
         savePending(null);
         setPending(null);
       } else {
@@ -315,7 +315,7 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
           ) : (
             <p>
               To save <b>{pending.name}</b> for next time: close the game, start it again, attach, then find{" "}
-              {pending.name} here once more. Keep OpenTrainer open meanwhile.
+              {pending.name} here once more. Keep JuiceBox Trainer open meanwhile.
             </p>
           )}
           <button className="mt-1 text-xs text-zinc-400 underline hover:text-zinc-200" onClick={forgetPending}>
@@ -383,7 +383,7 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
           ) : (
             <div className="flex flex-col gap-2 text-sm">
               <p>
-                OK. OpenTrainer remembers the game's memory now. Then you change {label} in the game and say whether
+                OK. JuiceBox Trainer remembers the game's memory now. Then you change {label} in the game and say whether
                 it went up or down.
               </p>
               <div className="flex gap-2">

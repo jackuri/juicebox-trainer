@@ -1,7 +1,7 @@
 //! Getting cheats for a game from a Cheat Engine table (v1.15.0): open a
 //! search for the game's tables on a free site in the player's browser, then
 //! notice the `.CT` files the player downloaded so they can be converted in one
-//! click. OpenTrainer never downloads or re-uploads tables itself: the player
+//! click. JuiceBox Trainer never downloads or re-uploads tables itself: the player
 //! gets them from the maker's own page, and the pack keeps the maker's credit.
 
 use std::collections::HashMap;
@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use ot_packs::{ct, share};
+use jb_packs::{ct, share};
 use serde::Serialize;
 use tauri::State;
 
@@ -80,7 +80,7 @@ pub struct RecentTable {
     pub game: String,
     /// The game's exe when the table says which it is.
     pub exe: Option<String>,
-    /// Cheats OpenTrainer can use from it.
+    /// Cheats JuiceBox Trainer can use from it.
     pub cheats: usize,
     /// Why it can't be read, if it can't.
     pub error: Option<String>,
@@ -153,7 +153,7 @@ fn find_tables(dir: &Path, now: SystemTime) -> Vec<(PathBuf, u64, u64)> {
     found
 }
 
-/// What OpenTrainer can use from one table.
+/// What JuiceBox Trainer can use from one table.
 fn read_table(path: &Path, modified: u64) -> RecentTable {
     let file = path
         .file_name()

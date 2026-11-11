@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "OpenTrainer",
-  "version": "1.22.0",
-  "identifier": "org.opentrainer.desktop",
+  "productName": "JuiceBox Trainer",
+  "version": "1.23.0",
+  "identifier": "org.juiceboxtrainer.desktop",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "OpenTrainer",
+        "title": "JuiceBox Trainer",
         "width": 1200,
         "height": 780,
         "minWidth": 900,
@@ -29,12 +29,12 @@
     "targets": [
       "nsis"
     ],
-    "publisher": "OpenTrainer contributors",
-    "copyright": "Copyright (c) OpenTrainer contributors. MIT License.",
+    "publisher": "JuiceBox Trainer contributors",
+    "copyright": "Copyright (c) JuiceBox Trainer contributors. MIT License.",
     "category": "Utility",
     "shortDescription": "Trainer and save manager for single-player PC games",
     "longDescription": "Free, open-source trainer, save manager and AI cheat-pack maker for single-player PC games. Refuses games with anti-cheat.",
-    "homepage": "https://github.com/jackuri/opentrainer",
+    "homepage": "https://github.com/jackuri/juicebox-trainer",
     "license": "MIT",
     "licenseFile": "../../../LICENSE",
     "icon": [
@@ -50,10 +50,19 @@
     "fileAssociations": [
       {
         "ext": [
+          "juice"
+        ],
+        "name": "JuiceBox Trainer pack",
+        "description": "JuiceBox Trainer cheat pack",
+        "role": "Viewer",
+        "mimeType": "application/x-juicebox-pack"
+      },
+      {
+        "ext": [
           "otpack"
         ],
         "name": "OpenTrainer pack",
-        "description": "OpenTrainer cheat pack",
+        "description": "Cheat pack (from OpenTrainer)",
         "role": "Viewer",
         "mimeType": "application/x-opentrainer-pack"
       }
@@ -61,7 +70,8 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "./windows/hooks.nsh"
       }
     }
   },

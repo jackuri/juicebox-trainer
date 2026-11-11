@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread;
 
-use ot_packs::Hotkey;
+use jb_packs::Hotkey;
 use tracing::{info, warn};
 use windows::Win32::Foundation::{LPARAM, WPARAM};
 use windows::Win32::System::Threading::GetCurrentThreadId;
@@ -228,7 +228,7 @@ fn run(rx: Receiver<Cmd>, events: Sender<(u64, String)>, ready: Sender<u32>) {
 
 /// These need an interactive desktop session (RegisterHotKey/SendInput), so
 /// they're ignored in CI. Run locally with
-/// `cargo test -p opentrainer-desktop -- --ignored hotkeys`.
+/// `cargo test -p juicebox-trainer -- --ignored hotkeys`.
 #[cfg(test)]
 mod tests {
     use super::*;

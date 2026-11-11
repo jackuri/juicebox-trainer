@@ -2,7 +2,7 @@
 //!
 //! The testbed is built on demand into `target/testbed` (a separate target dir
 //! so the nested cargo doesn't wait on the outer build lock). Set
-//! `OT_TESTBED_X64` / `OT_TESTBED_X86` to use prebuilt binaries instead.
+//! `JB_TESTBED_X64` / `JB_TESTBED_X86` to use prebuilt binaries instead.
 //!
 //! Tests are serialized: the guard looks at system-wide state, and some tests
 //! briefly run a renamed copy of the testbed as a fake anti-cheat process.
@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::{Mutex, MutexGuard, OnceLock};
 
-use ot_core::{Arch, Error};
+use jb_core::{Arch, Error};
 use serde_json::Value as Json;
 
 pub fn serial() -> MutexGuard<'static, ()> {
@@ -47,8 +47,8 @@ pub fn testbed_exe(flavor: Flavor) -> PathBuf {
     static X64: OnceLock<PathBuf> = OnceLock::new();
     static X86: OnceLock<PathBuf> = OnceLock::new();
     let (cell, var, target) = match flavor {
-        Flavor::X64 => (&X64, "OT_TESTBED_X64", None),
-        Flavor::X86 => (&X86, "OT_TESTBED_X86", Some("i686-pc-windows-msvc")),
+        Flavor::X64 => (&X64, "JB_TESTBED_X64", None),
+        Flavor::X86 => (&X86, "JB_TESTBED_X86", Some("i686-pc-windows-msvc")),
     };
     cell.get_or_init(|| {
         if let Some(prebuilt) = std::env::var_os(var) {
@@ -89,7 +89,7 @@ impl Testbed {
     }
 
     /// Like [`Testbed::spawn`] with extra environment variables (e.g.
-    /// `OT_TESTBED_SAVE_DIR`).
+    /// `JB_TESTBED_SAVE_DIR`).
     pub fn spawn_with_env(exe: &Path, env: &[(&str, &Path)]) -> Self {
         let mut command = Command::new(exe);
         for (k, v) in env {
@@ -184,7 +184,7 @@ impl Drop for TempDir {
     }
 }
 
-pub fn blocked(err: Error) -> ot_core::Verdict {
+pub fn blocked(err: Error) -> jb_core::Verdict {
     match err {
         Error::Blocked(v) => *v,
         other => panic!("expected Blocked, got {other:?}"),

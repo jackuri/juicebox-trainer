@@ -1,4 +1,4 @@
-// Messages between the OpenTrainer app and this sidecar: one JSON object per
+// Messages between the JuiceBox Trainer app and this sidecar: one JSON object per
 // line on stdin (app -> sidecar) and stdout (sidecar -> app). Logs go to
 // stderr.
 
@@ -18,7 +18,7 @@ export interface GameRef {
 
 export type Task = "trainer" | "explainSave" | "webTrainer";
 
-/** For "webTrainer" (v1.20.0): the web game open in OpenTrainer's game window. */
+/** For "webTrainer" (v1.20.0): the web game open in JuiceBox Trainer's game window. */
 export interface WebGameRef {
   id: string;
   url: string;

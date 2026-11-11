@@ -1,6 +1,6 @@
 {
-  "name": "@opentrainer/desktop",
-  "version": "1.22.0",
+  "name": "@juicebox-trainer/desktop",
+  "version": "1.23.0",
   "private": true,
   "type": "module",
   "scripts": {

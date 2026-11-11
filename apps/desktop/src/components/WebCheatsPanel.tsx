@@ -56,7 +56,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
     keysRef.current = keys;
   }, [cheats, search, keys]);
 
-  // Wait for the game page (and OpenTrainer's helper in it) to be ready.
+  // Wait for the game page (and JuiceBox Trainer's helper in it) to be ready.
   useEffect(() => {
     let live = true;
     let tries = 0;
@@ -150,7 +150,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
           {waiting
             ? "Waiting for the game to load…"
             : !info
-              ? "OpenTrainer can't see into this page yet. Wait for the game to load and click Look again."
+              ? "JuiceBox Trainer can't see into this page yet. Wait for the game to load and click Look again."
               : info.memories.length === 0
                 ? "No game memory found yet (its JavaScript values can still be searched)"
                 : `${info.memories.length} game memor${info.memories.length === 1 ? "y" : "ies"} found`}

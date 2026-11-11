@@ -15,7 +15,7 @@ const host = (url: string) => {
   }
 };
 
-/** Games that run in a web page: add them, open them in OpenTrainer's game window, find and lock values. */
+/** Games that run in a web page: add them, open them in JuiceBox Trainer's game window, find and lock values. */
 export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
   const [games, setGames] = useState<WebGame[] | null>(null);
   const [current, setCurrent] = useState<WebGame | null>(null);
@@ -68,7 +68,7 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
       <section>
         <h2 className="text-2xl font-semibold tracking-tight">Web games</h2>
         <p className="text-zinc-400">
-          Games that run in a web page. OpenTrainer opens the game in its own window, where it can find and change numbers like gold,
+          Games that run in a web page. JuiceBox Trainer opens the game in its own window, where it can find and change numbers like gold,
           health or ammo.
         </p>
       </section>
@@ -76,7 +76,7 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
       <p className="rounded-xl bg-amber-950/40 px-4 py-3 text-amber-200 ring-1 ring-amber-800/60" role="note">
         <strong>Play fair:</strong> only use cheats when you play alone, or in a private game with friends you invited. Never in games
         with strangers or in public matches: other players can report you, and sites can ban accounts. You agreed to this when you signed
-        OpenTrainer&apos;s agreement.
+        JuiceBox Trainer&apos;s agreement.
       </p>
 
       {error && (

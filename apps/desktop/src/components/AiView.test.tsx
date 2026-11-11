@@ -25,7 +25,7 @@ const game: ProcessInfo = {
   threads: 1,
 };
 
-const testbedGame = { pid: 77, name: "OpenTrainer testbed", libraryId: null };
+const testbedGame = { pid: 77, name: "JuiceBox Trainer testbed", libraryId: null };
 
 function status(over: Record<string, unknown> = {}) {
   return {

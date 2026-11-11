@@ -27,7 +27,7 @@ use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 use tracing::{info, warn};
 use tracing_subscriber::EnvFilter;
 
-/// If OpenTrainer itself fails, put the games' original code back before it
+/// If JuiceBox Trainer itself fails, put the games' original code back before it
 /// goes down. Uses the on-disk journal, so it doesn't depend on app state.
 fn install_crash_handler(dir: std::path::PathBuf) {
     let default = std::panic::take_hook();
@@ -35,10 +35,10 @@ fn install_crash_handler(dir: std::path::PathBuf) {
         default(panic);
         // Kept for the Help page (v1.22.0).
         problems::app_crash(&panic.to_string());
-        for r in ot_core::journal::recover(&dir) {
+        for r in jb_core::journal::recover(&dir) {
             if r.restored > 0 || !r.problems.is_empty() {
                 eprintln!(
-                    "OpenTrainer: restored {} code change(s) in {} (pid {}) after an error",
+                    "JuiceBox Trainer: restored {} code change(s) in {} (pid {}) after an error",
                     r.restored, r.exe, r.pid
                 );
             }
@@ -54,21 +54,27 @@ fn main() {
             .with_writer(std::io::stderr)
             .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
             .init();
-        ot_mcp::serve_stdio(ot_mcp::Config::standard());
+        jb_mcp::serve_stdio(jb_mcp::Config::standard());
         return;
     }
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()))
         .init();
 
-    let journal_dir = ot_core::journal::default_dir();
+    // OpenTrainer became JuiceBox Trainer (v1.23.0): bring its folders and
+    // GitHub sign-in along before anything reads the new ones.
+    let moved_from_open_trainer = jb_core::names::move_legacy_folders() > 0;
+    github::move_legacy_sign_in();
+    commands::set_moved_from_open_trainer(moved_from_open_trainer);
+
+    let journal_dir = jb_core::journal::default_dir();
     if let Some(dir) = &journal_dir {
         install_crash_handler(dir.clone());
     }
 
     let app = tauri::Builder::default()
         // A second start (e.g. double-clicking an .otpack) hands its file to
-        // the running OpenTrainer instead of opening another window.
+        // the running JuiceBox Trainer instead of opening another window.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 let _ = w.unminimize();
@@ -81,7 +87,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(commands::AppState::default())
-        .manage(saves::SavesState::open(ot_saves::default_root()))
+        .manage(saves::SavesState::open(jb_saves::default_root()))
         .manage(ai::AiState::default())
         .manage(library::LibraryState::default())
         .manage(remote::RemoteState::default())
@@ -91,14 +97,14 @@ fn main() {
         .manage(github::GithubState::default())
         .manage(updates::UpdateState::default())
         .on_window_event(|window, event| {
-            // Closing the main window closes OpenTrainer (and the overlay).
+            // Closing the main window closes JuiceBox Trainer (and the overlay).
             if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
                 window.app_handle().exit(0);
             }
         })
         .setup(move |app| {
             problems::init(app.handle());
-            // OpenTrainer's own screen: if it crashes or freezes, say so and
+            // JuiceBox Trainer's own screen: if it crashes or freezes, say so and
             // restart it instead of leaving a blank window (v1.22.0).
             if let Some(main) = app.get_webview_window("main") {
                 let handle = app.handle().clone();
@@ -126,7 +132,7 @@ fn main() {
             saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
                 // Undo code changes a crashed or killed earlier run left behind.
-                let undone: Vec<_> = ot_core::journal::recover(&dir)
+                let undone: Vec<_> = jb_core::journal::recover(&dir)
                     .into_iter()
                     .filter(|r| r.restored > 0 || !r.problems.is_empty())
                     .collect();
@@ -159,7 +165,7 @@ fn main() {
             }))?;
             let state = app.state::<commands::AppState>();
             let _ = state.pads.set(pads);
-            if let Some(dir) = ot_packs::settings::default_dir() {
+            if let Some(dir) = jb_packs::settings::default_dir() {
                 let _ = state.settings_dir.set(dir);
             }
             Ok(())
@@ -315,7 +321,7 @@ fn main() {
             ai::ai_uninstall,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building OpenTrainer");
+        .expect("error while building JuiceBox Trainer");
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {

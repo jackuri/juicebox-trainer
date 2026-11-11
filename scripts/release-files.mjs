@@ -3,12 +3,12 @@
 // CHANGELOG section) and, when the build made an update signature,
 // latest.json for the in-app updater.
 //
-// Usage: node scripts/release-files.mjs [repo]   (repo defaults to jackuri/opentrainer)
+// Usage: node scripts/release-files.mjs [repo]   (repo defaults to jackuri/juicebox-trainer)
 import { createHash } from "node:crypto";
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-const repo = process.argv[2] ?? "jackuri/opentrainer";
+const repo = process.argv[2] ?? "jackuri/juicebox-trainer";
 const root = new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
 const version = JSON.parse(readFileSync(join(root, "package.json"), "utf8")).version;
 const target = process.env.CARGO_TARGET_DIR ?? join(root, "target");
@@ -24,16 +24,19 @@ export function notesFor(changelog, version) {
   return lines.slice(start + 1, end).join("\n").trim() + "\n";
 }
 
-const installer = `OpenTrainer_${version}_x64-setup.exe`;
-if (!existsSync(join(nsis, installer))) {
+// Tauri names the installer after the product ("JuiceBox Trainer"); the
+// release uses a name without spaces (GitHub turns spaces into dots).
+const built = `JuiceBox Trainer_${version}_x64-setup.exe`;
+const installer = `JuiceBoxTrainer_${version}_x64-setup.exe`;
+if (!existsSync(join(nsis, built))) {
   const found = existsSync(nsis) ? readdirSync(nsis).join(", ") : "nothing";
-  throw new Error(`no ${installer} in ${nsis} (found: ${found}); run tauri build first`);
+  throw new Error(`no ${built} in ${nsis} (found: ${found}); run tauri build first`);
 }
 
 const out = join(root, "release-out");
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out);
-copyFileSync(join(nsis, installer), join(out, installer));
+copyFileSync(join(nsis, built), join(out, installer));
 
 const sha = createHash("sha256").update(readFileSync(join(out, installer))).digest("hex");
 writeFileSync(join(out, "SHA256SUMS.txt"), `${sha}  ${installer}\n`);
@@ -41,7 +44,7 @@ writeFileSync(join(out, "SHA256SUMS.txt"), `${sha}  ${installer}\n`);
 const notes = notesFor(readFileSync(join(root, "CHANGELOG.md"), "utf8"), version);
 writeFileSync(join(out, "notes.md"), notes);
 
-const sig = join(nsis, `${installer}.sig`);
+const sig = join(nsis, `${built}.sig`);
 if (existsSync(sig)) {
   const latest = {
     version,

@@ -1,8 +1,8 @@
 //! Problems the player should hear about, in plain words (v1.22.0).
 //!
-//! When a game closes, a web game page crashes or freezes, OpenTrainer's own
-//! screen stops, or OpenTrainer itself fails, a short report is kept in
-//! `%LOCALAPPDATA%\OpenTrainer\problems.json` (the last [`KEEP`]) and the screen
+//! When a game closes, a web game page crashes or freezes, JuiceBox Trainer's own
+//! screen stops, or JuiceBox Trainer itself fails, a short report is kept in
+//! `%LOCALAPPDATA%\JuiceBox Trainer\problems.json` (the last [`KEEP`]) and the screen
 //! is told (`problem` event). Each report says what happened, the likely
 //! reason and what to try. Nothing is sent anywhere.
 //!
@@ -54,9 +54,9 @@ pub fn init(app: &AppHandle) {
     let _ = APP.set(app.clone());
 }
 
-/// `%LOCALAPPDATA%\OpenTrainer`.
+/// `%LOCALAPPDATA%\JuiceBox Trainer`.
 pub fn default_dir() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join("OpenTrainer"))
+    std::env::var_os("LOCALAPPDATA").map(|d| PathBuf::from(d).join(jb_core::names::FOLDER))
 }
 
 fn file_in(dir: &Path) -> PathBuf {
@@ -430,13 +430,13 @@ pub fn game_closed(
             if !module.is_empty() {
                 why.push_str(&format!(" It crashed in {module}."));
             }
-            why.push_str(" No cheats were on, so this wasn't caused by OpenTrainer.");
+            why.push_str(" No cheats were on, so this wasn't caused by JuiceBox Trainer.");
             advice.push("Check the game's files (Steam: right-click the game, Properties, Installed Files, Verify integrity).".into());
             advice.push("Make sure the game and your graphics driver are up to date.".into());
         }
     } else if code == Some(0) || code == Some(0xC000_013A) {
         advice.push(
-            "Nothing went wrong. Start the game again and click Play in OpenTrainer to use cheats."
+            "Nothing went wrong. Start the game again and click Play in JuiceBox Trainer to use cheats."
                 .into(),
         );
     } else {
@@ -525,7 +525,7 @@ pub fn report_game_closed(
     p
 }
 
-// ----- pages and OpenTrainer itself ---------------------------------------------------------------
+// ----- pages and JuiceBox Trainer itself ---------------------------------------------------------------
 
 /// The report for a web game page that crashed or froze. `last` is the last
 /// change made in the page (by the player or the AI helper) and how long ago.
@@ -561,7 +561,7 @@ pub fn web_page(
         F::EngineGone => (
             format!("The {game} window stopped working"),
             "The browser part of Windows that shows the game (WebView2) closed. That can happen when Windows updates it while it's running.".into(),
-            vec!["Close the game window and open the game again with Play. If that doesn't work, restart OpenTrainer.".into()],
+            vec!["Close the game window and open the game again with Play. If that doesn't work, restart JuiceBox Trainer.".into()],
         ),
     };
     match recent {
@@ -601,32 +601,32 @@ pub fn web_page(
     }
 }
 
-/// The report for OpenTrainer's own screen crashing or freezing (it is
+/// The report for JuiceBox Trainer's own screen crashing or freezing (it is
 /// reloaded right after).
 pub fn app_screen(failure: crate::page_watch::PageFailure) -> Problem {
     use crate::page_watch::PageFailure as F;
     let why = match failure {
         F::Frozen => {
-            "OpenTrainer's screen stopped responding, so it was restarted. Your games and cheats weren't touched."
+            "JuiceBox Trainer's screen stopped responding, so it was restarted. Your games and cheats weren't touched."
         }
         F::EngineGone => {
-            "The browser part of Windows that draws OpenTrainer's screen (WebView2) closed. That can happen when Windows updates it while OpenTrainer is open."
+            "The browser part of Windows that draws JuiceBox Trainer's screen (WebView2) closed. That can happen when Windows updates it while JuiceBox Trainer is open."
         }
         _ => {
-            "OpenTrainer's screen crashed, so it was restarted. Your games and cheats weren't touched."
+            "JuiceBox Trainer's screen crashed, so it was restarted. Your games and cheats weren't touched."
         }
     };
     let advice = if failure == F::EngineGone {
-        vec!["Close OpenTrainer and open it again.".to_string()]
+        vec!["Close JuiceBox Trainer and open it again.".to_string()]
     } else {
         vec![
             "If cheats were on, check they still are on the Cheats screen.".to_string(),
-            "If the screen goes blank again, close OpenTrainer and open it again.".to_string(),
+            "If the screen goes blank again, close JuiceBox Trainer and open it again.".to_string(),
         ]
     };
     Problem {
         kind: "appScreen".into(),
-        title: "OpenTrainer's screen had a problem".into(),
+        title: "JuiceBox Trainer's screen had a problem".into(),
         why: why.into(),
         advice,
         details: vec![format!("Screen problem: {failure:?}")],
@@ -635,19 +635,19 @@ pub fn app_screen(failure: crate::page_watch::PageFailure) -> Problem {
     }
 }
 
-/// The report for a bug in OpenTrainer itself (a Rust panic). Written
-/// straight to disk: OpenTrainer may be closing.
+/// The report for a bug in JuiceBox Trainer itself (a Rust panic). Written
+/// straight to disk: JuiceBox Trainer may be closing.
 pub fn app_crash(message: &str) {
     if let Some(dir) = default_dir() {
         add_in(
             &dir,
             Problem {
                 kind: "appCrash".into(),
-                title: "OpenTrainer ran into a bug".into(),
-                why: "Something inside OpenTrainer went wrong. If it closed, it first put your games' original code back.".into(),
+                title: "JuiceBox Trainer ran into a bug".into(),
+                why: "Something inside JuiceBox Trainer went wrong. If it closed, it first put your games' original code back.".into(),
                 advice: vec![
-                    "Start OpenTrainer again. Your packs, saves and settings are safe.".into(),
-                    "If it keeps happening, copy the details below and report it on OpenTrainer's GitHub page (Issues).".into(),
+                    "Start JuiceBox Trainer again. Your packs, saves and settings are safe.".into(),
+                    "If it keeps happening, copy the details below and report it on JuiceBox Trainer's GitHub page (Issues).".into(),
                 ],
                 details: vec![message.chars().take(600).collect()],
                 crashed: true,
@@ -703,11 +703,11 @@ mod tests {
     }
 
     /// Reads a real record: crash a program (with Windows crash reporting
-    /// on), then run with `OT_CRASH_PID=<its pid>` and `--ignored`.
+    /// on), then run with `JB_CRASH_PID=<its pid>` and `--ignored`.
     #[test]
     #[ignore = "needs a crash from the last 10 minutes"]
     fn finds_a_real_crash_record() {
-        let pid: u32 = std::env::var("OT_CRASH_PID").unwrap().parse().unwrap();
+        let pid: u32 = std::env::var("JB_CRASH_PID").unwrap().parse().unwrap();
         let r = crash_record(pid).expect("no crash record for that pid");
         assert_eq!(r.code, "c0000005");
         assert!(!r.module.is_empty());
@@ -768,9 +768,9 @@ mod tests {
             Some(&gpu),
         );
         assert!(p.why.contains("graphics driver"));
-        // No cheats: not OpenTrainer.
+        // No cheats: not JuiceBox Trainer.
         let p = game_closed("Coin Quest", "coin.exe", Some(0xC000_0409), &[], None, None);
-        assert!(p.why.contains("wasn't caused by OpenTrainer"));
+        assert!(p.why.contains("wasn't caused by JuiceBox Trainer"));
         // A normal close.
         let p = game_closed("Coin Quest", "coin.exe", Some(0), &on, None, None);
         assert!(!p.crashed && p.title == "Coin Quest closed");

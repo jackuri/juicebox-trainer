@@ -1,10 +1,10 @@
-// OpenTrainer's helper for web games (v1.18.0). It's added to the game's page before the page's own
-// scripts run, and only answers calls from OpenTrainer: find a number in the game's memory
+// JuiceBox Trainer's helper for web games (v1.18.0). It's added to the game's page before the page's own
+// scripts run, and only answers calls from JuiceBox Trainer: find a number in the game's memory
 // (WebAssembly memories, also emulators) or in its JavaScript values, read it, change it, lock it.
-// It's fixed code that ships with OpenTrainer; packs and the AI never add code here.
+// It's fixed code that ships with JuiceBox Trainer; packs and the AI never add code here.
 (() => {
   "use strict";
-  if (window.__otAgent) return;
+  if (window.__jbAgent) return;
 
   const stringify = JSON.stringify;
   const W = window.WebAssembly;
@@ -83,7 +83,7 @@
    * `match(value, key, parentPath)` picks the numbers to keep. */
   function walk(match) {
     const out = [];
-    const visited = new WeakSet([window.__otAgent || {}]);
+    const visited = new WeakSet([window.__jbAgent || {}]);
     const queue = [{ obj: window, path: [] }];
     let head = 0;
     while (head < queue.length && head < MAX_VISITS) {
@@ -95,7 +95,7 @@
         continue;
       }
       for (const key of keys) {
-        if (obj === window && key === "__otAgent") continue;
+        if (obj === window && key === "__jbAgent") continue;
         let d;
         try {
           d = Object.getOwnPropertyDescriptor(obj, key);
@@ -351,7 +351,7 @@
     Pause: "Pause",
     Space: "Space",
   };
-  /** Same names as OpenTrainer's key boxes (`Ctrl+F1`, `Num5`, `G`). */
+  /** Same names as JuiceBox Trainer's key boxes (`Ctrl+F1`, `Num5`, `G`). */
   function keyText(e) {
     const c = String(e.code || "");
     let key = null;
@@ -395,7 +395,7 @@
         n.boxShadow = "0 4px 16px rgba(0,0,0,.4)";
         note.host = host;
       }
-      note.textContent = "OpenTrainer: " + text;
+      note.textContent = "JuiceBox Trainer: " + text;
       if (!note.host.isConnected) (document.body || document.documentElement).appendChild(note.host);
       note.host.style.display = "block";
       clearTimeout(noteTimer);
@@ -618,5 +618,5 @@
     },
   };
   Object.freeze(agent);
-  Object.defineProperty(window, "__otAgent", { value: agent, writable: false, enumerable: false, configurable: false });
+  Object.defineProperty(window, "__jbAgent", { value: agent, writable: false, enumerable: false, configurable: false });
 })();

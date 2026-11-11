@@ -155,7 +155,7 @@ export function MemoryViewer({ active, arch, request, onAddToList, onSessionLost
       const r = await api.memoryEdit(hex(base + selected), editHex);
       setMessage(
         r === "code"
-          ? "Changed the game's code. It is put back when you detach or close OpenTrainer."
+          ? "Changed the game's code. It is put back when you detach or close JuiceBox Trainer."
           : r === "data"
             ? "Changed."
             : "Those bytes already had that value.",

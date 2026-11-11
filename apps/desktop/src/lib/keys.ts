@@ -1,4 +1,4 @@
-/** Turning key presses and controller buttons into the text ot-packs reads. */
+/** Turning key presses and controller buttons into the text jb-packs reads. */
 
 const NUMPAD: Record<string, string> = {
   NumpadAdd: "Num+",
@@ -50,7 +50,7 @@ const PAD_BUTTONS = [
   "DPadUp", "DPadDown", "DPadLeft", "DPadRight",
 ];
 
-/** Display order (matches ot-packs' canonical order). */
+/** Display order (matches jb-packs' canonical order). */
 const ORDER = ["LB", "RB", "LT", "RT", "LS", "RS", "Back", "Start", "A", "B", "X", "Y", "DPadUp", "DPadDown", "DPadLeft", "DPadRight"];
 
 /** A chord from pressed button indexes, e.g. [4, 5, 12] → "LB+RB+DPadUp". */

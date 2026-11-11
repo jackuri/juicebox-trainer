@@ -1,6 +1,6 @@
 {
-  "name": "opentrainer",
-  "version": "1.22.0",
+  "name": "juicebox-trainer",
+  "version": "1.23.0",
   "private": true,
   "description": "Free, open-source trainer + save editor for PC single-player games.",
   "license": "MIT",
@@ -9,14 +9,14 @@
     "sidecars/ai-agent"
   ],
   "scripts": {
-    "dev": "npm run tauri --workspace @opentrainer/desktop -- dev",
-    "build:web": "npm run build --workspace @opentrainer/desktop",
-    "lint": "npm run lint --workspace @opentrainer/desktop",
+    "dev": "npm run tauri --workspace @juicebox-trainer/desktop -- dev",
+    "build:web": "npm run build --workspace @juicebox-trainer/desktop",
+    "lint": "npm run lint --workspace @juicebox-trainer/desktop",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
     "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",
     "bump": "node scripts/bump-version.mjs",
-    "build:agent": "npm run build --workspace @opentrainer/ai-agent"
+    "build:agent": "npm run build --workspace @juicebox-trainer/ai-agent"
   },
   "engines": {
     "node": ">=22"

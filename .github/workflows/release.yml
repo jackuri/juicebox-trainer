@@ -74,16 +74,16 @@ jobs:
 
       - name: Release settings
         env:
-          OT_PUBLIC: ${{ github.event.repository.private == false }}
-          OT_HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
-          OT_CERT_THUMBPRINT: ${{ steps.cert.outputs.thumbprint }}
+          JB_PUBLIC: ${{ github.event.repository.private == false }}
+          JB_HAS_UPDATER_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+          JB_CERT_THUMBPRINT: ${{ steps.cert.outputs.thumbprint }}
         run: node scripts/release-config.mjs
 
       - name: Build the installer
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run tauri --workspace @opentrainer/desktop -- build --config ../../release.conf.json
+        run: npm run tauri --workspace @juicebox-trainer/desktop -- build --config ../../release.conf.json
 
       - name: Collect release files
         run: node scripts/release-files.mjs ${{ github.repository }}
@@ -102,4 +102,4 @@ jobs:
           foreach ($t in (gh release list --limit 200 --json tagName --jq '.[].tagName')) {
             try { if ([version]$t.TrimStart('v') -gt $mine) { $newest = $false } } catch { }
           }
-          gh release create $env:TAG $files --title "OpenTrainer $env:TAG" --notes-file release-out/notes.md "--latest=$($newest.ToString().ToLower())"
+          gh release create $env:TAG $files --title "JuiceBox Trainer $env:TAG" --notes-file release-out/notes.md "--latest=$($newest.ToString().ToLower())"

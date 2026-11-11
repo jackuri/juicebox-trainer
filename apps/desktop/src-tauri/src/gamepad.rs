@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use ot_packs::PadChord;
+use jb_packs::PadChord;
 use windows::Win32::UI::Input::XboxController::{XINPUT_STATE, XInputGetState};
 
 use crate::hotkeys::Handler;

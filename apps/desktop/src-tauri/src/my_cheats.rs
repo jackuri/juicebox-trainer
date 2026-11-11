@@ -1,12 +1,12 @@
 //! "My cheats": cheats the player saves from Find a value, kept in their own
-//! pack for each game (`%APPDATA%\OpenTrainer\packs\mine-<exe>\pack.json`).
+//! pack for each game (`%APPDATA%\JuiceBox Trainer\packs\mine-<exe>\pack.json`).
 //! Only value cheats at a lasting address (a module address or a pointer
 //! path from one) are written; the result is checked like any other pack.
 
 use serde::Deserialize;
 use serde_json::{Value as Json, json};
 
-use ot_core::{Arch, ValueType};
+use jb_core::{Arch, ValueType};
 
 /// Hotkeys handed out in order to new cheats.
 const HOTKEYS: [&str; 12] = [
@@ -202,7 +202,7 @@ pub fn add_cheat(
     }
 
     let text = serde_json::to_string_pretty(&pack).map_err(|e| e.to_string())? + "\n";
-    ot_packs::parse(&text).map_err(|e| format!("the cheat couldn't be saved ({e})"))?;
+    jb_packs::parse(&text).map_err(|e| format!("the cheat couldn't be saved ({e})"))?;
     Ok((text, hotkey))
 }
 
@@ -242,7 +242,7 @@ mod tests {
     fn saves_cheats_with_free_hotkeys_into_a_valid_pack() {
         let (text, key) = add_cheat(None, &game(), &gold(true)).unwrap();
         assert_eq!(key.as_deref(), Some("F1"));
-        let (pack, _) = ot_packs::parse(&text).unwrap();
+        let (pack, _) = jb_packs::parse(&text).unwrap();
         assert_eq!(pack.game.id, "mine-biggame");
         assert_eq!(pack.game.name, "Big Game (my cheats)");
         assert_eq!(pack.game.builds.len(), 1);

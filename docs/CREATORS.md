@@ -1,30 +1,30 @@
 # For cheat table makers
 
-This page is for people who make Cheat Engine tables. It explains what OpenTrainer does with your
+This page is for people who make Cheat Engine tables. It explains what JuiceBox Trainer does with your
 work, how you're credited, and how to share your tables on its community list if you want to.
-There's also a short message at the end that OpenTrainer's maintainers send when inviting makers.
+There's also a short message at the end that JuiceBox Trainer's maintainers send when inviting makers.
 
-## What OpenTrainer is
+## What JuiceBox Trainer is
 
-[OpenTrainer](https://github.com/jackuri/opentrainer) is a free, open-source (MIT) Windows app for
+[JuiceBox Trainer](https://github.com/jackuri/juicebox-trainer) is a free, open-source (MIT) Windows app for
 single-player PC games: a trainer with on/off cheats and hotkeys, a save manager and an AI helper
 that makes cheat packs. It refuses games with anti-cheat and online games.
 
 ## What it does with a table
 
 - **It never copies or re-uploads your table.** Players open your page in their own browser and
-  download the `.CT` from you. OpenTrainer only notices the file in their Downloads folder.
+  download the `.CT` from you. JuiceBox Trainer only notices the file in their Downloads folder.
 - **It converts the parts it can use** into a small "pack" on the player's PC: number values
   (health, money, ammo, also through pointers) and simple byte swaps.
 - **It never runs your scripts.** Auto Assembler and Lua are read as text to understand common
   patterns, and the rest is listed as "not imported" with the reason. Your table stays the full
-  experience; OpenTrainer gives a simpler on/off view of part of it.
-- **You're credited.** When a player converts your table, OpenTrainer asks for your name and your
+  experience; JuiceBox Trainer gives a simpler on/off view of part of it.
+- **You're credited.** When a player converts your table, JuiceBox Trainer asks for your name and your
   table's page, keeps them in the pack, and shows them wherever the pack goes.
 
 ## The community list
 
-OpenTrainer has a public community list, [opentrainer-packs](https://github.com/jackuri/opentrainer-packs),
+JuiceBox Trainer has a public community list, [juicebox-packs](https://github.com/jackuri/juicebox-packs),
 that every copy of the app can browse. It can hold two things for your tables:
 
 1. **A link to your table's page** (no file). Players see "Tables other players found" for the game,
@@ -48,7 +48,7 @@ as "Support the maker" next to your pack.
 
 ## How to share a pack yourself
 
-1. Install OpenTrainer (1.17 or newer) and open your table in it: drop the `.CT` on the window, or
+1. Install JuiceBox Trainer (1.17 or newer) and open your table in it: drop the `.CT` on the window, or
    download it and click **Turn into cheats**. Fill in your name and your table's page.
 2. Try the cheats in the game.
 3. In **Packs**, click **Share with everyone** next to it, sign in to GitHub once with the code it
@@ -68,8 +68,8 @@ the parts in brackets.
 
 > Hi [name], thanks for your [game] table, it's great.
 >
-> I help with OpenTrainer, a free open-source trainer app for single-player PC games
-> (https://github.com/jackuri/opentrainer). Players can turn a downloaded table into simple on/off
+> I help with JuiceBox Trainer, a free open-source trainer app for single-player PC games
+> (https://github.com/jackuri/juicebox-trainer). Players can turn a downloaded table into simple on/off
 > cheats, and it credits the table's maker by name and links to their page. It never runs table
 > scripts and never re-uploads tables.
 >
@@ -79,4 +79,4 @@ the parts in brackets.
 >   permission, all rights kept"), with a link to your Patreon / Ko-fi if you have one.
 >
 > If you'd rather not, no problem at all, and nothing of yours will be listed as a pack. Here's how
-> it works: https://github.com/jackuri/opentrainer/blob/main/docs/CREATORS.md
+> it works: https://github.com/jackuri/juicebox-trainer/blob/main/docs/CREATORS.md

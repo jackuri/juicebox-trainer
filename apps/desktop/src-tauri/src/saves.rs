@@ -1,12 +1,12 @@
 //! Save backup commands and the launch/exit watcher. The real work (finding
-//! folders, backups, diff, guarded restore) lives in `ot-saves`.
+//! folders, backups, diff, guarded restore) lives in `jb-saves`.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
-use ot_saves::diff::Side;
-use ot_saves::{
+use jb_saves::diff::Side;
+use jb_saves::{
     Created, Diff, Edit, EditReport, FileView, Game, Library, Limits, Reason, RestoreOptions,
     RestoreReport, Roots, SaveFile, Store, Summary, WatchKind, Watcher, editor,
 };
@@ -21,12 +21,12 @@ type CmdResult<T> = Result<T, CommandError>;
 /// How often the watcher looks for games starting or closing.
 const WATCH_INTERVAL: Duration = Duration::from_secs(3);
 
-impl From<ot_saves::Error> for CommandError {
-    fn from(e: ot_saves::Error) -> Self {
+impl From<jb_saves::Error> for CommandError {
+    fn from(e: jb_saves::Error) -> Self {
         let kind = e.kind();
         let message = e.to_string();
         let verdict = match e {
-            ot_saves::Error::Blocked(v) => Some(v),
+            jb_saves::Error::Blocked(v) => Some(v),
             _ => None,
         };
         let mut err = CommandError::new(kind, message);
@@ -48,7 +48,7 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl SavesState {
-    /// Opens the library in `root` (`%LOCALAPPDATA%\OpenTrainer\saves`).
+    /// Opens the library in `root` (`%LOCALAPPDATA%\JuiceBox Trainer\saves`).
     pub fn open(root: Option<PathBuf>) -> Self {
         let state = Self::default();
         match root.map(Library::open) {
@@ -143,7 +143,7 @@ pub fn start_watcher(app: AppHandle) {
         .spawn(move || {
             loop {
                 std::thread::sleep(WATCH_INTERVAL);
-                let processes: Vec<(u32, Option<String>)> = match ot_core::list_processes() {
+                let processes: Vec<(u32, Option<String>)> = match jb_core::list_processes() {
                     Ok(list) => list.into_iter().map(|p| (p.pid, p.exe_path)).collect(),
                     Err(e) => {
                         warn!("save watcher: {e}");
@@ -206,7 +206,7 @@ pub async fn saves_overview(state: State<'_, SavesState>) -> CmdResult<SavesOver
             .collect::<CmdResult<_>>()?;
         Ok((games, lib.root().to_string_lossy().into_owned()))
     })?;
-    let steam_running = ot_core::list_processes()
+    let steam_running = jb_core::list_processes()
         .map(|l| l.iter().any(|p| p.name.eq_ignore_ascii_case("steam.exe")))
         .unwrap_or(false);
     Ok(SavesOverview {
@@ -227,7 +227,7 @@ fn add_exe(state: &SavesState, exe: &str) -> CmdResult<GameView> {
 /// Adds a running program by its process id.
 #[tauri::command]
 pub async fn saves_add_process(pid: u32, state: State<'_, SavesState>) -> CmdResult<GameView> {
-    let exe = ot_core::list_processes()?
+    let exe = jb_core::list_processes()?
         .into_iter()
         .find(|p| p.pid == pid)
         .and_then(|p| p.exe_path)
@@ -347,7 +347,7 @@ pub async fn saves_diff(
     fn side(s: &Option<String>) -> Side<'_> {
         s.as_deref().map_or(Side::Current, Side::Snapshot)
     }
-    Ok(ot_saves::diff(
+    Ok(jb_saves::diff(
         &store,
         &game.folder_paths(),
         side(&from),
@@ -363,7 +363,7 @@ pub async fn saves_restore(
     state: State<'_, SavesState>,
 ) -> CmdResult<RestoreReport> {
     let (game, store) = state.game_and_store(&id)?;
-    Ok(ot_saves::restore(
+    Ok(jb_saves::restore(
         &game,
         &store,
         &backup,
@@ -458,15 +458,15 @@ pub struct QuickCodeView {
 }
 
 /// Valid packs for this game's exe (by file name).
-fn packs_for(game: &Game) -> Vec<(String, ot_packs::Pack)> {
+fn packs_for(game: &Game) -> Vec<(String, jb_packs::Pack)> {
     let exe = Path::new(&game.exe)
         .file_name()
         .map(|n| n.to_string_lossy().to_lowercase())
         .unwrap_or_default();
-    ot_packs::store::all()
+    jb_packs::store::all()
         .into_iter()
         .filter_map(|f| {
-            let pack = ot_packs::parse(f.text.as_ref().ok()?).ok()?.0;
+            let pack = jb_packs::parse(f.text.as_ref().ok()?).ok()?.0;
             (pack.game.exe.to_lowercase() == exe).then_some((f.key, pack))
         })
         .collect()
@@ -486,9 +486,9 @@ fn quick_codes(game: &Game, roots: &Roots) -> Vec<QuickCodeView> {
             if same {
                 continue;
             }
-            let problem = ot_saves::quick::resolve(&c.file, roots)
+            let problem = jb_saves::quick::resolve(&c.file, roots)
                 .and_then(|resolved| {
-                    let (folder, rel) = ot_saves::quick::place(game, &resolved)?;
+                    let (folder, rel) = jb_saves::quick::place(game, &resolved)?;
                     editor::open(game, &folder, &rel).map(|_| ())
                 })
                 .err()
@@ -535,7 +535,7 @@ pub async fn saves_apply_quick_code(
         .iter()
         .find(|c| c.id == code_id)
         .ok_or_else(|| CommandError::new("unknownCode", "that save code isn't in the pack"))?;
-    Ok(ot_saves::quick::apply(
+    Ok(jb_saves::quick::apply(
         &game,
         &store,
         &Roots::current(),
@@ -546,9 +546,9 @@ pub async fn saves_apply_quick_code(
     )?)
 }
 
-fn steam_accounts() -> Vec<ot_saves::accounts::SteamAccount> {
-    ot_saves::steam::steam_dir()
-        .map(|s| ot_saves::accounts::accounts(&s))
+fn steam_accounts() -> Vec<jb_saves::accounts::SteamAccount> {
+    jb_saves::steam::steam_dir()
+        .map(|s| jb_saves::accounts::accounts(&s))
         .unwrap_or_default()
 }
 
@@ -557,9 +557,9 @@ fn steam_accounts() -> Vec<ot_saves::accounts::SteamAccount> {
 pub async fn saves_accounts(
     id: String,
     state: State<'_, SavesState>,
-) -> CmdResult<ot_saves::accounts::AccountsView> {
+) -> CmdResult<jb_saves::accounts::AccountsView> {
     let (game, _) = state.game_and_store(&id)?;
-    Ok(ot_saves::accounts::view(&game, &steam_accounts())?)
+    Ok(jb_saves::accounts::view(&game, &steam_accounts())?)
 }
 
 /// What copying one account's saves to another would do. Changes nothing.
@@ -569,9 +569,9 @@ pub async fn saves_account_plan(
     from: String,
     to: String,
     state: State<'_, SavesState>,
-) -> CmdResult<ot_saves::accounts::CopyPlan> {
+) -> CmdResult<jb_saves::accounts::CopyPlan> {
     let (game, _) = state.game_and_store(&id)?;
-    Ok(ot_saves::accounts::plan(
+    Ok(jb_saves::accounts::plan(
         &game,
         &steam_accounts(),
         &from,
@@ -587,14 +587,14 @@ pub async fn saves_account_copy(
     from: String,
     to: String,
     state: State<'_, SavesState>,
-) -> CmdResult<ot_saves::accounts::CopyReport> {
+) -> CmdResult<jb_saves::accounts::CopyReport> {
     let (game, store) = state.game_and_store(&id)?;
     let known = steam_accounts();
-    let report = ot_saves::accounts::copy(&game, &store, &known, &from, &to)?;
+    let report = jb_saves::accounts::copy(&game, &store, &known, &from, &to)?;
     let label = known
         .iter()
         .find(|a| a.id64 == to.trim())
-        .map(ot_saves::accounts::SteamAccount::label)
+        .map(jb_saves::accounts::SteamAccount::label)
         .unwrap_or_else(|| to.clone());
     for folder in &report.add_folders {
         let added = state.with_lib(|lib| {
@@ -673,7 +673,7 @@ mod tests {
         state.on_attach(&exe_s);
         assert_eq!(store.list().unwrap().len(), 2);
 
-        let e = CommandError::from(ot_saves::Error::GameRunning("G".into()));
+        let e = CommandError::from(jb_saves::Error::GameRunning("G".into()));
         assert_eq!(e.kind, "gameRunning");
         std::fs::remove_dir_all(&base).unwrap();
     }
@@ -681,10 +681,10 @@ mod tests {
     #[test]
     fn pack_and_saves_agree_on_placeholders_and_codecs() {
         assert_eq!(
-            ot_packs::schema::SAVE_PLACEHOLDERS,
-            ot_saves::quick::PLACEHOLDERS
+            jb_packs::schema::SAVE_PLACEHOLDERS,
+            jb_saves::quick::PLACEHOLDERS
         );
-        assert_eq!(ot_packs::schema::SAVE_CODECS, ot_saves::quick::CODECS);
+        assert_eq!(jb_packs::schema::SAVE_CODECS, jb_saves::quick::CODECS);
     }
 
     #[test]

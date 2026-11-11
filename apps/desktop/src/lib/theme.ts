@@ -10,7 +10,7 @@ export interface Theme {
 export const DEFAULT_THEME = "default";
 
 export const THEMES: readonly Theme[] = [
-  { id: DEFAULT_THEME, name: "OpenTrainer", description: "The standard look: deep navy with a blue-violet accent." },
+  { id: DEFAULT_THEME, name: "JuiceBox Trainer", description: "The standard look: deep navy with a blue-violet accent." },
   { id: "arcade", name: "Retro Arcade", description: "Hot-pink neon on a purple-black arcade cabinet." },
   { id: "nextgen", name: "Next-Gen Blue", description: "A clean blue-black console look with bright blue highlights and round corners." },
   { id: "green", name: "Console Green", description: "Charcoal greys and a vivid green, like a console dashboard." },
@@ -42,7 +42,7 @@ export function applyTheme(id: string, root: HTMLElement = document.documentElem
   root.dataset.theme = known(id);
 }
 
-/** Shows and remembers a theme (other OpenTrainer windows follow; see watchTheme). */
+/** Shows and remembers a theme (other JuiceBox Trainer windows follow; see watchTheme). */
 export function saveTheme(id: string): void {
   const theme = known(id);
   applyTheme(theme);

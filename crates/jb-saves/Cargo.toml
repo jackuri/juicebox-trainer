@@ -1,0 +1,37 @@
+[package]
+name = "jb-saves"
+description = "Save locator, backups (snapshots), diff and restore."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+base64 = "0.23.1"
+crc32fast = "1.5.4"
+flate2 = "1.1.11"
+md-5 = "0.11.0"
+roxmltree = "0.21.2"
+rusqlite = { version = "0.41.1", default-features = false, features = ["bundled", "serialize"] }
+jb-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha1 = "0.11.0"
+sha2 = "0.11.1"
+similar = { version = "3.2.1", default-features = false, features = ["std", "text"] }
+thiserror.workspace = true
+tracing.workspace = true
+windows = { version = "0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_UI_Shell",
+] }
+
+[dev-dependencies]
+testbed-harness.workspace = true
+
+[lints]
+workspace = true

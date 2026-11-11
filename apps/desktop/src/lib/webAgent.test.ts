@@ -1,4 +1,4 @@
-// Tests OpenTrainer's web game helper (src-tauri/src/web_agent.js) on a fake page.
+// Tests JuiceBox Trainer's web game helper (src-tauri/src/web_agent.js) on a fake page.
 import { beforeAll, describe, expect, it } from "vitest";
 import agentSource from "../../src-tauri/src/web_agent.js?raw";
 
@@ -26,7 +26,7 @@ let getterCalls = 0;
 
 beforeAll(async () => {
   new Function(agentSource)();
-  agent = (window as unknown as { __otAgent: Agent }).__otAgent;
+  agent = (window as unknown as { __jbAgent: Agent }).__jbAgent;
   // The game makes its memory after the helper is in the page (like a real one).
   const { instance } = await WebAssembly.instantiate(WASM);
   memory = instance.exports.mem as WebAssembly.Memory;
@@ -47,9 +47,9 @@ describe("web game helper", () => {
   it("can't be replaced by the page and only answers known calls", () => {
     const w = window as unknown as Record<string, unknown>;
     expect(() => {
-      w.__otAgent = { callJson: () => "fake" };
+      w.__jbAgent = { callJson: () => "fake" };
     }).toThrow();
-    expect(w.__otAgent).toBe(agent);
+    expect(w.__jbAgent).toBe(agent);
     expect(call("eval", { code: "1" }).error).toMatch(/unknown call/);
     expect(call("find", { value: "x" }).error).toMatch(/type a number/);
   });

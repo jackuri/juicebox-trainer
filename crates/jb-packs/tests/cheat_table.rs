@@ -1,0 +1,417 @@
+//! A Cheat Engine table written for the testbed (never a real game), opened
+//! as a pack and used on the live testbed: the values it points at must be
+//! the game's real ones.
+
+use std::sync::Arc;
+use std::thread::sleep;
+use std::time::Duration;
+
+use jb_core::AttachedProcess;
+use jb_packs::{Trainer, share};
+use serde_json::Value as Json;
+use testbed_harness::*;
+
+/// `0x1A` → `1A` (Cheat Engine writes hex without the prefix).
+fn bare(v: &Json) -> String {
+    v.as_str().unwrap().trim_start_matches("0x").to_string()
+}
+
+/// A table like the ones shared on forums: a group, a pointer with
+/// `<Offsets>` (stored last-applied first), the bracket form, a child entry
+/// relative to its parent, and a script that must not come over.
+fn table(ready: &Json) -> String {
+    let chain = &ready["chain"];
+    let (module, root) = chain["root"].as_str().unwrap().split_once('+').unwrap();
+    let root = root.trim_start_matches("0x");
+    let player = bare(&chain["offsets"][0]);
+    let stats = bare(&chain["offsets"][1]);
+    let f = &chain["fields"];
+    let (health, gold, speed) = (bare(&f["health"]), bare(&f["gold"]), bare(&f["speed"]));
+    let speed_from_health =
+        u64::from_str_radix(&speed, 16).unwrap() - u64::from_str_radix(&health, 16).unwrap();
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>0</ID>
+      <Description>"Player"</Description>
+      <Options moHideChildren="1"/>
+      <GroupHeader>1</GroupHeader>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>1</ID>
+          <Description>"Health"</Description>
+          <ShowAsSigned>1</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>"{module}"+{root}</Address>
+          <Offsets>
+            <Offset>{health}</Offset>
+            <Offset>{stats}</Offset>
+            <Offset>{player}</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>2</ID>
+              <Description>"Speed"</Description>
+              <VariableType>Float</VariableType>
+              <Address>+{speed_from_health:X}</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>3</ID>
+          <Description>"Gold"</Description>
+          <VariableType>4 Bytes</VariableType>
+          <Address>[[[{module}+{root}]+{player}]+{stats}]+{gold}</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>4</ID>
+      <Description>"Infinite ammo"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+aobscanmodule(INJECT,{module},29 D0 89 01)
+alloc(newmem,$1000,INJECT)
+[DISABLE]
+dealloc(newmem)
+</AssemblerScript>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+"#
+    )
+}
+
+fn table_works(flavor: Flavor) {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(flavor));
+    let opened = share::open_table(table(&tb.ready).as_bytes(), "Testbed_Native", None).unwrap();
+    assert!(!opened.needs_exe);
+    assert_eq!(opened.pack.game.exe, tb.ready["module"].as_str().unwrap());
+    let names: Vec<&str> = opened.pack.cheats.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Health", "Speed", "Gold"]);
+    assert_eq!(opened.skipped.len(), 1);
+    assert_eq!(opened.skipped[0].name, "Infinite ammo");
+
+    let process = Arc::new(AttachedProcess::attach(tb.pid()).expect("attach to testbed"));
+    let mut t = Trainer::load(process, opened.pack).unwrap();
+    for s in t.states().unwrap() {
+        assert_eq!(s.status, "ready", "{} on {flavor:?}: {:?}", s.id, s.message);
+    }
+    let shown = |t: &mut Trainer, id: &str| {
+        t.states()
+            .unwrap()
+            .into_iter()
+            .find(|s| s.id == id)
+            .unwrap()
+            .value
+    };
+    assert_eq!(shown(&mut t, "health").as_deref(), Some("100"));
+    assert_eq!(
+        shown(&mut t, "gold").as_deref(),
+        Some(tb.send("state")["gold"].to_string().as_str())
+    );
+
+    // Set and held (like ticking the box in Cheat Engine), until released.
+    t.set_value("health", "555").unwrap();
+    tb.send("hit 10");
+    sleep(Duration::from_millis(200));
+    assert_eq!(tb.send("state")["health"], 555);
+    t.release("health").unwrap();
+    assert_eq!(tb.send("hit 5")["health"], 550);
+
+    t.set_value("gold", "4242").unwrap();
+    assert_eq!(tb.send("state")["gold"], 4242);
+    t.set_value("speed", "2.5").unwrap();
+    assert_eq!(tb.send("state")["speed"], 2.5);
+    t.restore_all().unwrap();
+    tb.kill();
+}
+
+#[test]
+fn cheat_table_values_reach_the_x64_testbed() {
+    table_works(Flavor::X64);
+}
+
+#[test]
+fn cheat_table_values_reach_the_x86_testbed() {
+    table_works(Flavor::X86);
+}
+
+/// A table in the style of FearLessRevolution tables: a Lua script finds the
+/// game's data pointer from its code (RIP-relative), a label holds a save-slot
+/// number used in offset math, a byte-swap script makes health stop going
+/// down, and an injection script stays out. Nothing in it is run: JuiceBox Trainer
+/// redoes the first three its own way.
+fn script_table(ready: &Json) -> String {
+    let chain = &ready["chain"];
+    let player = bare(&chain["offsets"][0]);
+    let stats = bare(&chain["offsets"][1]);
+    let f = &chain["fields"];
+    let (gold, speed) = (bare(&f["gold"]), bare(&f["speed"]));
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>0</ID>
+      <Description>"Game Data Pointers"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+{{$lua}}
+if syntaxcheck then return end
+autoAssemble([[
+aobscanmodule(world,testbed_native.exe,0F 1F 80 54 4F 54 03 48 8B 0D * * * *)
+registersymbol(world)
+label(slot)
+1:
+slot:
+registersymbol(slot)
+]])
+local address = getAddress("world") + 10
+address = address + readInteger(address) + 4
+unregisterSymbol("world")
+registerSymbol("world", address, true)
+{{$asm}}
+[DISABLE]
+unregistersymbol(world)
+unregistersymbol(slot)
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>1</ID>
+          <Description>"Stats Base Address"</Description>
+          <VariableType>String</VariableType>
+          <Length>8</Length>
+          <Address>world</Address>
+          <Offsets>
+            <Offset>0</Offset>
+            <Offset>slot*{stats}-{stats}+{stats}</Offset>
+            <Offset>{player}</Offset>
+          </Offsets>
+          <CheatEntries>
+            <CheatEntry>
+              <ID>2</ID>
+              <Description>"Gold"</Description>
+              <VariableType>4 Bytes</VariableType>
+              <Address>+{gold}</Address>
+            </CheatEntry>
+          </CheatEntries>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>3</ID>
+          <Description>"Move Speed"</Description>
+          <VariableType>Float</VariableType>
+          <Address>[[[world]+{player}]+{stats}]+{speed}</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>4</ID>
+      <Description>"No Damage"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+aobscanmodule(hurt,testbed_native.exe,0F 1F 80 54 4F 54 01 8B 01 29 D0 89 01) // should be unique
+hurt+9:
+  db 90 90
+registersymbol(hurt)
+[DISABLE]
+hurt+9:
+  db 29 D0
+unregistersymbol(hurt)
+{{
+// ORIGINAL CODE - INJECTION POINT: "testbed_native.exe"+1234
+// ---------- INJECTING HERE ----------
+}}
+</AssemblerScript>
+    </CheatEntry>
+    <CheatEntry>
+      <ID>5</ID>
+      <Description>"Infinite Ammo"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+aobscanmodule(ammo,testbed_native.exe,0F 1F 80 54 4F 54 02 8B 01)
+alloc(newmem,$1000,ammo)
+newmem:
+  mov rax,[rcx]
+  jmp return
+[DISABLE]
+dealloc(newmem)
+</AssemblerScript>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+"#
+    )
+}
+
+#[test]
+fn script_style_table_works_on_the_x64_testbed() {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let opened =
+        share::open_table(script_table(&tb.ready).as_bytes(), "Testbed_Scripts", None).unwrap();
+    assert!(!opened.needs_exe);
+    let names: Vec<&str> = opened.pack.cheats.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(
+        names,
+        ["Gold", "Move Speed", "No Damage"],
+        "skipped: {:?}",
+        opened.skipped
+    );
+    // Only the injection script and the text entry are left out; the script
+    // that finds the pointer isn't needed (JuiceBox Trainer finds it itself).
+    let skipped: Vec<&str> = opened.skipped.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(skipped, ["Stats Base Address", "Infinite Ammo"]);
+
+    let process = Arc::new(AttachedProcess::attach(tb.pid()).expect("attach to testbed"));
+    let mut t = Trainer::load(process, opened.pack).unwrap();
+    for s in t.states().unwrap() {
+        assert_eq!(s.status, "ready", "{}: {:?}", s.id, s.message);
+    }
+    t.set_value("gold", "31337").unwrap();
+    assert_eq!(tb.send("state")["gold"], 31337);
+    t.set_value("move-speed", "3.5").unwrap();
+    assert_eq!(tb.send("state")["speed"], 3.5);
+
+    // The byte swap: hits do no damage while on, and do again when off.
+    let before = tb.send("state")["health"].as_i64().unwrap();
+    t.set_active("no-damage", true).unwrap();
+    assert_eq!(tb.send("hit 30")["health"].as_i64().unwrap(), before);
+    t.set_active("no-damage", false).unwrap();
+    assert_eq!(tb.send("hit 30")["health"].as_i64().unwrap(), before - 30);
+    t.restore_all().unwrap();
+    tb.kill();
+}
+
+/// A table whose values hang off a pointer a hook script grabs (the damage
+/// code's register, only for a hit of 7), like DBXV2's `battle_ptr`.
+fn hook_table(flavor: Flavor, ready: &Json) -> String {
+    let f = &ready["chain"]["fields"];
+    let gold = bare(&f["gold"]);
+    let (tmp, field, amount) = match flavor {
+        Flavor::X64 => ("rax", "rcx", "edx"),
+        Flavor::X86 => ("eax", "ecx", "edx"),
+    };
+    format!(
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<CheatTable CheatEngineTableVersion="45">
+  <CheatEntries>
+    <CheatEntry>
+      <ID>0</ID>
+      <Description>"Stats Pointer"</Description>
+      <VariableType>Auto Assembler Script</VariableType>
+      <AssemblerScript>[ENABLE]
+aobscanmodule(dmg,testbed_native.exe,0F 1F 80 54 4F 54 01 8B 01 29 D0)
+alloc(newmem,$1000,dmg)
+label(code)
+label(return)
+label(stats_ptr)
+newmem:
+  cmp {amount},7
+  jne code
+  mov {tmp},stats_ptr
+  mov [{tmp}],{field}
+code:
+  mov eax,[{field}]
+  sub eax,edx
+  jmp return
+stats_ptr:
+  dd 0
+dmg+7:
+  jmp newmem
+return:
+registersymbol(stats_ptr)
+[DISABLE]
+dmg+7:
+  db 8B 01 29 D0
+unregistersymbol(stats_ptr)
+dealloc(newmem)
+</AssemblerScript>
+      <CheatEntries>
+        <CheatEntry>
+          <ID>1</ID>
+          <Description>"Health"</Description>
+          <ShowAsSigned>1</ShowAsSigned>
+          <VariableType>4 Bytes</VariableType>
+          <Address>stats_ptr</Address>
+          <Offsets>
+            <Offset>0</Offset>
+          </Offsets>
+        </CheatEntry>
+        <CheatEntry>
+          <ID>2</ID>
+          <Description>"Gold"</Description>
+          <VariableType>4 Bytes</VariableType>
+          <Address>[stats_ptr]+{gold}</Address>
+        </CheatEntry>
+      </CheatEntries>
+    </CheatEntry>
+  </CheatEntries>
+</CheatTable>
+"#
+    )
+}
+
+fn hook_table_works(flavor: Flavor) {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(flavor));
+    let opened =
+        share::open_table(hook_table(flavor, &tb.ready).as_bytes(), "Hooked", None).unwrap();
+    let names: Vec<&str> = opened.pack.cheats.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Health", "Gold"], "skipped: {:?}", opened.skipped);
+    assert!(
+        opened.skipped.is_empty(),
+        "the hook script is redone, not skipped: {:?}",
+        opened.skipped
+    );
+
+    let process = Arc::new(AttachedProcess::attach(tb.pid()).expect("attach to testbed"));
+    let mut t = Trainer::load(Arc::clone(&process), opened.pack).unwrap();
+    // Not found yet: waiting for the game, not failed.
+    let s = t.states().unwrap();
+    assert_eq!(s[0].status, "ready", "{:?}", s[0].message);
+    assert!(
+        s[0].message
+            .as_deref()
+            .unwrap_or("")
+            .contains("not found yet")
+    );
+    assert_eq!(s[0].value, None);
+
+    // Setting a value waits for the game to run the code (a hit of 7).
+    let set = std::thread::scope(|scope| {
+        let job = scope.spawn(|| t.set_value("health", "555"));
+        sleep(Duration::from_millis(700));
+        assert_eq!(tb.send("hit 5")["health"], 95);
+        assert_eq!(tb.send("hit 7")["health"], 88);
+        job.join().unwrap()
+    });
+    set.unwrap();
+    assert_eq!(tb.send("state")["health"], 555);
+    // Held, like Cheat Engine's freeze.
+    tb.send("hit 10");
+    sleep(Duration::from_millis(200));
+    assert_eq!(tb.send("state")["health"], 555);
+    // The other value under the same pointer needs no new wait.
+    t.set_value("gold", "4242").unwrap();
+    assert_eq!(tb.send("state")["gold"], 4242);
+    let shown = t.states().unwrap();
+    assert_eq!(shown[1].value.as_deref(), Some("4242"));
+    t.restore_all().unwrap();
+    // The game code was never changed.
+    assert_eq!(tb.send("hit 1")["health"].as_i64().unwrap(), 554);
+    tb.kill();
+}
+
+#[test]
+fn hook_table_works_on_the_x64_testbed() {
+    hook_table_works(Flavor::X64);
+}
+
+#[test]
+fn hook_table_works_on_the_x86_testbed() {
+    hook_table_works(Flavor::X86);
+}

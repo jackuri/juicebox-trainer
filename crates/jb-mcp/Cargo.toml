@@ -1,0 +1,27 @@
+[package]
+name = "jb-mcp"
+description = "Guarded MCP server (stdio) exposing jb-core, jb-packs and jb-saves to the AI agent."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "jb-mcp"
+path = "src/main.rs"
+
+[dependencies]
+jb-core.workspace = true
+jb-packs.workspace = true
+jb-saves.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+testbed-harness.workspace = true
+
+[lints]
+workspace = true

@@ -76,7 +76,7 @@ export function AgreementGate({ children }: { children: ReactNode }) {
           <div className="flex flex-col gap-3 border-t border-zinc-800 pt-4 text-sm">
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-1" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
-              I&apos;ve read this, I&apos;ll play fair, and I agree that I use OpenTrainer at my own risk.
+              I&apos;ve read this, I&apos;ll play fair, and I agree that I use JuiceBox Trainer at my own risk.
             </label>
             <label className="flex flex-col gap-1">
               Type your name to sign

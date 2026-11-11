@@ -2,7 +2,7 @@
 @import "./themes.css";
 
 /*
- * OpenTrainer's look (v1.2.0): a deep navy app with one bright accent, big rounded cards and
+ * JuiceBox Trainer's look (v1.2.0): a deep navy app with one bright accent, big rounded cards and
  * pill switches, in the style of modern game-trainer apps. Every screen uses Tailwind's `zinc`
  * (greys) and `emerald` (accent) names, so they are re-tinted here in one place. These are the
  * default theme's values; themes.css has every theme (v1.14.0), picked with `data-theme`.

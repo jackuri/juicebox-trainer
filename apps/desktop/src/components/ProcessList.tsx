@@ -16,7 +16,7 @@ interface Props {
 
 /**
  * The player's running games, by name. Other programs are listed only after
- * "Show all running programs" (for a game OpenTrainer didn't recognise).
+ * "Show all running programs" (for a game JuiceBox Trainer didn't recognise).
  */
 export function ProcessList({ processes, games, selectedPid, loading, onSelect, onRefresh, onShowGames }: Props) {
   const [query, setQuery] = useState("");

@@ -2,14 +2,14 @@
   "schema": 1,
   "game": {
     "id": "testbed-native",
-    "name": "OpenTrainer Testbed (x64)",
+    "name": "JuiceBox Trainer Testbed (x64)",
     "engine": "native",
     "exe": "testbed_native.exe",
     "arch": "x64",
     "builds": []
   },
   "meta": {
-    "author": "OpenTrainer",
+    "author": "JuiceBox Trainer",
     "created": "2026-11-06",
     "packVersion": "1.0.0",
     "notes": "Example pack for testbed/native (a fake game, never a real one). Patch cheats use the testbed's fixed asm sites and work on every build; value offsets match the default (not shifted) build."

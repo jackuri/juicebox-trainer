@@ -23,7 +23,7 @@ describe("GuardVerdict", () => {
         }}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/anti-cheat is running\. OpenTrainer only works while it isn't/);
+    expect(screen.getByRole("alert")).toHaveTextContent(/anti-cheat is running\. JuiceBox Trainer only works while it isn't/);
     expect(screen.getByRole("alert")).toHaveTextContent(/can't be turned off/);
   });
 

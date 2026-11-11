@@ -16,7 +16,7 @@ interface Props {
 /**
  * A dropdown of the player's running games, by name. Other programs are
  * listed only after "Show all running programs" is ticked (for a game
- * OpenTrainer didn't recognise).
+ * JuiceBox Trainer didn't recognise).
  */
 export function GamePicker({ processes, games, value, onChange, onRefresh, label, className }: Props) {
   const [showAll, setShowAll] = useState(false);

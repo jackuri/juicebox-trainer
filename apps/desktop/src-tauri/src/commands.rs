@@ -6,17 +6,17 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
-use ot_core::freeze::DEFAULT_FREEZE_INTERVAL;
-use ot_core::journal::Recovery;
-use ot_core::pointer::{PointerPath, PointerScanOptions};
-use ot_core::signature::Signature;
-use ot_core::{
+use jb_core::freeze::DEFAULT_FREEZE_INTERVAL;
+use jb_core::journal::Recovery;
+use jb_core::pointer::{PointerPath, PointerScanOptions};
+use jb_core::signature::Signature;
+use jb_core::{
     AttachedProcess, FindNext, FindStart, FirstScan, Freezer, Module, NextScan, ProcessInfo, Scan,
     ScanControl, ScanOptions, Value, ValueFinder, ValueType, Verdict,
 };
-use ot_packs::schema::PackArch;
-use ot_packs::settings::{self, GameSettings, PresetCheat};
-use ot_packs::{BuildMatch, CheatState, Issue, LoadError, Pack, Trainer, store};
+use jb_packs::schema::PackArch;
+use jb_packs::settings::{self, GameSettings, PresetCheat};
+use jb_packs::{BuildMatch, CheatState, Issue, LoadError, Pack, Trainer, store};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use tracing::warn;
@@ -281,19 +281,19 @@ impl CommandError {
     }
 }
 
-impl From<ot_packs::trainer::Error> for CommandError {
-    fn from(e: ot_packs::trainer::Error) -> Self {
+impl From<jb_packs::trainer::Error> for CommandError {
+    fn from(e: jb_packs::trainer::Error) -> Self {
         match e {
-            ot_packs::trainer::Error::Core(core) => core.into(),
+            jb_packs::trainer::Error::Core(core) => core.into(),
             other => Self::new(other.kind(), other.to_string()),
         }
     }
 }
 
-impl From<ot_core::Error> for CommandError {
-    fn from(e: ot_core::Error) -> Self {
+impl From<jb_core::Error> for CommandError {
+    fn from(e: jb_core::Error) -> Self {
         let verdict = match &e {
-            ot_core::Error::Blocked(v) => Some(v.clone()),
+            jb_core::Error::Blocked(v) => Some(v.clone()),
             _ => None,
         };
         Self {
@@ -319,7 +319,7 @@ fn with_live<T>(state: &AppState, f: impl FnOnce(&mut Live) -> CmdResult<T>) -> 
         // The address list polls through here, so a game that exits is noticed
         // even when no read or write is touching its memory.
         if !live.process.is_alive() {
-            Err(ot_core::Error::ProcessExited {
+            Err(jb_core::Error::ProcessExited {
                 pid: live.process.pid(),
             }
             .into())
@@ -339,24 +339,35 @@ fn with_live<T>(state: &AppState, f: impl FnOnce(&mut Live) -> CmdResult<T>) -> 
 pub struct AppInfo {
     pub version: &'static str,
     pub core_version: &'static str,
+    /// This start moved OpenTrainer's packs, saves and settings over (v1.23.0).
+    pub moved_from_open_trainer: bool,
+}
+
+static MOVED_FROM_OPEN_TRAINER: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Remembers that this start moved OpenTrainer's things (see [`AppInfo`]).
+pub fn set_moved_from_open_trainer(moved: bool) {
+    MOVED_FROM_OPEN_TRAINER.store(moved, std::sync::atomic::Ordering::Relaxed);
 }
 
 #[tauri::command]
 pub fn app_info() -> AppInfo {
     AppInfo {
         version: env!("CARGO_PKG_VERSION"),
-        core_version: ot_core::VERSION,
+        core_version: jb_core::VERSION,
+        moved_from_open_trainer: MOVED_FROM_OPEN_TRAINER.load(std::sync::atomic::Ordering::Relaxed),
     }
 }
 
 #[tauri::command]
 pub async fn list_processes() -> CmdResult<Vec<ProcessInfo>> {
-    Ok(ot_core::list_processes()?)
+    Ok(jb_core::list_processes()?)
 }
 
 #[tauri::command]
 pub async fn check_guard(pid: u32) -> Verdict {
-    ot_core::guard::check(pid)
+    jb_core::guard::check(pid)
 }
 
 #[derive(Debug, Serialize)]
@@ -382,7 +393,7 @@ pub async fn attach(
     attach_pid(&state, &saves, pid)
 }
 
-/// Attaches to `pid` (guarded by ot-core) and backs up its saves.
+/// Attaches to `pid` (guarded by jb-core) and backs up its saves.
 pub(crate) fn attach_pid(
     state: &AppState,
     saves: &crate::saves::SavesState,
@@ -492,7 +503,7 @@ pub struct MemoryView {
     /// Per byte: could it be read?
     pub readable: Vec<bool>,
     /// The memory region of the first byte.
-    pub region: Option<ot_core::Region>,
+    pub region: Option<jb_core::Region>,
     /// `game.exe+0x1F0` if the first byte is in a module.
     pub module: Option<String>,
 }
@@ -533,7 +544,7 @@ pub async fn memory_edit(
     address: String,
     hex: String,
     state: State<'_, AppState>,
-) -> CmdResult<ot_core::ByteEdit> {
+) -> CmdResult<jb_core::ByteEdit> {
     let clean: String = hex.chars().filter(|c| !c.is_whitespace()).collect();
     if clean.is_empty() || !clean.len().is_multiple_of(2) {
         return Err(CommandError::new(
@@ -762,7 +773,7 @@ pub async fn scan_results(
         for h in scan.hits(offset, limit.min(500)) {
             let current = match l.process.read_value(h.address, ty) {
                 Ok(v) => Some(v.to_string()),
-                Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+                Err(e @ (jb_core::Error::Blocked(_) | jb_core::Error::ProcessExited { .. })) => {
                     return Err(e.into());
                 }
                 Err(_) => None,
@@ -886,7 +897,7 @@ pub async fn finder_results(
         for h in finder.hits(limit.min(500)) {
             let current = match l.process.read_value(h.address, h.ty) {
                 Ok(v) => Some(v.to_string()),
-                Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+                Err(e @ (jb_core::Error::Blocked(_) | jb_core::Error::ProcessExited { .. })) => {
                     return Err(e.into());
                 }
                 Err(_) => None,
@@ -1001,7 +1012,7 @@ pub struct ListEntryView {
 fn entry_view(l: &Live, e: &ListEntry) -> CmdResult<ListEntryView> {
     let (value, mut error) = match l.process.read_value(e.address, e.ty) {
         Ok(v) => (Some(v.to_string()), None),
-        Err(err @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+        Err(err @ (jb_core::Error::Blocked(_) | jb_core::Error::ProcessExited { .. })) => {
             return Err(err.into());
         }
         Err(err) => (None, Some(err.to_string())),
@@ -1047,7 +1058,7 @@ fn follow_pointers(l: &mut Live) -> CmdResult<Vec<(u64, String)>> {
                 l.list[i].address = a;
             }
             Ok(_) => {}
-            Err(e @ (ot_core::Error::Blocked(_) | ot_core::Error::ProcessExited { .. })) => {
+            Err(e @ (jb_core::Error::Blocked(_) | jb_core::Error::ProcessExited { .. })) => {
                 return Err(e.into());
             }
             Err(e) => notes.push((l.list[i].id, e.to_string())),
@@ -1082,7 +1093,7 @@ pub async fn address_add(
 ) -> CmdResult<ListEntryView> {
     with_live(&state, |l| {
         let resolved = l.process.resolve(&address)?;
-        let pointer = ot_core::address::parse(&address)?.is_pointer();
+        let pointer = jb_core::address::parse(&address)?.is_pointer();
         let entry = ListEntry {
             id: l.next_id,
             label: label.trim().to_string(),
@@ -1230,7 +1241,7 @@ pub async fn pointer_scan(
         Ok((Arc::clone(&l.process), a))
     })?;
     // Runs without the state lock, like the value scanner.
-    let result = ot_core::pointer::scan(&process, address, options, &state.scan_control);
+    let result = jb_core::pointer::scan(&process, address, options, &state.scan_control);
     let paths = state.settle(result.map_err(CommandError::from))?;
     let results = PointerResults {
         exe: process.info().name.clone(),
@@ -1256,7 +1267,7 @@ pub async fn pointer_filter(
         .ok_or_else(|| CommandError::new("noScan", "run a pointer scan first"))?;
     with_live(&state, |l| {
         let address = l.process.resolve(&target)?;
-        let paths = ot_core::pointer::filter(&l.process, &previous.paths, address)?;
+        let paths = jb_core::pointer::filter(&l.process, &previous.paths, address)?;
         let results = PointerResults {
             exe: previous.exe.clone(),
             target: address,
@@ -1287,7 +1298,7 @@ pub async fn pointer_clear(state: State<'_, AppState>) -> CmdResult<()> {
 pub async fn signature_make(address: String, state: State<'_, AppState>) -> CmdResult<Signature> {
     with_live(&state, |l| {
         let a = l.process.resolve(&address)?;
-        Ok(ot_core::signature::make(&l.process, a)?)
+        Ok(jb_core::signature::make(&l.process, a)?)
     })
 }
 
@@ -1321,7 +1332,7 @@ pub struct PackSummary {
     pub error: Option<String>,
     pub issues: Vec<Issue>,
     /// Who made the cheats and where they were published, if the pack says.
-    pub credit: Option<ot_packs::schema::Source>,
+    pub credit: Option<jb_packs::schema::Source>,
     /// The credit names the maker and a page on a known table site, so the
     /// table's link can be shared with the community list.
     pub table_link: bool,
@@ -1352,7 +1363,7 @@ fn summarize(found: store::Found) -> PackSummary {
             return s;
         }
     };
-    match ot_packs::parse(&text) {
+    match jb_packs::parse(&text) {
         Ok((pack, warnings)) => {
             s.id = Some(pack.game.id);
             s.name = Some(pack.game.name);
@@ -1368,7 +1379,7 @@ fn summarize(found: store::Found) -> PackSummary {
                     && src
                         .url
                         .as_deref()
-                        .is_some_and(|u| ot_packs::community::table_site(u).is_some())
+                        .is_some_and(|u| jb_packs::community::table_site(u).is_some())
             });
             s.credit = pack.meta.source;
         }
@@ -1468,7 +1479,7 @@ fn no_trainer() -> CommandError {
 fn with_trainer(
     state: &AppState,
     change: Option<(&str, String)>,
-    f: impl FnOnce(&mut Trainer) -> Result<(), ot_packs::trainer::Error>,
+    f: impl FnOnce(&mut Trainer) -> Result<(), jb_packs::trainer::Error>,
 ) -> CmdResult<TrainerView> {
     with_live(state, |l| {
         let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
@@ -1539,7 +1550,7 @@ pub(crate) fn load_key(state: &AppState, key: String) -> CmdResult<TrainerView> 
         .ok_or_else(|| CommandError::new("notFound", format!("no pack '{key}'")))?;
     let text = found.text.map_err(|e| CommandError::new("io", e))?;
     let (pack, warnings) =
-        ot_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
+        jb_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
     with_live(state, |l| load_into(state, l, key, pack, warnings))
 }
 
@@ -1580,7 +1591,7 @@ fn load_into(
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RepairResult {
-    pub fixed: Vec<ot_packs::heal::Fix>,
+    pub fixed: Vec<jb_packs::heal::Fix>,
     pub broken: Vec<(String, String)>,
     /// Where the repaired pack was saved.
     pub saved: Option<String>,
@@ -1595,7 +1606,7 @@ pub async fn trainer_repair(state: State<'_, AppState>) -> CmdResult<RepairResul
     with_live(&state, |l| {
         let t = l.trainer.as_ref().ok_or_else(no_trainer)?;
         let pack = t.trainer.pack().clone();
-        let report = ot_packs::heal::heal(&l.process, &pack)?;
+        let report = jb_packs::heal::heal(&l.process, &pack)?;
         if report.fixed.is_empty() {
             let view = trainer_view(l.trainer.as_mut().ok_or_else(no_trainer)?)?;
             return Ok(RepairResult {
@@ -1991,11 +2002,11 @@ mod tests {
             notes: vec![],
             signatures_version: 1,
         };
-        let e = CommandError::from(ot_core::Error::Blocked(Box::new(verdict.clone())));
+        let e = CommandError::from(jb_core::Error::Blocked(Box::new(verdict.clone())));
         assert_eq!(e.kind, "blocked");
         assert_eq!(e.verdict, Some(Box::new(verdict)));
         assert!(e.is_fatal());
-        assert!(!CommandError::from(ot_core::Error::Cancelled).is_fatal());
+        assert!(!CommandError::from(jb_core::Error::Cancelled).is_fatal());
     }
 
     #[test]
@@ -2047,11 +2058,11 @@ mod tests {
 
     #[test]
     fn trainer_errors_keep_core_kinds() {
-        let e = CommandError::from(ot_packs::trainer::Error::Core(
-            ot_core::Error::ProcessExited { pid: 3 },
+        let e = CommandError::from(jb_packs::trainer::Error::Core(
+            jb_core::Error::ProcessExited { pid: 3 },
         ));
         assert!(e.is_fatal());
-        let e = CommandError::from(ot_packs::trainer::Error::UnknownCheat("x".into()));
+        let e = CommandError::from(jb_packs::trainer::Error::UnknownCheat("x".into()));
         assert_eq!(e.kind, "unknownCheat");
     }
 

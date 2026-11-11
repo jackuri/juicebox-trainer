@@ -32,7 +32,7 @@ function mock(status: GithubStatus, extra: Record<string, () => Promise<unknown>
     if (extra[cmd]) return extra[cmd]();
     if (cmd === "github_status") return Promise.resolve(status);
     if (cmd === "community_share")
-      return Promise.resolve({ url: "https://github.com/jackuri/opentrainer-packs/pull/7", number: 7, update: false });
+      return Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/7", number: 7, update: false });
     return Promise.resolve(undefined);
   });
 }
@@ -77,7 +77,7 @@ describe("ShareDialog", () => {
     );
     expect(await screen.findByText(/Sent! A maintainer will check it/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "See it on GitHub" }));
-    expect(invoke).toHaveBeenCalledWith("github_open_pr", { url: "https://github.com/jackuri/opentrainer-packs/pull/7" });
+    expect(invoke).toHaveBeenCalledWith("github_open_pr", { url: "https://github.com/jackuri/juicebox-packs/pull/7" });
   });
 
   it("a table's maker shares it with their own terms and support page", async () => {
@@ -150,7 +150,7 @@ describe("ShareDialog", () => {
   it("shares only the table's link in link mode", async () => {
     mock({ configured: true, signedIn: true, login: "sam" }, {
       community_share_table: () =>
-        Promise.resolve({ url: "https://github.com/jackuri/opentrainer-packs/pull/9", number: 9, update: false }),
+        Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/9", number: 9, update: false }),
     });
     const linked: PackSummary = {
       ...pack,

@@ -124,7 +124,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
     });
   }, []);
 
-  // Which web game is open in OpenTrainer's game window (checked while the form shows).
+  // Which web game is open in JuiceBox Trainer's game window (checked while the form shows).
   const formShown = !(status?.running ?? false) && events.length === 0;
   useEffect(() => {
     if (kind !== "web" || !formShown) return;
@@ -270,14 +270,14 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
             </label>
             <label className="flex items-center gap-2">
               <input type="radio" checked={kind === "web"} onChange={() => setKind("web")} />
-              A web game (open in OpenTrainer&apos;s game window)
+              A web game (open in JuiceBox Trainer&apos;s game window)
             </label>
           </fieldset>
           {kind === "web" ? (
             <div className="flex flex-col gap-1 rounded-lg bg-zinc-900 px-3 py-2 text-sm" role="note" aria-label="Web game">
               {webGame ? (
                 <p>
-                  The helper works on <b>{webGame.name}</b>, the game open in OpenTrainer&apos;s game window. Keep
+                  The helper works on <b>{webGame.name}</b>, the game open in JuiceBox Trainer&apos;s game window. Keep
                   that window open while it works.
                 </p>
               ) : (

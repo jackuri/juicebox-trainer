@@ -1,4 +1,4 @@
-//! Sharing packs: `.otpack` export / import, removing packs, and the
+//! Sharing packs: `.juice` export / import, removing packs, and the
 //! community pack list (PLAN.md §2.5, §8.3). Every pack that comes in goes
 //! through the normal validator, and a different pack already installed for
 //! the same game is only replaced after the player says so.
@@ -7,21 +7,21 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use ot_packs::community::{self, Entry};
-use ot_packs::store::{self, Installed, OriginKind};
-use ot_packs::{Issue, Pack, share};
+use jb_packs::community::{self, Entry};
+use jb_packs::store::{self, Installed, OriginKind};
+use jb_packs::{Issue, Pack, share};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::commands::{CmdResult, CommandError};
 
-/// Event the UI gets when an `.otpack` is opened from Explorer.
+/// Event the UI gets when a `.juice` is opened from Explorer.
 pub const OPEN_EVENT: &str = "otpack-open";
 
 #[derive(Debug, Default)]
 pub struct SharingState {
-    /// An `.otpack` given on the command line before the UI was ready.
+    /// A `.juice` given on the command line before the UI was ready.
     pending: Mutex<Option<String>>,
     /// The last community list download, for a few minutes.
     index: Mutex<Option<Cached>>,
@@ -47,22 +47,22 @@ fn user_dir() -> CmdResult<PathBuf> {
     store::user_dir().ok_or_else(|| CommandError::new("noAppData", "%APPDATA% is not set"))
 }
 
-/// The `.otpack` among command-line arguments, if any.
+/// The `.juice` among command-line arguments, if any.
 pub fn otpack_arg<I: IntoIterator<Item = String>>(args: I) -> Option<String> {
     args.into_iter().skip(1).find(|a| {
         Path::new(a)
             .extension()
-            .is_some_and(|e| e.eq_ignore_ascii_case(share::EXTENSION))
+            .is_some_and(|e| share::is_pack_extension(&e.to_string_lossy()))
     })
 }
 
-/// Hands an `.otpack` opened from Explorer to the UI.
+/// Hands a `.juice` opened from Explorer to the UI.
 pub fn open_from_shell(app: &AppHandle, path: String) {
     *lock(&app.state::<SharingState>().pending) = Some(path.clone());
     let _ = app.emit(OPEN_EVENT, path);
 }
 
-/// The `.otpack` opened from Explorer that the UI hasn't shown yet.
+/// The `.juice` opened from Explorer that the UI hasn't shown yet.
 #[tauri::command]
 pub fn packs_pending_open(state: State<'_, SharingState>) -> Option<String> {
     lock(&state.pending).take()
@@ -78,13 +78,13 @@ fn pack_text(key: &str) -> CmdResult<String> {
     found.text.map_err(io)
 }
 
-/// Saves a pack as an `.otpack` where the player picks. `None` if they
+/// Saves a pack as a `.juice` where the player picks. `None` if they
 /// cancelled.
 #[tauri::command]
 pub async fn packs_export(key: String, app: AppHandle) -> CmdResult<Option<String>> {
     let text = pack_text(&key)?;
     let (pack, _) =
-        ot_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
+        jb_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
     let bytes = share::export(&text, env!("CARGO_PKG_VERSION"), &share::today())
         .map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
     let mut dialog = app
@@ -92,7 +92,7 @@ pub async fn packs_export(key: String, app: AppHandle) -> CmdResult<Option<Strin
         .file()
         .set_title("Save the pack to share")
         .set_file_name(share::file_name(&pack))
-        .add_filter("OpenTrainer pack", &[share::EXTENSION]);
+        .add_filter("JuiceBox Trainer pack", &[share::EXTENSION]);
     if let Ok(docs) = app.path().document_dir() {
         dialog = dialog.set_directory(docs);
     }
@@ -119,7 +119,7 @@ pub async fn packs_show_file(path: String) -> CmdResult<()> {
 
 // ----- import ---------------------------------------------------------------
 
-/// Lets the player pick an `.otpack` or a plain `pack.json`. `None` if they
+/// Lets the player pick a `.juice` or a plain `pack.json`. `None` if they
 /// cancelled.
 #[tauri::command]
 pub async fn packs_pick_otpack(app: AppHandle) -> CmdResult<Option<String>> {
@@ -128,8 +128,14 @@ pub async fn packs_pick_otpack(app: AppHandle) -> CmdResult<Option<String>> {
         .file()
         .set_title("Open a pack")
         .add_filter(
-            "OpenTrainer pack or Cheat Engine table",
-            &[share::EXTENSION, "json", ot_packs::ct::EXTENSION, "CT"],
+            "JuiceBox Trainer pack or Cheat Engine table",
+            &[
+                share::EXTENSION,
+                share::LEGACY_EXTENSION,
+                "json",
+                jb_packs::ct::EXTENSION,
+                "CT",
+            ],
         )
         .blocking_pick_file();
     picked
@@ -141,7 +147,7 @@ pub async fn packs_pick_otpack(app: AppHandle) -> CmdResult<Option<String>> {
 #[serde(rename_all = "camelCase")]
 pub struct CheatLine {
     pub name: String,
-    pub ui: ot_packs::Ui,
+    pub ui: jb_packs::Ui,
     pub description: Option<String>,
     /// Changes game code (as opposed to values).
     pub patch: bool,
@@ -174,7 +180,7 @@ pub struct PackPreview {
     /// The pack this would replace.
     pub existing: Option<Existing>,
     /// Cheat Engine table entries that didn't come over, and why.
-    pub skipped: Vec<ot_packs::ct::Skipped>,
+    pub skipped: Vec<jb_packs::ct::Skipped>,
     /// A converted table that doesn't say which exe it's for.
     pub needs_exe: bool,
     /// SHA-256 of the pack text shown: installing checks it is still the same.
@@ -182,7 +188,7 @@ pub struct PackPreview {
     /// It was converted from a Cheat Engine table (credit can be added).
     pub table: bool,
     /// Who made the cheats and where they were published, if the pack says.
-    pub source: Option<ot_packs::schema::Source>,
+    pub source: Option<jb_packs::schema::Source>,
 }
 
 fn preview(o: share::Opened) -> PackPreview {
@@ -204,7 +210,7 @@ fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
     let existing = store::user_dir().and_then(|dir| {
         let path = dir.join(&pack.game.id).join("pack.json");
         let old = std::fs::read_to_string(&path).ok()?;
-        let parsed = ot_packs::parse(&old).ok().map(|(p, _)| p);
+        let parsed = jb_packs::parse(&old).ok().map(|(p, _)| p);
         Some(Existing {
             key: path.display().to_string(),
             name: parsed.as_ref().map_or_else(
@@ -233,7 +239,7 @@ fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
                 name: c.name.clone(),
                 ui: c.ui,
                 description: c.description.clone(),
-                patch: matches!(c.implementation, ot_packs::Impl::Patch(_)),
+                patch: matches!(c.implementation, jb_packs::Impl::Patch(_)),
             })
             .collect(),
         warnings,
@@ -242,18 +248,18 @@ fn preview_pack(pack: &Pack, text: &str, warnings: Vec<Issue>) -> PackPreview {
         existing,
         skipped: Vec::new(),
         needs_exe: false,
-        checksum: ot_core::hash::sha256_bytes(text.as_bytes()),
+        checksum: jb_core::hash::sha256_bytes(text.as_bytes()),
     }
 }
 
-/// Opens an `.otpack`, a plain `pack.json` or a Cheat Engine table. `exe`
+/// Opens a `.juice`, a plain `pack.json` or a Cheat Engine table. `exe`
 /// names the game's exe for a table that doesn't say.
 fn open_otpack(path: &str, exe: Option<&str>) -> CmdResult<share::Opened> {
     share::open_path(Path::new(path), exe)
         .map_err(|e| CommandError::new("notOtpack", e.to_string()))
 }
 
-/// What an `.otpack`, `pack.json` or Cheat Engine table contains.
+/// What a `.juice`, `pack.json` or Cheat Engine table contains.
 #[tauri::command]
 pub async fn packs_preview(path: String, exe: Option<String>) -> CmdResult<PackPreview> {
     let o = open_otpack(&path, exe.as_deref())?;
@@ -265,7 +271,7 @@ pub async fn packs_preview(path: String, exe: Option<String>) -> CmdResult<PackP
 fn is_table_path(path: &str) -> bool {
     Path::new(path)
         .extension()
-        .is_some_and(|e| e.eq_ignore_ascii_case(ot_packs::ct::EXTENSION))
+        .is_some_and(|e| e.eq_ignore_ascii_case(jb_packs::ct::EXTENSION))
 }
 
 /// The table maker's name and page, typed by the player when converting a table.
@@ -302,7 +308,7 @@ fn with_credit(text: &str, credit: &Credit) -> CmdResult<(Pack, String)> {
     let text = serde_json::to_string_pretty(&v).map_err(|e| bad(e.to_string()))?
         + "
 ";
-    match ot_packs::parse(&text) {
+    match jb_packs::parse(&text) {
         Ok((pack, _)) => Ok((pack, text)),
         Err(e) => {
             let e = e.to_string();
@@ -345,7 +351,7 @@ fn install(
     }
 }
 
-/// Installs an `.otpack`, `pack.json` or Cheat Engine table. A different pack
+/// Installs a `.juice`, `pack.json` or Cheat Engine table. A different pack
 /// for the same game is only replaced with `replace`.
 #[tauri::command]
 pub async fn packs_import(
@@ -358,7 +364,7 @@ pub async fn packs_import(
     let mut o = open_otpack(&path, exe.as_deref())?;
     // Install exactly what the player looked at, not a file changed since.
     if let Some(want) = checksum
-        && ot_core::hash::sha256_bytes(o.text.as_bytes()) != want
+        && jb_core::hash::sha256_bytes(o.text.as_bytes()) != want
     {
         return Err(CommandError::new(
             "changed",
@@ -401,10 +407,10 @@ pub async fn packs_remove(key: String) -> CmdResult<String> {
 
 // ----- community list -------------------------------------------------------
 
-/// The list's address: the public repository, or `OT_PACK_INDEX` (https, or a
+/// The list's address: the public repository, or `JB_PACK_INDEX` (https, or a
 /// local test server).
 fn index_url() -> String {
-    std::env::var("OT_PACK_INDEX")
+    std::env::var("JB_PACK_INDEX")
         .ok()
         .filter(|u| {
             u.starts_with("https://")
@@ -418,7 +424,7 @@ fn index_url() -> String {
 async fn fetch(url: &str, limit: u64) -> Result<Vec<u8>, String> {
     let _ = rustls::crypto::ring::default_provider().install_default();
     let client = reqwest::Client::builder()
-        .user_agent(concat!("OpenTrainer/", env!("CARGO_PKG_VERSION")))
+        .user_agent(concat!("JuiceBoxTrainer/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(Duration::from_secs(10))
         .timeout(Duration::from_secs(30))
         .build()
@@ -471,7 +477,7 @@ pub struct CommunityList {
     /// Links to Cheat Engine tables on their makers' pages.
     pub tables: Vec<community::TableLink>,
     /// Cheats for web games (v1.19.0).
-    pub web: Vec<ot_packs::web::WebPack>,
+    pub web: Vec<jb_packs::web::WebPack>,
     /// Entries left out because they were broken.
     pub skipped: Vec<String>,
 }
@@ -578,7 +584,7 @@ pub async fn community_open_credit(
         "support" => src.support.as_deref(),
         _ => None,
     }
-    .filter(|u| ot_packs::schema::is_support_url(u))
+    .filter(|u| jb_packs::schema::is_support_url(u))
     .ok_or_else(|| CommandError::new("badRequest", "that page can't be opened from here"))?;
     crate::browser::open_url(url)?;
     Ok(())
@@ -698,6 +704,11 @@ mod tests {
             Some(r"C:\x\My Pack.OTPACK".into())
         );
         assert_eq!(otpack_arg(args(&["ot.exe", "--mcp"])), None);
+        // v1.23.0: .juice, and .otpack still.
+        assert_eq!(
+            otpack_arg(args(&["jb.exe", r"C:\x\My Pack.juice"])).as_deref(),
+            Some(r"C:\x\My Pack.juice")
+        );
         // The program itself never counts.
         assert_eq!(otpack_arg(args(&["a.otpack"])), None);
     }
@@ -705,7 +716,7 @@ mod tests {
     #[test]
     fn previews_say_what_a_pack_does() {
         let text = store::BUNDLED[0].1;
-        let (pack, warnings) = ot_packs::parse(text).unwrap();
+        let (pack, warnings) = jb_packs::parse(text).unwrap();
         let p = preview_pack(&pack, text, warnings);
         assert_eq!(p.id, "testbed-native");
         assert!(p.cheats.iter().any(|c| c.name == "Infinite Health"));
@@ -721,7 +732,7 @@ mod tests {
         let shown = tauri::async_runtime::block_on(packs_preview(path.clone(), None)).unwrap();
         assert_eq!(
             shown.checksum,
-            ot_core::hash::sha256_bytes(store::BUNDLED[0].1.as_bytes())
+            jb_core::hash::sha256_bytes(store::BUNDLED[0].1.as_bytes())
         );
         // The file is swapped after the preview: nothing is installed.
         std::fs::write(&file, store::BUNDLED[1].1).unwrap();

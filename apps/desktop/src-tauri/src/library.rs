@@ -3,7 +3,7 @@
 //! game, wait for it, attach, load its pack and apply the chosen preset.
 //!
 //! Games the anti-cheat guard blocks are shown as blocked and can't be
-//! started from here. Attaching still goes through ot-core's guard.
+//! started from here. Attaching still goes through jb-core's guard.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -11,8 +11,8 @@ use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use ot_saves::covers::{self, CoverKind, MAX_COVER_BYTES};
-use ot_saves::installs::{self, Install, Launch, OwnGame};
+use jb_saves::covers::{self, CoverKind, MAX_COVER_BYTES};
+use jb_saves::installs::{self, Install, Launch, OwnGame};
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
 use windows::Win32::UI::Shell::ShellExecuteW;
@@ -71,9 +71,9 @@ pub struct LibraryGame {
     cover_source: Option<CoverSource>,
 }
 
-/// `%APPDATA%\OpenTrainer` (the player's own games list lives here).
+/// `%APPDATA%\JuiceBox Trainer` (the player's own games list lives here).
 fn app_dir() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("OpenTrainer"))
+    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join(jb_core::names::FOLDER))
 }
 
 const HIDDEN_FILE: &str = "hidden-games.json";
@@ -123,9 +123,9 @@ fn set_hidden(dir: &Path, id: &str, hidden: bool) -> std::io::Result<()> {
 /// built-in examples.
 fn packs_by_exe() -> HashMap<String, (PackRef, String)> {
     let mut out = HashMap::new();
-    for found in ot_packs::store::all() {
+    for found in jb_packs::store::all() {
         let Ok(text) = found.text else { continue };
-        let Ok((pack, _)) = ot_packs::parse(&text) else {
+        let Ok((pack, _)) = jb_packs::parse(&text) else {
             continue;
         };
         out.insert(
@@ -163,7 +163,7 @@ fn describe(
     });
     let (presets, auto_preset) = match (found, settings_dir) {
         (Some((_, id)), Some(dir)) => {
-            let s = ot_packs::settings::load(dir, id);
+            let s = jb_packs::settings::load(dir, id);
             (
                 s.presets.into_iter().map(|p| p.name).collect(),
                 s.auto_preset,
@@ -175,13 +175,13 @@ fn describe(
         .first()
         .cloned()
         .unwrap_or_else(|| Path::new(&install.folder).join("game.exe"));
-    let verdict = ot_core::guard::check_install(&probe);
+    let verdict = jb_core::guard::check_install(&probe);
     // Only anti-cheat files: the guard decides once the game runs.
     let files_only = !verdict.allowed
         && verdict
             .findings
             .iter()
-            .all(|f| f.kind == ot_core::FindingKind::InstallMarker);
+            .all(|f| f.kind == jb_core::FindingKind::InstallMarker);
     let anti_cheat = files_only.then(|| {
         let mut names: Vec<&str> = verdict
             .findings
@@ -233,7 +233,7 @@ fn all_installs() -> Vec<Install> {
 
 fn list(settings_dir: Option<&Path>) -> Vec<LibraryGame> {
     let packs = packs_by_exe();
-    let steam = ot_saves::steam::steam_dir();
+    let steam = jb_saves::steam::steam_dir();
     let hidden = app_dir().map(|d| load_hidden(&d)).unwrap_or_default();
     let mut games: Vec<LibraryGame> = all_installs()
         .into_iter()
@@ -396,7 +396,7 @@ fn launch(launch: &Launch) -> CmdResult<()> {
 }
 
 /// Running processes whose exe is inside `folder`.
-fn running_in(folder: &str) -> Vec<ot_core::ProcessInfo> {
+fn running_in(folder: &str) -> Vec<jb_core::ProcessInfo> {
     let prefix = format!(
         "{}\\",
         folder
@@ -404,7 +404,7 @@ fn running_in(folder: &str) -> Vec<ot_core::ProcessInfo> {
             .trim_end_matches('\\')
             .to_lowercase()
     );
-    ot_core::list_processes()
+    jb_core::list_processes()
         .unwrap_or_default()
         .into_iter()
         .filter(|p| {
@@ -439,12 +439,12 @@ fn norm_path(p: &str) -> String {
 /// so launchers, web views and other helpers in its folder don't fill the
 /// list. (Exe size alone misleads: a Unity game's exe is a tiny stub.)
 fn match_running(
-    procs: &[ot_core::ProcessInfo],
+    procs: &[jb_core::ProcessInfo],
     installs: &[Install],
     pack_games: &HashMap<String, String>,
-    weigh: impl Fn(&ot_core::ProcessInfo) -> (u64, u64),
+    weigh: impl Fn(&jb_core::ProcessInfo) -> (u64, u64),
 ) -> Vec<RunningGame> {
-    let by_pid: HashMap<u32, &ot_core::ProcessInfo> = procs.iter().map(|p| (p.pid, p)).collect();
+    let by_pid: HashMap<u32, &jb_core::ProcessInfo> = procs.iter().map(|p| (p.pid, p)).collect();
     type Rank = (bool, (u64, u64), std::cmp::Reverse<u32>);
     let mut best: HashMap<String, (Rank, RunningGame)> = HashMap::new();
     for g in match_all_running(procs, installs, pack_games) {
@@ -472,7 +472,7 @@ fn file_size(path: &str) -> u64 {
 
 /// Every running program that belongs to a game (see [`match_running`]).
 fn match_all_running(
-    procs: &[ot_core::ProcessInfo],
+    procs: &[jb_core::ProcessInfo],
     installs: &[Install],
     pack_games: &HashMap<String, String>,
 ) -> Vec<RunningGame> {
@@ -538,14 +538,14 @@ fn is_crash_reporter(exe_lower: &str) -> bool {
 #[tauri::command]
 pub async fn running_games() -> CmdResult<Vec<RunningGame>> {
     tauri::async_runtime::spawn_blocking(|| -> CmdResult<Vec<RunningGame>> {
-        let procs = ot_core::list_processes()?;
+        let procs = jb_core::list_processes()?;
         let pack_games: HashMap<String, String> = packs_by_exe()
             .into_iter()
             .map(|(exe, (pack, _))| (exe, pack.name))
             .collect();
         Ok(match_running(&procs, &all_installs(), &pack_games, |p| {
             (
-                ot_core::memory_in_use(p.pid).unwrap_or(0),
+                jb_core::memory_in_use(p.pid).unwrap_or(0),
                 p.exe_path.as_deref().map_or(0, file_size),
             )
         }))
@@ -556,7 +556,7 @@ pub async fn running_games() -> CmdResult<Vec<RunningGame>> {
 
 /// The game's main process: the pack's exe if it's running, else the one
 /// with the biggest exe (a launcher or bootstrap exe is small).
-fn pick(procs: &[ot_core::ProcessInfo], pack_exe: Option<&str>) -> Option<u32> {
+fn pick(procs: &[jb_core::ProcessInfo], pack_exe: Option<&str>) -> Option<u32> {
     if let Some(want) = pack_exe
         && let Some(p) = procs.iter().find(|p| p.name.eq_ignore_ascii_case(want))
     {
@@ -597,7 +597,7 @@ fn play(app: &AppHandle, id: &str) -> CmdResult<PlayResult> {
         return Err(CommandError::new(
             "blocked",
             format!(
-                "OpenTrainer won't start {} with cheats ({why}). It's for single-player games only.",
+                "JuiceBox Trainer won't start {} with cheats ({why}). It's for single-player games only.",
                 game.install.name
             ),
         ));
@@ -614,7 +614,7 @@ fn play(app: &AppHandle, id: &str) -> CmdResult<PlayResult> {
             app,
             &if manual {
                 format!(
-                    "Start {name} yourself (e.g. from the Xbox app). OpenTrainer is waiting for it…"
+                    "Start {name} yourself (e.g. from the Xbox app). JuiceBox Trainer is waiting for it…"
                 )
             } else {
                 format!("Starting {name}… (waiting for it to open)")
@@ -704,13 +704,13 @@ pub async fn library_play(id: String, app: AppHandle) -> CmdResult<PlayResult> {
 mod tests {
     use super::*;
 
-    fn proc(pid: u32, name: &str, exe: Option<&str>) -> ot_core::ProcessInfo {
-        ot_core::ProcessInfo {
+    fn proc(pid: u32, name: &str, exe: Option<&str>) -> jb_core::ProcessInfo {
+        jb_core::ProcessInfo {
             pid,
             parent_pid: 0,
             name: name.into(),
             exe_path: exe.map(str::to_string),
-            arch: ot_core::Arch::X64,
+            arch: jb_core::Arch::X64,
             threads: 1,
         }
     }
@@ -752,7 +752,7 @@ mod tests {
         ];
         let packs = HashMap::from([(
             "testbed_native.exe".to_string(),
-            "OpenTrainer testbed".to_string(),
+            "JuiceBox Trainer testbed".to_string(),
         )]);
         let procs = [
             proc(
@@ -795,7 +795,7 @@ mod tests {
             (10, "Big Game", Some("steam:1")),
             (19, "Big Game", Some("steam:1")),
             (11, "Big Game DLC", Some("steam:2")),
-            (14, "OpenTrainer testbed", None),
+            (14, "JuiceBox Trainer testbed", None),
         ];
         let got: Vec<(u32, &str, Option<&str>)> = got
             .iter()
@@ -839,7 +839,7 @@ mod tests {
         ];
         // (memory in use, exe size). Like Unity games, the game's own exe is
         // a small stub, smaller than its launcher; memory tells them apart.
-        let weigh = |p: &ot_core::ProcessInfo| match p.name.as_str() {
+        let weigh = |p: &jb_core::ProcessInfo| match p.name.as_str() {
             "MechGame.exe" => (3_000_000_000, 700_000),
             "Launcher.exe" => (90_000_000, 5_000_000),
             "big.exe" => (2_000_000_000, 80_000_000),

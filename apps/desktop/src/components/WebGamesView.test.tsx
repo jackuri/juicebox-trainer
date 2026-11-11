@@ -197,7 +197,7 @@ describe("WebGamesView", () => {
       if (cmd === "web_games") return Promise.resolve([online]);
       if (cmd === "agreement_status") return Promise.resolve({ accepted: true, version: 1, signed: { version: 1, name: "Sam", date: "2026-11-09" } });
       if (cmd === "github_status") return Promise.resolve({ configured: true, signedIn: true, login: "sam" });
-      if (cmd === "community_share_web") return Promise.resolve({ url: "https://github.com/jackuri/opentrainer-packs/pull/9", number: 9, update: false });
+      if (cmd === "community_share_web") return Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/9", number: 9, update: false });
       if (cmd === "community_list") return Promise.resolve({ web: [] });
       return Promise.resolve(null);
     });

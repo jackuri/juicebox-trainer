@@ -1,6 +1,6 @@
 //! Noticing when a page crashes or freezes (v1.22.0).
 //!
-//! OpenTrainer's own screen and the web game window are WebView2 pages. When
+//! JuiceBox Trainer's own screen and the web game window are WebView2 pages. When
 //! the part of WebView2 that runs a page dies or stops responding, WebView2
 //! says so (`ProcessFailed`); without listening, the window just goes blank
 //! or stays frozen with no word why.

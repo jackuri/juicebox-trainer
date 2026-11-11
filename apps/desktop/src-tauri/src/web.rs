@@ -1,7 +1,7 @@
-//! Web games (v1.18.0): games that run in a browser page. OpenTrainer opens the
+//! Web games (v1.18.0): games that run in a browser page. JuiceBox Trainer opens the
 //! game in its own window with its helper script (`web_agent.js`) added before
 //! the page's scripts, and asks the helper to find, change and lock numbers.
-//! The game's page gets no access to OpenTrainer's commands (only the main
+//! The game's page gets no access to JuiceBox Trainer's commands (only the main
 //! window and the overlay do, see `capabilities/default.json`).
 
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ pub const LABEL: &str = "webgame";
 /// How long a call to the helper may take.
 const CALL_TIMEOUT: Duration = Duration::from_secs(20);
 const MAX_GAMES: usize = 200;
-const MAX_CHEATS: usize = ot_packs::web::MAX_CHEATS;
+const MAX_CHEATS: usize = jb_packs::web::MAX_CHEATS;
 
 fn err(kind: &'static str, message: impl Into<String>) -> CommandError {
     CommandError::new(kind, message)
@@ -41,7 +41,7 @@ pub struct WebGame {
 
 pub(crate) fn app_dir() -> CmdResult<PathBuf> {
     std::env::var_os("APPDATA")
-        .map(|a| PathBuf::from(a).join("OpenTrainer"))
+        .map(|a| PathBuf::from(a).join(jb_core::names::FOLDER))
         .ok_or_else(|| err("noAppData", "%APPDATA% is not set"))
 }
 
@@ -110,7 +110,7 @@ fn save_json(path: &std::path::Path, value: &impl Serialize) -> CmdResult<()> {
 }
 
 fn game_id(name: &str, url: &str) -> String {
-    ot_packs::community::table_id(name, url)
+    jb_packs::community::table_id(name, url)
 }
 
 fn add_game(dir: &std::path::Path, name: &str, url: &str, today: &str) -> CmdResult<WebGame> {
@@ -161,7 +161,7 @@ pub fn web_games() -> CmdResult<Vec<WebGame>> {
 /// Adds a web game by name and address.
 #[tauri::command]
 pub fn web_game_add(name: String, url: String) -> CmdResult<WebGame> {
-    add_game(&app_dir()?, &name, &url, &ot_packs::share::today())
+    add_game(&app_dir()?, &name, &url, &jb_packs::share::today())
 }
 
 /// Removes a web game (and its saved cheats).
@@ -172,10 +172,10 @@ pub fn web_game_remove(id: String) -> CmdResult<()> {
 
 // ----- saved cheats for a web game ----------------------------------------------------------
 
-pub use ot_packs::web::{WebCheat, WebPack};
+pub use jb_packs::web::{WebCheat, WebPack};
 
 fn check_cheat(c: &WebCheat) -> CmdResult<WebCheat> {
-    ot_packs::web::check_cheat(c).map_err(|e| err("badRequest", e))
+    jb_packs::web::check_cheat(c).map_err(|e| err("badRequest", e))
 }
 
 fn cheats_file(dir: &std::path::Path, id: &str) -> PathBuf {
@@ -235,8 +235,8 @@ pub fn pack_for(
         return Err(err("badRequest", "save some cheats for this game first"));
     }
     let pack = WebPack {
-        format: ot_packs::web::FORMAT,
-        id: ot_packs::web::pack_id(&game.name, &game.url),
+        format: jb_packs::web::FORMAT,
+        id: jb_packs::web::pack_id(&game.name, &game.url),
         game: game.name,
         url: game.url,
         by: by.to_string(),
@@ -244,7 +244,7 @@ pub fn pack_for(
         added: Some(today.to_string()),
         cheats,
     };
-    ot_packs::web::check_pack(&pack, false).map_err(|e| err("badRequest", e))
+    jb_packs::web::check_pack(&pack, false).map_err(|e| err("badRequest", e))
 }
 
 /// Saves a web game's cheats as an `.otweb` file where the player picks (to
@@ -262,7 +262,7 @@ pub async fn web_export(
         &id,
         &by,
         notes.as_deref(),
-        &ot_packs::share::today(),
+        &jb_packs::share::today(),
     )?;
     let text = serde_json::to_string_pretty(&pack).map_err(|e| err("io", e.to_string()))?
         + "
@@ -271,8 +271,8 @@ pub async fn web_export(
         .dialog()
         .file()
         .set_title("Save the cheats to share")
-        .set_file_name(ot_packs::web::file_name(&pack))
-        .add_filter("OpenTrainer web cheats", &[ot_packs::web::EXTENSION]);
+        .set_file_name(jb_packs::web::file_name(&pack))
+        .add_filter("JuiceBox Trainer web cheats", &[jb_packs::web::EXTENSION]);
     if let Ok(docs) = app.path().document_dir() {
         dialog = dialog.set_directory(docs);
     }
@@ -281,7 +281,7 @@ pub async fn web_export(
     };
     let mut path = path.into_path().map_err(|e| err("io", e.to_string()))?;
     if path.extension().is_none() {
-        path.set_extension(ot_packs::web::EXTENSION);
+        path.set_extension(jb_packs::web::EXTENSION);
     }
     std::fs::write(&path, text).map_err(|e| err("io", format!("{}: {e}", path.display())))?;
     Ok(Some(path.display().to_string()))
@@ -295,8 +295,12 @@ pub async fn web_pick_file(app: AppHandle) -> CmdResult<Option<String>> {
         .file()
         .set_title("Open web cheats")
         .add_filter(
-            "OpenTrainer web cheats",
-            &[ot_packs::web::EXTENSION, "json"],
+            "JuiceBox Trainer web cheats",
+            &[
+                jb_packs::web::EXTENSION,
+                jb_packs::web::LEGACY_EXTENSION,
+                "json",
+            ],
         )
         .blocking_pick_file()
         .map(|p| {
@@ -311,12 +315,12 @@ fn read_file(path: &std::path::Path) -> CmdResult<WebPack> {
     let size = std::fs::metadata(path)
         .map_err(|e| err("io", format!("couldn't open the file: {e}")))?
         .len();
-    if size > ot_packs::web::MAX_BYTES as u64 {
+    if size > jb_packs::web::MAX_BYTES as u64 {
         return Err(err("badRequest", "the file is too big to be web cheats"));
     }
     let bytes =
         std::fs::read(path).map_err(|e| err("io", format!("couldn't open the file: {e}")))?;
-    ot_packs::web::parse_pack(&bytes).map_err(|e| err("badRequest", e))
+    jb_packs::web::parse_pack(&bytes).map_err(|e| err("badRequest", e))
 }
 
 /// Reads an `.otweb` file (to show what's in it before adding it).
@@ -336,7 +340,7 @@ pub struct WebInstalled {
 }
 
 fn install(dir: &std::path::Path, pack: &WebPack, today: &str) -> CmdResult<WebInstalled> {
-    let pack = ot_packs::web::check_pack(pack, false).map_err(|e| err("badRequest", e))?;
+    let pack = jb_packs::web::check_pack(pack, false).map_err(|e| err("badRequest", e))?;
     let url = check_url(&pack.url)?.to_string();
     let game = match load_games(dir).into_iter().find(|g| g.url == url) {
         Some(g) => g,
@@ -354,7 +358,7 @@ fn install(dir: &std::path::Path, pack: &WebPack, today: &str) -> CmdResult<WebI
 /// if it isn't in the list yet). Cheats already in the list are skipped.
 #[tauri::command]
 pub fn web_install(pack: WebPack) -> CmdResult<WebInstalled> {
-    install(&app_dir()?, &pack, &ot_packs::share::today())
+    install(&app_dir()?, &pack, &jb_packs::share::today())
 }
 
 // ----- the game window --------------------------------------------------------------------------
@@ -447,7 +451,7 @@ pub fn web_reload(app: AppHandle) -> CmdResult<()> {
         .map_err(|e| err("webGame", format!("couldn't reload the game: {e}")))
 }
 
-/// Opens a web game in OpenTrainer's game window (closing one that's open).
+/// Opens a web game in JuiceBox Trainer's game window (closing one that's open).
 #[tauri::command]
 pub async fn web_open(
     id: String,
@@ -461,7 +465,7 @@ pub async fn web_open(
         let _ = w.destroy();
     }
     WebviewWindowBuilder::new(&app, LABEL, WebviewUrl::External(url))
-        .title(format!("{} · OpenTrainer", game.name))
+        .title(format!("{} · JuiceBox Trainer", game.name))
         .inner_size(1280.0, 800.0)
         .initialization_script_for_all_frames(AGENT_JS)
         .build()
@@ -490,7 +494,7 @@ pub fn web_close(app: AppHandle, state: State<'_, WebState>) {
     *state.open.lock().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
-/// The helper calls OpenTrainer may make.
+/// The helper calls JuiceBox Trainer may make.
 const CALLS: &[&str] = &[
     "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state", "names",
     "near",
@@ -504,7 +508,7 @@ fn call_script(method: &str, args: &Value) -> CmdResult<String> {
     let method = serde_json::to_string(method).map_err(|e| err("io", e.to_string()))?;
     let args = serde_json::to_string(args).map_err(|e| err("io", e.to_string()))?;
     Ok(format!(
-        "(() => {{ const a = window.__otAgent; return a ? a.callJson({method}, {args}) : '{{\"error\":\"noAgent\"}}'; }})()"
+        "(() => {{ const a = window.__jbAgent; return a ? a.callJson({method}, {args}) : '{{\"error\":\"noAgent\"}}'; }})()"
     ))
 }
 
@@ -523,7 +527,7 @@ fn parse_answer(raw: &str) -> CmdResult<Value> {
         return Err(if e == "noAgent" {
             err(
                 "webGame",
-                "OpenTrainer's helper isn't in this page yet: wait for the game to load, or open it again",
+                "JuiceBox Trainer's helper isn't in this page yet: wait for the game to load, or open it again",
             )
         } else {
             err("webGame", e.to_string())
@@ -626,7 +630,7 @@ fn free_name(cheats: &[WebCheat], name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ot_packs::web::WebTarget;
+    use jb_packs::web::WebTarget;
 
     #[test]
     fn web_addresses() {

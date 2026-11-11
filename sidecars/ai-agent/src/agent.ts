@@ -9,8 +9,8 @@ import { z } from "zod";
 import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
-/** The guarded tools ot-mcp offers (crates/ot-mcp/src/tools.rs). */
-export const OT_TOOLS = [
+/** The guarded tools jb-mcp offers (crates/jb-mcp/src/tools.rs). */
+export const JB_TOOLS = [
   "list_processes",
   "attach",
   "detach",
@@ -120,7 +120,7 @@ export type QueryFn = (params: { prompt: string; options?: Options }) => AsyncIt
 
 /**
  * Query options. The agent gets no built-in tools (no shell, files or web):
- * only the guarded ot-mcp tools and ask_player, all pre-approved, and
+ * only the guarded jb-mcp tools and ask_player, all pre-approved, and
  * anything else is denied. No user settings, hooks or plugins are loaded.
  */
 export function buildOptions(
@@ -144,12 +144,12 @@ export function buildOptions(
   const web = start.task === "webTrainer";
 
   const env: Record<string, string | undefined> = { ...process.env };
-  // Settings inherited from another Claude program (if OpenTrainer was
+  // Settings inherited from another Claude program (if JuiceBox Trainer was
   // started from one) would make the engine use that program's login.
   for (const key of Object.keys(env)) {
     if (/^(CLAUDECODE$|CLAUDE_CODE_|CLAUDE_AGENT_SDK_)/i.test(key)) delete env[key];
   }
-  env.CLAUDE_AGENT_SDK_CLIENT_APP = `opentrainer/${appVersion}`;
+  env.CLAUDE_AGENT_SDK_CLIENT_APP = `juicebox-trainer/${appVersion}`;
   if (start.backend === "local") {
     // Ollama and LM Studio speak the same Messages API; any token works.
     env.ANTHROPIC_BASE_URL = start.localUrl?.trim() || DEFAULT_LOCAL_URL;
@@ -176,17 +176,17 @@ export function buildOptions(
   const analysis = start.task !== "explainSave" && start.task !== "webTrainer" && start.analysis ? start.analysis : undefined;
   // The app's link to its game window goes to the tool server only.
   const link =
-    web && process.env.OT_WEB_LINK && process.env.OT_WEB_TOKEN
-      ? { OT_WEB_LINK: process.env.OT_WEB_LINK, OT_WEB_TOKEN: process.env.OT_WEB_TOKEN }
+    web && process.env.JB_WEB_LINK && process.env.JB_WEB_TOKEN
+      ? { JB_WEB_LINK: process.env.JB_WEB_LINK, JB_WEB_TOKEN: process.env.JB_WEB_TOKEN }
       : undefined;
-  delete env.OT_WEB_LINK;
-  delete env.OT_WEB_TOKEN;
+  delete env.JB_WEB_LINK;
+  delete env.JB_WEB_TOKEN;
   // The tool server lists only this session's tools (smaller context, v1.21.0).
   const pictures = start.pictures !== false;
   const keep = (list: readonly string[]) =>
     list.filter((t) => pictures || !(PICTURE_TOOLS as readonly string[]).includes(t));
-  const tools = keep(explain ? EXPLAIN_TOOLS : web ? WEB_TOOLS : local ? LOCAL_TOOLS : OT_TOOLS);
-  const serverEnv: Record<string, string> = { ...(link ?? {}), OT_MCP_TOOLS: tools.join(",") };
+  const tools = keep(explain ? EXPLAIN_TOOLS : web ? WEB_TOOLS : local ? LOCAL_TOOLS : JB_TOOLS);
+  const serverEnv: Record<string, string> = { ...(link ?? {}), JB_MCP_TOOLS: tools.join(",") };
 
   return {
     model: start.model ?? DEFAULT_MODEL,
@@ -203,16 +203,16 @@ export function buildOptions(
         : SYSTEM_PROMPT,
     tools: [],
     mcpServers: {
-      ot: { type: "stdio", command: mcp.command, args: mcp.args, env: serverEnv },
+      jb: { type: "stdio", command: mcp.command, args: mcp.args, env: serverEnv },
       ui,
       ...(analysis ? { rea: { type: "stdio" as const, command: analysis.command, args: analysis.args } } : {}),
     },
     allowedTools: explain
-      ? tools.map((t) => `mcp__ot__${t}`)
+      ? tools.map((t) => `mcp__jb__${t}`)
       : web
-        ? [...tools.map((t) => `mcp__ot__${t}`), "mcp__ui__ask_player"]
+        ? [...tools.map((t) => `mcp__jb__${t}`), "mcp__ui__ask_player"]
         : [
-          ...tools.map((t) => `mcp__ot__${t}`),
+          ...tools.map((t) => `mcp__jb__${t}`),
           "mcp__ui__ask_player",
           // Every tool of the player's analysis server (server-level rule).
           ...(analysis ? ["mcp__rea"] : []),
@@ -276,7 +276,7 @@ const ACTIVITY: Record<string, string> = {
   note_save: "Keeping a note for next time",
 };
 
-/** `mcp__ot__scan_first` → `scan_first`. */
+/** `mcp__jb__scan_first` → `scan_first`. */
 export function shortName(name: string): string {
   return name.replace(/^mcp__[^_]+__/, "");
 }
@@ -312,7 +312,7 @@ export async function runSession(
     });
     return;
   }
-  if (start.task === "webTrainer" && (!start.web || !process.env.OT_WEB_LINK)) {
+  if (start.task === "webTrainer" && (!start.web || !process.env.JB_WEB_LINK)) {
     io.send({
       type: "finished",
       ok: false,

@@ -1,6 +1,11 @@
-# OpenTrainer user guide
+# JuiceBox Trainer user guide
 
-OpenTrainer gives you cheats in **single-player PC games**: infinite health, more gold, faster
+JuiceBox Trainer (JUICE: Jackuri's Ultimate In-game Cheat Engine) was called **OpenTrainer** before
+version 1.23.0. Updating from OpenTrainer removes the old program and brings your packs, cheats,
+save backups and settings along on the first start; nothing is lost. Packs now end in `.juice`
+(and web cheats in `.juiceweb`); OpenTrainer's `.otpack` and `.otweb` files still open.
+
+JuiceBox Trainer gives you cheats in **single-player PC games**: infinite health, more gold, faster
 movement and so on. It also backs up and edits your saves, and can make new cheats with AI.
 
 It never works in online or multiplayer games, or while a game's anti-cheat is running. It checks
@@ -8,38 +13,38 @@ every game first and refuses those. That can't be switched off.
 
 Some games come with anti-cheat but have an official way to play without it, like Halo: The Master
 Chief Collection ("Anti-Cheat Disabled" when you press Play in Steam). Started that way, nothing of
-the anti-cheat runs and OpenTrainer can attach. It checks again every few seconds and stops if the
+the anti-cheat runs and JuiceBox Trainer can attach. It checks again every few seconds and stops if the
 anti-cheat starts. Games whose anti-cheat always runs (for example Elden Ring, Dragon Ball
-Xenoverse 2 or Dune: Awakening started normally) stay refused. OpenTrainer never switches anti-cheat
+Xenoverse 2 or Dune: Awakening started normally) stay refused. JuiceBox Trainer never switches anti-cheat
 off or gets around it.
 
 ## Install
 
-1. Download `OpenTrainer_<version>_x64-setup.exe` from the
-   [releases page](https://github.com/jackuri/opentrainer/releases).
+1. Download `JuiceBoxTrainer_<version>_x64-setup.exe` from the
+   [releases page](https://github.com/jackuri/juicebox-trainer/releases).
 2. Double-click it.
-3. Windows may say **"Windows protected your PC"**. OpenTrainer isn't code-signed yet, which costs
+3. Windows may say **"Windows protected your PC"**. JuiceBox Trainer isn't code-signed yet, which costs
    money and is planned. Click **More info**, then **Run anyway**.
 4. Follow the installer. It installs for your Windows account only and doesn't need admin rights.
 
-To uninstall, use **Windows Settings → Apps → Installed apps → OpenTrainer → Uninstall**. Your packs,
+To uninstall, use **Windows Settings → Apps → Installed apps → JuiceBox Trainer → Uninstall**. Your packs,
 settings and save backups are kept (see "Where your things are" below). Ticking "Delete the
 application data" also removes the downloaded AI engine.
 
 **Antivirus warnings:** trainers read and change other programs' memory, so some antivirus programs
-flag them. OpenTrainer doesn't hide what it does. If yours complains, check that you downloaded it
+flag them. JuiceBox Trainer doesn't hide what it does. If yours complains, check that you downloaded it
 from the releases page above. You can compare the file with `SHA256SUMS.txt` there.
 
 ## The agreement
 
-The first time you open OpenTrainer (and if the agreement ever changes), it asks you to read a
-short agreement: play fair (cheats only alone or with friends you invited) and use OpenTrainer at
+The first time you open JuiceBox Trainer (and if the agreement ever changes), it asks you to read a
+short agreement: play fair (cheats only alone or with friends you invited) and use JuiceBox Trainer at
 your own risk (its makers aren't responsible if an account is banned or a save breaks). Tick the
 box and type your name to sign. **About** shows it again.
 
 ## The tabs
 
-The tabs are in the bar on the left. The bottom of that bar says which game OpenTrainer is
+The tabs are in the bar on the left. The bottom of that bar says which game JuiceBox Trainer is
 attached to, if any.
 
 | Tab | What it's for |
@@ -50,7 +55,7 @@ attached to, if any.
 | **Save backups** | Back up, compare, restore and edit saves |
 | **Make a trainer (AI)** | Let the AI helper find cheats for a game with you |
 | **Web games** | Games that run in a web page: find and lock values |
-| **Themes** | Change how OpenTrainer looks |
+| **Themes** | Change how JuiceBox Trainer looks |
 | **Help** | What went wrong lately and what to try, and common questions |
 | **About** | Version, updates, this guide |
 
@@ -67,7 +72,7 @@ Or do it yourself:
 
 1. Start the game.
 2. In **Cheats**, pick the game under **Your running games** on the left (click **Refresh** if you
-   just started it). OpenTrainer checks it for anti-cheat. A game OpenTrainer doesn't recognise
+   just started it). JuiceBox Trainer checks it for anti-cheat. A game JuiceBox Trainer doesn't recognise
    (not in the Games tab and no pack yet)? Tick **Show all running programs** and pick its exe.
    The game pickers in **Make a trainer (AI)** and **Save backups** work the same way.
 3. Click **Attach**. Your saves are backed up first.
@@ -75,8 +80,8 @@ Or do it yourself:
    several, click **Load** on the one you want. No pack yet? Click **Get a pack…**.
 5. Turn cheats on and off with their switches or keys (shown next to each cheat, like `F1`).
 
-When you close the game, unload the pack, detach or close OpenTrainer, every change goes back to how
-the game had it. If OpenTrainer ever crashes, it undoes leftover changes the next time it starts.
+When you close the game, unload the pack, detach or close JuiceBox Trainer, every change goes back to how
+the game had it. If JuiceBox Trainer ever crashes, it undoes leftover changes the next time it starts.
 
 ### No pack for your game? Find a value
 
@@ -88,15 +93,15 @@ asking simple questions, with no value types or memory addresses:
    like a health bar? Click **There's no number on screen**, then say whether it **went down** or
    **went up** each time you change it.
 3. Change it in the game (spend some gold, take a hit) and type the new number. Repeat until only a
-   few places are left. OpenTrainer then tries them one by one and asks **Does it show 625 now?**
+   few places are left. JuiceBox Trainer then tries them one by one and asks **Does it show 625 now?**
    Answer **Yes** or **No**. Your real number is put back after each try. Some games only redraw
    the number when something happens: open a menu or move, then look again.
 4. Found it? Choose **Keep it at** or **Set it once to** and a number, then:
    - **Use it now**: works right away, until you close the game (it's in the address list below).
    - **Save as a cheat (with a hotkey)**: adds it to your own pack for this game, "*Game* (my
      cheats)", with the next free key (`F1`, `F2`, …). If the value moves each time the game starts,
-     OpenTrainer asks you to restart the game and find it once more, then click **Finish saving**.
-     Keep OpenTrainer open while you do that.
+     JuiceBox Trainer asks you to restart the game and find it once more, then click **Finish saving**.
+     Keep JuiceBox Trainer open while you do that.
 
 The old tools (**Scanner**, **Pointers** and so on) are still there for experts. Scanner results now
 update their values live. **Memory** shows the game's memory as a grid of bytes, updated every
@@ -115,21 +120,21 @@ Changes to the game's code are put back when you detach.
 - **Show overlay:** a see-through list of cheats on top of the game. It works in windowed and
   borderless games, not exclusive fullscreen.
 - **Phone remote:** click **Turn on** and scan the QR code with your phone on the same Wi-Fi. Each
-  code works once. **Turn off** ends it. It's off every time OpenTrainer starts.
+  code works once. **Turn off** ends it. It's off every time JuiceBox Trainer starts.
 
 ## Packs
 
 A **pack** is the list of cheats for one game. It's a small file with no programs inside.
-OpenTrainer checks every pack before using it, and a pack can only change game values and a few
+JuiceBox Trainer checks every pack before using it, and a pack can only change game values and a few
 checked bytes of game code. Everything is put back when the cheat is turned off.
 
 In the **Packs** tab:
 
-- **Share a pack:** click **Export** and save the `.otpack` file. Send it to a friend.
-- **Open a pack someone sent you:** double-click the `.otpack` file, drop it on the OpenTrainer
+- **Share a pack:** click **Export** and save the `.juice` file. Send it to a friend.
+- **Open a pack someone sent you:** double-click the `.juice` file (or an `.otpack` from OpenTrainer), drop it on the JuiceBox Trainer
   window, or click **Open a pack or table…**. A plain `pack.json` (from a forum or the community
   repository) works too. You see what's inside before anything is installed. If you
-  already have a pack for that game, OpenTrainer asks before replacing it and keeps the old one as a
+  already have a pack for that game, JuiceBox Trainer asks before replacing it and keeps the old one as a
   backup.
 - **Use a Cheat Engine table:** many games have free cheat tables (`.CT` files) shared on forums
   such as FearLessRevolution. The easy way: in **Games**, click **Find a cheat table** on the game,
@@ -137,10 +142,10 @@ In the **Packs** tab:
   game's table page, a green button opens that page directly. Your browser opens the page or the
   search; open the table's page and download its `.CT` file (FearLess Revolution asks you to sign
   in first). Back in
-  OpenTrainer, **Cheat tables in your Downloads** shows it within a few seconds, already matched to
+  JuiceBox Trainer, **Cheat tables in your Downloads** shows it within a few seconds, already matched to
   the game: click **Turn into cheats**. You can also drop a table on the window or click **Open a
   pack or table…**. Before installing, type who made the table and its page address: they're kept
-  with the pack and shown to anyone it's shared with. OpenTrainer never downloads or re-uploads
+  with the pack and shown to anyone it's shared with. JuiceBox Trainer never downloads or re-uploads
   tables itself.
   - **Tables other players found:** **Find a cheat table** also lists tables other players linked
     for that game, with who made them. **Open its page** opens the table's own page.
@@ -151,18 +156,18 @@ In the **Packs** tab:
     terms they agreed to. Table makers: see [For cheat table makers](CREATORS.md).
   - **Share a table's link:** after turning a table into cheats (with its maker and page filled
     in), click **Share the table's link** next to it in **Packs**. Only the link goes to the
-    community list, so other players find the table on its maker's page. OpenTrainer turns its number values (health, money, ammo…, also ones found through
+    community list, so other players find the table on its maker's page. JuiceBox Trainer turns its number values (health, money, ammo…, also ones found through
   pointers) into a pack. You see which cheats came over and which entries were left out, and why.
-  - **Scripts are never run.** OpenTrainer reads them only to understand them. The common kinds it
+  - **Scripts are never run.** JuiceBox Trainer reads them only to understand them. The common kinds it
     redoes its own safe way: scripts that find a base address (so the values under it come over),
     save-slot numbers, and scripts that just swap a few bytes of game code (they become on/off
     cheats), and scripts that hook a line of game code just to grab a pointer (like `battle_ptr`):
-    OpenTrainer reads that pointer itself instead. Scripts that inject their own logic ("unlimited
+    JuiceBox Trainer reads that pointer itself instead. Scripts that inject their own logic ("unlimited
     health for the player only") are left out; freezing the value (e.g. Current Health) usually does
     the same job.
   - **Values found while you play:** some values (often battle stats) are found the moment the game
     uses them. Until then they show "not found yet". Click **Set** and do it in the game (start a
-    battle, take a hit): OpenTrainer waits a few seconds and says "Waiting for the game…". To read
+    battle, take a hit): JuiceBox Trainer waits a few seconds and says "Waiting for the game…". To read
     them it attaches to the game as a debugger for a moment, like "find what writes". It never hides
     that; a game that refuses debuggers may close.
   - If the table doesn't say which game it's for, click **Choose the game's exe…** and pick the
@@ -172,7 +177,7 @@ In the **Packs** tab:
   - A table is made for one version of a game. If a value shows `??` after a game update, look for
     a newer table.
 - **Share a pack with everyone:** click **Share with everyone** next to one of your packs.
-  OpenTrainer puts it on the community list for you. You need a free GitHub account: the first time,
+  JuiceBox Trainer puts it on the community list for you. You need a free GitHub account: the first time,
   click **Sign in with GitHub**, then **Copy the code and open GitHub**, paste the code on GitHub's
   page and click **Authorize**. Tick that every cheat works, optionally say which game version you
   tested, and click **Share**. A maintainer checks each pack before it shows up in the list. A pack
@@ -180,25 +185,25 @@ In the **Packs** tab:
   allows it. **Sign out** (in the same window) removes the sign-in from this PC.
 - **Community packs:** packs other players shared. Click **See what's inside**, then **Install**.
   To add yours to the list, click **Share your pack**.
-- **Remove** moves a pack out of the way. A copy is kept in `%APPDATA%\OpenTrainer\packs-removed`.
+- **Remove** moves a pack out of the way. A copy is kept in `%APPDATA%\JuiceBox Trainer\packs-removed`.
 
-When a game update breaks a pack, load it anyway and click **Try to repair** in Cheats. OpenTrainer
+When a game update breaks a pack, load it anyway and click **Try to repair** in Cheats. JuiceBox Trainer
 looks for the same code in the new version.
 
 ## Save backups
 
-OpenTrainer backs up a game's saves when you attach to it, when the game starts and when it closes.
+JuiceBox Trainer backs up a game's saves when you attach to it, when the game starts and when it closes.
 You can also click **Back up now**.
 
 - **Compare with now** shows what changed since a backup. **Explain with AI** says what the values
   probably are, like "this is your gold".
-- **Add a game or a save folder** OpenTrainer didn't find: click **Browse…** and pick the game's
+- **Add a game or a save folder** JuiceBox Trainer didn't find: click **Browse…** and pick the game's
   `.exe` or the folder.
 - **Restore** puts a backup back. The game must be closed. Your current saves are backed up first,
   so a restore can be undone.
 - **Edit saves:** open a save file, change a value and click **Save changes**. The game must be closed,
   and the saves are backed up first. **Quick codes** from a game's pack do common edits in one click.
-  Saves OpenTrainer can show as named values: JSON, XML, INI (also GameMaker and Godot settings
+  Saves JuiceBox Trainer can show as named values: JSON, XML, INI (also GameMaker and Godot settings
   files), YAML, SQLite databases, Unreal Engine saves, Unity PlayerPrefs and RPG Maker MV / MZ saves, also when they
   are compressed or Base64 text. Skyrim and Fallout 4 saves show their summary (name, level, place)
   but can't be changed. Anything else opens as bytes (hex).
@@ -235,9 +240,9 @@ What it needs:
    - a free AI running on your own PC, with [Ollama](https://ollama.com) or
      [LM Studio](https://lmstudio.ai). This is slower and makes more mistakes.
 
-The helper can only use OpenTrainer's guarded tools. It can't run programs or read your files. It
+The helper can only use JuiceBox Trainer's guarded tools. It can't run programs or read your files. It
 refuses games with anti-cheat, and its test changes are undone when it stops. You set the most it
-may spend. Every step is logged in `%LOCALAPPDATA%\OpenTrainer\ai-logs`.
+may spend. Every step is logged in `%LOCALAPPDATA%\JuiceBox Trainer\ai-logs`.
 
 Choices on the AI screen (1.21 and newer):
 
@@ -250,18 +255,18 @@ Choices on the AI screen (1.21 and newer):
 The helper also checks first whether you or the community list already have cheats for the game,
 looks at the values next to one it found (health is often next to max health and ammo), only saves
 cheats it tried in the game, and keeps a short note of what worked for next time (in
-`%LOCALAPPDATA%\OpenTrainer\ai-notes`; delete the folder to forget them).
+`%LOCALAPPDATA%\JuiceBox Trainer\ai-notes`; delete the folder to forget them).
 
 ## Web games
 
-Some games run in a web page. OpenTrainer can open them in its own window and change their
+Some games run in a web page. JuiceBox Trainer can open them in its own window and change their
 numbers.
 
 1. Open **Web games**. Under **Add a web game**, type a name and paste the game's address (copy it
    from your browser), then click **Add**.
-2. Click **Play**. The game opens in OpenTrainer's game window. Play as usual (sign in, start the
+2. Click **Play**. The game opens in JuiceBox Trainer's game window. Play as usual (sign in, start the
    game).
-3. Back in OpenTrainer, under **Find a value**, type a number you see in the game (gold, health,
+3. Back in JuiceBox Trainer, under **Find a value**, type a number you see in the game (gold, health,
    ammo…) and click **Find**. Change it in the game (spend gold, take a hit), then click **It's now
    this value** with the new number, or **Went up** / **Went down**. Repeat until only a few are
    left.
@@ -296,51 +301,51 @@ yet. If a game is updated, find its values again.
 ## Themes
 
 Open **Themes** and click a look. It changes straight away and is remembered next time; the in-game
-overlay follows. **OpenTrainer** is the standard look. There are game-inspired ones (Retro Arcade,
+overlay follows. **JuiceBox Trainer** is the standard look. There are game-inspired ones (Retro Arcade,
 Next-Gen Blue, Console Green, Pocket LCD, Visor HUD, Wasteland Terminal, Amber Terminal, Inferno)
 and a light one, **Daylight**.
 
 ## Updates
 
-Open **About** and click **Update**. If there's a newer version, OpenTrainer downloads it, puts the
+Open **About** and click **Update**. If there's a newer version, JuiceBox Trainer downloads it, puts the
 games' original code back, installs it and opens again in the new version, all in one click. If you
 already have the newest version, it says so. Updates are
-checked against OpenTrainer's own signature before they're installed.
+checked against JuiceBox Trainer's own signature before they're installed.
 
-Automatic updates switch on once OpenTrainer is published publicly. Until then, About says so, and
+Automatic updates switch on once JuiceBox Trainer is published publicly. Until then, About says so, and
 new versions are on the releases page.
 
 ## Where your things are
 
 | What | Folder |
 |---|---|
-| Packs | `%APPDATA%\OpenTrainer\packs` |
-| Presets, your keys, notes | `%APPDATA%\OpenTrainer\settings` |
-| Save backups | `%LOCALAPPDATA%\OpenTrainer\saves` |
-| AI logs | `%LOCALAPPDATA%\OpenTrainer\ai-logs` |
-| AI engine | `%LOCALAPPDATA%\org.opentrainer.desktop\ai-helper` |
-| Problems (Help page) | `%LOCALAPPDATA%\OpenTrainer\problems.json` |
+| Packs | `%APPDATA%\JuiceBox Trainer\packs` |
+| Presets, your keys, notes | `%APPDATA%\JuiceBox Trainer\settings` |
+| Save backups | `%LOCALAPPDATA%\JuiceBox Trainer\saves` |
+| AI logs | `%LOCALAPPDATA%\JuiceBox Trainer\ai-logs` |
+| AI engine | `%LOCALAPPDATA%\org.juiceboxtrainer.desktop\ai-helper` |
+| Problems (Help page) | `%LOCALAPPDATA%\JuiceBox Trainer\problems.json` |
 
 ## Something isn't working
 
-When something goes wrong, OpenTrainer says what happened and what to try, and keeps it on the
+When something goes wrong, JuiceBox Trainer says what happened and what to try, and keeps it on the
 **Help** page (a red dot shows on **Help** when there's something new):
 
 - **A game closed:** the Cheats screen says whether it closed normally or crashed, where it crashed
   (the game itself, or the graphics driver), which cheats were on and what you changed just before.
   If it crashed right after you turned a cheat on, try the game without that cheat.
 - **A web game page crashed or froze:** its cheats show what happened and a **Reload game** button.
-- **OpenTrainer's screen went blank or froze:** it restarts its screen by itself and says so.
+- **JuiceBox Trainer's screen went blank or froze:** it restarts its screen by itself and says so.
 
 Click **Copy details** on a problem to paste it into a message when asking for help. The list stays
-on your PC (`%LOCALAPPDATA%\OpenTrainer\problems.json`).
+on your PC (`%LOCALAPPDATA%\JuiceBox Trainer\problems.json`).
 
-- **"Anti-cheat found" / the game is refused:** this is on purpose. OpenTrainer doesn't work while
+- **"Anti-cheat found" / the game is refused:** this is on purpose. JuiceBox Trainer doesn't work while
   anti-cheat runs. If the game's maker offers a way to play without anti-cheat, start it that way.
   Note that a running anti-cheat from *another* game also blocks: close that game first.
 - **A cheat shows as failed:** the game was probably updated. Try **Try to repair**, or make a new
   pack with the AI helper.
 - **The overlay doesn't show:** switch the game to windowed or borderless.
 - **The phone can't connect:** the PC and phone must be on the same Wi-Fi, and Windows must allow
-  OpenTrainer on private networks (it asks the first time).
+  JuiceBox Trainer on private networks (it asks the first time).
 - **The AI helper says "Not signed in":** click **Sign in** in the AI tab and sign in in the browser.

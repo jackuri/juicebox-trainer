@@ -76,7 +76,7 @@ describe("FindTable", () => {
     );
     render(<FindTable game={hk} onClose={vi.fn()} onError={vi.fn()} />);
     expect(await screen.findByText("HK v1.5")).toBeInTheDocument();
-    expect(screen.getByText(/by Maker · fearlessrevolution.com · 9 cheats OpenTrainer can use · added 2026-11-09/)).toBeInTheDocument();
+    expect(screen.getByText(/by Maker · fearlessrevolution.com · 9 cheats JuiceBox Trainer can use · added 2026-11-09/)).toBeInTheDocument();
     expect(screen.queryByText("Other")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open the page of HK v1.5" }));
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("community_open_table", { url: page }));
@@ -97,7 +97,7 @@ describe("DownloadedTables", () => {
     const onOpenTable = vi.fn();
     render(<DownloadedTables games={[hk]} onOpenTable={onOpenTable} />);
     expect(await screen.findByText("Hollow_Knight.CT")).toBeInTheDocument();
-    expect(screen.getByText(/for Hollow Knight · 12 cheats OpenTrainer can use/)).toBeInTheDocument();
+    expect(screen.getByText(/for Hollow Knight · 12 cheats JuiceBox Trainer can use/)).toBeInTheDocument();
     expect(screen.queryByText("Broken.CT")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Turn into cheats" }));
     expect(onOpenTable).toHaveBeenCalledWith(DOWNLOADED, "hollow_knight.exe");

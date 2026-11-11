@@ -1,5 +1,5 @@
 /*
- * OpenTrainer's themes (v1.14.0). Every screen is drawn with Tailwind's `zinc` (greys: 950 is the
+ * JuiceBox Trainer's themes (v1.14.0). Every screen is drawn with Tailwind's `zinc` (greys: 950 is the
  * app background, 900 cards, 800 controls, 100 text) and `emerald` (the accent) names, so a theme
  * is just these colours plus a few extras, set on any element with `data-theme`. The app sets it
  * on <html>; the theme picker also sets it on each preview card, so the previews are live.
@@ -13,7 +13,7 @@
  * and Tailwind's --radius-* (corner roundness).
  */
 
-/* OpenTrainer (the default): deep navy with an electric blue-violet accent. */
+/* JuiceBox Trainer (the default): deep navy with an electric blue-violet accent. */
 [data-theme="default"] {
   --color-zinc-950: #0e111a;
   --color-zinc-900: #171b28;

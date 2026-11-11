@@ -5,7 +5,7 @@ import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 
-/** Version, updates, the user guide and what OpenTrainer never does. */
+/** Version, updates, the user guide and what JuiceBox Trainer never does. */
 export function AboutView() {
   const [status, setStatus] = useState<UpdateStatus | null>(null);
   const [ai, setAi] = useState<AiStatus | null>(null);
@@ -75,7 +75,7 @@ export function AboutView() {
   return (
     <main className="flex min-h-0 max-w-3xl flex-col gap-5 overflow-y-auto p-6 text-sm" aria-label="About">
       <section>
-        <h2 className="text-2xl font-semibold tracking-tight">OpenTrainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">JuiceBox Trainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
         <p className="text-zinc-400">
           Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for single-player PC games.
         </p>
@@ -114,7 +114,7 @@ export function AboutView() {
         </div>
         {status?.enabled ? (
           <p className="text-xs text-zinc-500">
-            Gets the newest OpenTrainer and installs it. OpenTrainer closes for a moment (games get their original code back
+            Gets the newest JuiceBox Trainer and installs it. JuiceBox Trainer closes for a moment (games get their original code back
             first) and opens again in the new version.
           </p>
         ) : (
@@ -123,7 +123,7 @@ export function AboutView() {
         {result && (
           <div className="flex flex-col gap-1 rounded-lg bg-sky-950/40 px-3 py-2 text-sky-100" role="status">
             <p>
-              Updating to OpenTrainer {result.version}
+              Updating to JuiceBox Trainer {result.version}
               {result.date ? ` (${result.date})` : ""}…
             </p>
             {result.notes && <p className="max-h-40 overflow-y-auto whitespace-pre-wrap text-xs text-sky-200/80">{result.notes}</p>}
@@ -169,8 +169,8 @@ export function AboutView() {
         </section>
       )}
 
-      <section className="flex flex-col gap-1" aria-label="What OpenTrainer never does">
-        <h3 className="font-medium">What OpenTrainer never does</h3>
+      <section className="flex flex-col gap-1" aria-label="What JuiceBox Trainer never does">
+        <h3 className="font-medium">What JuiceBox Trainer never does</h3>
         <ul className="list-disc pl-5 text-zinc-400">
           <li>Work in online or multiplayer games, or in any game with anti-cheat. It checks every game and refuses those.</li>
           <li>Hide from, switch off or trick anti-cheat, DRM or ownership checks.</li>

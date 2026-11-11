@@ -13,7 +13,7 @@ describe("ThemeView", () => {
     const { container } = render(<ThemeView />);
     for (const t of THEMES) expect(screen.getByRole("button", { name: new RegExp(t.name) })).toBeInTheDocument();
     expect(container.querySelectorAll("[data-theme]")).toHaveLength(THEMES.length);
-    expect(screen.getByRole("button", { name: /OpenTrainer/ })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /JuiceBox Trainer/ })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("switches and remembers the theme when one is clicked", () => {
@@ -21,7 +21,7 @@ describe("ThemeView", () => {
     const terminal = screen.getByRole("button", { name: /Wasteland Terminal/ });
     fireEvent.click(terminal);
     expect(terminal).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /OpenTrainer/ })).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: /JuiceBox Trainer/ })).toHaveAttribute("aria-pressed", "false");
     expect(document.documentElement.dataset.theme).toBe("terminal");
     expect(localStorage.getItem(THEME_KEY)).toBe("terminal");
   });

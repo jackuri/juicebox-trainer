@@ -51,6 +51,8 @@ export default function App() {
   /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
   const [openPath, setOpenPath] = useState<OpenFile | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  /** The one-time "OpenTrainer is now JuiceBox Trainer" note is hidden. */
+  const [renameSeen, setRenameSeen] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
   /** Why the attached game closed (shown on the Cheats screen, v1.22.0). */
   const [closed, setClosed] = useState<Problem | null>(null);
@@ -78,10 +80,10 @@ export default function App() {
         setDropError(null);
         openOtpack(pack);
       } else if (paths.length > 0) {
-        setDropError("Only pack files (.otpack or pack.json) and Cheat Engine tables (.CT) can be dropped here.");
+        setDropError("Only pack files (.juice or pack.json) and Cheat Engine tables (.CT) can be dropped here.");
       }
     });
-    // Problems: a game closing, a page crashing, OpenTrainer's screen restarting.
+    // Problems: a game closing, a page crashing, JuiceBox Trainer's screen restarting.
     const stopProblem = onProblem((p) => {
       if (p.kind === "gameClosed") {
         setSession(null);
@@ -92,7 +94,7 @@ export default function App() {
         setNotice(p);
       }
     });
-    // Problems from last time (OpenTrainer closed after a bug, its screen restarted).
+    // Problems from last time (JuiceBox Trainer closed after a bug, its screen restarted).
     api.problemsList().then(
       (list) => {
         const fresh = (Array.isArray(list) ? list : []).filter((p) => !p.seen);
@@ -192,7 +194,7 @@ export default function App() {
         <div className="flex items-center gap-2.5 px-2">
           <Logo className="h-8 w-8 shrink-0" />
           <div className="min-w-0">
-            <h1 className="text-[15px] font-semibold leading-tight tracking-tight">OpenTrainer</h1>
+            <h1 className="text-[15px] font-semibold leading-tight tracking-tight">JuiceBox Trainer</h1>
             {info && (
               <span className="text-[11px] text-zinc-500" data-testid="version">
                 v{info.version}
@@ -258,9 +260,19 @@ export default function App() {
 
       <div className="grid min-h-0 grid-rows-[auto_1fr]">
       <div>
+        {info?.movedFromOpenTrainer && !renameSeen && (
+          <div className="flex items-center gap-3 bg-emerald-950/60 px-4 py-1.5 text-xs text-emerald-100" role="status">
+            <span className="flex-1">
+              OpenTrainer is now JuiceBox Trainer. Your packs, cheats, save backups and settings came along.
+            </span>
+            <button className="text-emerald-300 hover:text-emerald-100" aria-label="Hide" onClick={() => setRenameSeen(true)}>
+              ✕
+            </button>
+          </div>
+        )}
         {update && view !== "about" && (
           <div className="flex items-center gap-3 bg-sky-950/60 px-4 py-1.5 text-xs text-sky-100" role="status">
-            <span className="flex-1">OpenTrainer {update.version} is available.</span>
+            <span className="flex-1">JuiceBox Trainer {update.version} is available.</span>
             <button className="rounded bg-sky-900/70 px-2 py-0.5 hover:bg-sky-800" onClick={() => setView("about")}>
               See the update
             </button>
@@ -343,7 +355,7 @@ export default function App() {
             {recovered.length > 0 && (
               <div className="flex items-start gap-3 rounded-lg bg-amber-950/40 px-3 py-2 text-sm text-amber-200" role="status">
                 <div className="flex-1">
-                  <p>OpenTrainer closed unexpectedly last time. It put the games' original code back:</p>
+                  <p>JuiceBox Trainer closed unexpectedly last time. It put the games' original code back:</p>
                   <ul className="mt-1 list-disc pl-5 text-xs">
                     {recovered.map((r) => (
                       <li key={`${r.pid}-${r.exe}`}>
@@ -424,7 +436,7 @@ export default function App() {
               <div className="m-auto flex max-w-sm flex-col items-center text-center text-sm text-zinc-400">
                 <Logo className="mb-4 h-14 w-14 opacity-90" />
                 <p className="text-base font-medium text-zinc-200">Pick a game to start</p>
-                <p className="mt-1">Choose a single-player game from the list. OpenTrainer checks it, then you attach.</p>
+                <p className="mt-1">Choose a single-player game from the list. JuiceBox Trainer checks it, then you attach.</p>
                 <p className="mt-2 text-xs text-zinc-500">
                   Your game&apos;s saves are backed up when you attach (see Save backups).
                 </p>
