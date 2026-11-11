@@ -3,6 +3,7 @@
 
 mod agreement;
 mod ai;
+mod browser;
 mod commands;
 mod covers;
 mod dialogs;
@@ -12,6 +13,8 @@ mod hotkeys;
 mod library;
 mod my_cheats;
 mod overlay;
+mod page_watch;
+mod problems;
 mod remote;
 mod saves;
 mod sharing;
@@ -30,6 +33,8 @@ fn install_crash_handler(dir: std::path::PathBuf) {
     let default = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |panic| {
         default(panic);
+        // Kept for the Help page (v1.22.0).
+        problems::app_crash(&panic.to_string());
         for r in ot_core::journal::recover(&dir) {
             if r.restored > 0 || !r.problems.is_empty() {
                 eprintln!(
@@ -92,6 +97,28 @@ fn main() {
             }
         })
         .setup(move |app| {
+            problems::init(app.handle());
+            // OpenTrainer's own screen: if it crashes or freezes, say so and
+            // restart it instead of leaving a blank window (v1.22.0).
+            if let Some(main) = app.get_webview_window("main") {
+                let handle = app.handle().clone();
+                page_watch::watch(&main, move |failure| {
+                    problems::record(problems::app_screen(failure));
+                    if failure != page_watch::PageFailure::EngineGone
+                        && let Some(w) = handle.get_webview_window("main")
+                    {
+                        let _ = w.reload();
+                    }
+                });
+            }
+            // Notice a game closing whichever screen is showing (v1.22.0).
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(2));
+                    handle.state::<commands::AppState>().check_game_closed();
+                }
+            });
             if let Some(path) = sharing::otpack_arg(std::env::args()) {
                 sharing::open_from_shell(app.handle(), path);
             }
@@ -178,6 +205,10 @@ fn main() {
             sharing::packs_preview,
             sharing::packs_import,
             tables::tables_search,
+            problems::problems_list,
+            problems::problems_seen,
+            problems::problems_clear,
+            web::web_reload,
             agreement::agreement_status,
             agreement::agreement_sign,
             web::web_games,

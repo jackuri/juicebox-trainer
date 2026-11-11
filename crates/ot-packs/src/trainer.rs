@@ -286,6 +286,35 @@ impl Trainer {
         &self.pack
     }
 
+    /// Names of the cheats that are on (toggles on, values being held), and
+    /// whether each changes the game's code (a patch) rather than a value.
+    /// Reads nothing from the game, so it works after the game has closed.
+    pub fn active_cheats(&self) -> Vec<(String, bool)> {
+        self.slots
+            .iter()
+            .zip(&self.pack.cheats)
+            .filter(|(s, _)| s.active)
+            .map(|(_, c)| (c.name.clone(), matches!(c.implementation, Impl::Patch(_))))
+            .collect()
+    }
+
+    /// A cheat's name by id (the id itself if unknown).
+    pub fn cheat_name(&self, id: &str) -> String {
+        self.pack
+            .cheats
+            .iter()
+            .find(|c| c.id == id)
+            .map_or_else(|| id.to_string(), |c| c.name.clone())
+    }
+
+    /// Whether the cheat with this id changes the game's code (a patch).
+    pub fn changes_code(&self, id: &str) -> bool {
+        self.pack
+            .cheats
+            .iter()
+            .any(|c| c.id == id && matches!(c.implementation, Impl::Patch(_)))
+    }
+
     pub fn build(&self) -> &BuildMatch {
         &self.build
     }

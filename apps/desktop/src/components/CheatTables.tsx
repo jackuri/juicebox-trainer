@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type LibraryGame, type RecentTable, type TableLink, toCommandError } from "../lib/ipc";
+import { api, type LibraryGame, type RecentTable, type TableLink } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 import { dismiss, dismissed, exeFor, lastSearch, linksFor, matchGame, rememberSearch, siteOf } from "../lib/tables";
 
 const small = "rounded-lg bg-zinc-800 px-2.5 py-1.5 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700";
 
 /** Look for a free Cheat Engine table for one game, on its maker's site. */
 export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClose: () => void; onError: (m: string) => void }) {
-  const [opened, setOpened] = useState(false);
+  const [opened, setOpened] = useState<"page" | "search" | null>(null);
   /** Tables other players linked on the community list (null while loading). */
   const [links, setLinks] = useState<TableLink[] | null>(null);
 
@@ -25,9 +26,9 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
     try {
       await api.communityOpenTable(url);
       rememberSearch(game.id);
-      setOpened(true);
+      setOpened("page");
     } catch (e) {
-      onError(toCommandError(e).message);
+      onError(friendlyError(e));
     }
   }
 
@@ -35,9 +36,9 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
     try {
       await api.tablesSearch(site, game.name);
       rememberSearch(game.id);
-      setOpened(true);
+      setOpened("search");
     } catch (e) {
-      onError(toCommandError(e).message);
+      onError(friendlyError(e));
     }
   }
   return (
@@ -46,6 +47,14 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
         Players share free cheat tables (<code>.CT</code> files) for many games. Open one on its maker&apos;s page and
         download the <code>.CT</code> file: OpenTrainer spots it in your Downloads folder and turns it into cheats.
       </p>
+      {links && links.length > 0 && links[0] && (
+        <button
+          className="btn-accent self-start rounded-lg px-3 py-1.5 text-xs font-semibold"
+          onClick={() => void openLink(links[0]!.url)}
+        >
+          Open the {game.name} table page ({siteOf(links[0].url)})
+        </button>
+      )}
       {links && links.length > 0 && (
         <div className="flex flex-col gap-1" aria-label="Tables other players found">
           <p className="font-medium text-zinc-200">Tables other players found</p>
@@ -71,7 +80,7 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
       )}
       <div className="flex flex-wrap gap-1.5">
         <button className={small} onClick={() => void search("fearless")}>
-          Search FearLess Revolution
+          {links && links.length > 0 ? "Search FearLess Revolution for others" : "Search FearLess Revolution"}
         </button>
         <button className={small} onClick={() => void search("web")}>
           Search the web
@@ -82,8 +91,12 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
       </div>
       {opened && (
         <p className="text-emerald-300" role="status">
-          Opened in your browser. Some sites ask you to sign in before downloading. Check the table is for your game
-          version, and please thank its maker on their page.
+          Opened in your browser.{" "}
+          {opened === "search"
+            ? "Click your game in the list, then the .CT file under the first post."
+            : "Click the .CT file under the first post."}{" "}
+          FearLess Revolution asks you to sign in before downloading. Check the table is for your game version, and
+          please thank its maker on their page.
         </p>
       )}
     </div>

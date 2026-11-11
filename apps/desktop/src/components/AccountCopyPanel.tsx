@@ -5,8 +5,8 @@ import {
   type AccountsView,
   type CopyPlan,
   type CopyReport,
-  toCommandError,
-} from "../lib/ipc";
+  } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40";
 const select = "rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm";
@@ -65,7 +65,7 @@ export function AccountCopyPanel({ gameId, running, reloadKey, onCopied }: Props
     try {
       await action();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

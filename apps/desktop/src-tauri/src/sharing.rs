@@ -580,10 +580,7 @@ pub async fn community_open_credit(
     }
     .filter(|u| ot_packs::schema::is_support_url(u))
     .ok_or_else(|| CommandError::new("badRequest", "that page can't be opened from here"))?;
-    std::process::Command::new("explorer.exe")
-        .arg(url)
-        .spawn()
-        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    crate::browser::open_url(url)?;
     Ok(())
 }
 
@@ -598,10 +595,7 @@ pub async fn community_open_table(url: String, state: State<'_, SharingState>) -
             "that page isn't a table on the community list",
         ));
     }
-    std::process::Command::new("explorer.exe")
-        .arg(&url)
-        .spawn()
-        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    crate::browser::open_url(&url)?;
     Ok(())
 }
 

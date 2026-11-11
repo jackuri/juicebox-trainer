@@ -18,6 +18,7 @@ import {
   toCommandError,
   type TrainerView,
 } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const POLL_MS = 500;
 
@@ -55,7 +56,7 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
     (e: unknown) => {
       const err = toCommandError(e);
       if (isSessionLost(err)) onSessionLost(err);
-      else setError(err.message);
+      else setError(friendlyError(err));
     },
     [onSessionLost],
   );

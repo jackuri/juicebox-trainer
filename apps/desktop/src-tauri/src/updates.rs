@@ -94,10 +94,7 @@ pub async fn open_link(which: String) -> CmdResult<()> {
             ));
         }
     };
-    std::process::Command::new("explorer.exe")
-        .arg(url)
-        .spawn()
-        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    crate::browser::open_url(url)?;
     Ok(())
 }
 

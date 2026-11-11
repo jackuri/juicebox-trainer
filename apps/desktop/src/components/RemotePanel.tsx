@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type RemoteStatus, toCommandError } from "../lib/ipc";
+import { api, type RemoteStatus } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const POLL_MS = 2000;
 
@@ -26,7 +27,7 @@ export function RemotePanel() {
       const s = await fn();
       setStatus(s ?? null);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

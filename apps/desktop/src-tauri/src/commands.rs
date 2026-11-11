@@ -67,7 +67,21 @@ struct Live {
     list: Vec<ListEntry>,
     next_id: u64,
     trainer: Option<LoadedTrainer>,
+    /// The player's last changes (cheats turned on, values set), newest
+    /// last, to say what happened just before a game closed (v1.22.0).
+    changes: Vec<Change>,
 }
+
+/// One change the player made to the game.
+#[derive(Debug, Clone)]
+struct Change {
+    at: std::time::SystemTime,
+    what: String,
+    changes_code: bool,
+}
+
+/// Changes remembered per session.
+const CHANGES_KEPT: usize = 20;
 
 /// A pack applied to the attached game. Dropping it unregisters its hotkeys
 /// and restores every patch.
@@ -105,7 +119,81 @@ impl Live {
             list: Vec::new(),
             next_id: 1,
             trainer: None,
+            changes: Vec::new(),
         }
+    }
+
+    /// Remembers a change the player made ("Infinite ammo" was turned on).
+    fn note_change(&mut self, what: String, changes_code: bool) {
+        self.changes.push(Change {
+            at: std::time::SystemTime::now(),
+            what,
+            changes_code,
+        });
+        if self.changes.len() > CHANGES_KEPT {
+            self.changes.remove(0);
+        }
+    }
+
+    /// Notes a change to one of the trainer's cheats.
+    fn note_cheat(&mut self, id: &str, verb: &str) {
+        let Some(t) = self.trainer.as_ref() else {
+            return;
+        };
+        let (name, code) = (t.trainer.cheat_name(id), t.trainer.changes_code(id));
+        self.note_change(format!("\"{name}\" was {verb}"), code);
+    }
+
+    /// Reports why the game ended (it has): kept, shown on the screen, and
+    /// sent along with the error that ends the session.
+    fn report_closed(&self) -> crate::problems::Problem {
+        use crate::problems::{LastChange, OnCheat};
+        let exe = self.process.info().name.clone();
+        let game = self.trainer.as_ref().map_or_else(
+            || {
+                let lower = exe.to_ascii_lowercase();
+                lower
+                    .strip_suffix(".exe")
+                    .map_or_else(|| exe.clone(), |_| exe[..exe.len() - 4].to_string())
+            },
+            |t| t.trainer.pack().game.name.clone(),
+        );
+        let mut on: Vec<OnCheat> = self
+            .trainer
+            .as_ref()
+            .map(|t| {
+                t.trainer
+                    .active_cheats()
+                    .into_iter()
+                    .map(|(name, changes_code)| OnCheat { name, changes_code })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for e in &self.list {
+            if self.freezer.is_frozen(e.id) {
+                on.push(OnCheat {
+                    name: format!("locked value \"{}\"", e.label),
+                    changes_code: false,
+                });
+            }
+        }
+        let ended = self
+            .process
+            .exit_time()
+            .unwrap_or_else(std::time::SystemTime::now);
+        let last = self.changes.last().map(|c| LastChange {
+            what: c.what.clone(),
+            seconds_before: ended.duration_since(c.at).map_or(0, |d| d.as_secs()),
+            changes_code: c.changes_code,
+        });
+        crate::problems::report_game_closed(
+            self.process.pid(),
+            game,
+            exe,
+            self.process.exit_code(),
+            on,
+            last,
+        )
     }
 }
 
@@ -137,13 +225,31 @@ impl AppState {
     }
 
     /// Drops the session if the error means it can't be used any more.
-    fn settle<T>(&self, result: CmdResult<T>) -> CmdResult<T> {
-        if let Err(e) = &result
+    fn settle<T>(&self, mut result: CmdResult<T>) -> CmdResult<T> {
+        if let Err(e) = &mut result
             && e.is_fatal()
         {
-            self.live().take();
+            let live = self.live().take();
+            if e.kind == "processExited"
+                && let Some(l) = &live
+            {
+                e.closed = Some(Box::new(l.report_closed()));
+            }
+            drop(live);
         }
         result
+    }
+
+    /// Ends the session if the game has closed, reporting why. Called now and
+    /// then, so a closed game is noticed whichever screen is showing. Returns
+    /// the report when it ended.
+    pub fn check_game_closed(&self) -> Option<crate::problems::Problem> {
+        let gone = self.live().as_ref().is_some_and(|l| !l.process.is_alive());
+        if !gone {
+            return None;
+        }
+        let result: CmdResult<()> = with_live(self, |_| Ok(()));
+        result.err().and_then(|e| e.closed.map(|p| *p))
     }
 }
 
@@ -155,6 +261,9 @@ pub struct CommandError {
     pub message: String,
     /// Present when the anti-cheat guard blocked.
     pub verdict: Option<Box<Verdict>>,
+    /// Present when the game closed: what happened and why (v1.22.0).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub closed: Option<Box<crate::problems::Problem>>,
 }
 
 impl CommandError {
@@ -163,6 +272,7 @@ impl CommandError {
             kind,
             message: message.into(),
             verdict: None,
+            closed: None,
         }
     }
 
@@ -190,6 +300,7 @@ impl From<ot_core::Error> for CommandError {
             kind: e.kind(),
             message: e.to_string(),
             verdict,
+            closed: None,
         }
     }
 }
@@ -1022,6 +1133,8 @@ pub async fn address_set_frozen(
         } else {
             l.freezer.remove(id);
         }
+        let verb = if frozen { "locked" } else { "unlocked" };
+        l.note_change(format!("Your value \"{}\" was {verb}", entry.label), false);
         entry_view(l, &entry)
     })
 }
@@ -1040,6 +1153,10 @@ pub async fn address_write(
         if l.freezer.is_frozen(id) {
             l.freezer.set(id, entry.address, &v);
         }
+        l.note_change(
+            format!("Your value \"{}\" was set to {value}", entry.label),
+            false,
+        );
         entry_view(l, &entry)
     })
 }
@@ -1350,6 +1467,7 @@ fn no_trainer() -> CommandError {
 /// error is returned as the error (the cheat also shows it on its row).
 fn with_trainer(
     state: &AppState,
+    change: Option<(&str, String)>,
     f: impl FnOnce(&mut Trainer) -> Result<(), ot_packs::trainer::Error>,
 ) -> CmdResult<TrainerView> {
     with_live(state, |l| {
@@ -1358,7 +1476,11 @@ fn with_trainer(
         t.epoch += 1;
         t.pending.clear();
         f(&mut t.trainer)?;
-        trainer_view(t)
+        let view = trainer_view(t)?;
+        if let Some((id, verb)) = change {
+            l.note_cheat(id, &verb);
+        }
+        Ok(view)
     })
 }
 
@@ -1530,7 +1652,8 @@ pub async fn trainer_toggle(
     on: bool,
     state: State<'_, AppState>,
 ) -> CmdResult<TrainerView> {
-    with_trainer(&state, |t| t.set_active(&id, on))
+    let verb = if on { "turned on" } else { "turned off" };
+    with_trainer(&state, Some((&id, verb.into())), |t| t.set_active(&id, on))
 }
 
 #[tauri::command]
@@ -1539,17 +1662,19 @@ pub async fn trainer_set(
     value: String,
     state: State<'_, AppState>,
 ) -> CmdResult<TrainerView> {
-    with_trainer(&state, |t| t.set_value(&id, &value))
+    with_trainer(&state, Some((&id, format!("set to {value}"))), |t| {
+        t.set_value(&id, &value)
+    })
 }
 
 #[tauri::command]
 pub async fn trainer_release(id: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
-    with_trainer(&state, |t| t.release(&id))
+    with_trainer(&state, Some((&id, "let go".into())), |t| t.release(&id))
 }
 
 #[tauri::command]
 pub async fn trainer_press(id: String, state: State<'_, AppState>) -> CmdResult<TrainerView> {
-    with_trainer(&state, |t| t.press(&id))
+    with_trainer(&state, Some((&id, "used".into())), |t| t.press(&id))
 }
 
 impl AppState {
@@ -1578,7 +1703,9 @@ impl AppState {
             }
             t.epoch += 1;
             t.pending.clear();
-            t.trainer.hotkey(cheat).map_err(CommandError::from)
+            t.trainer.hotkey(cheat).map_err(CommandError::from)?;
+            l.note_cheat(cheat, "used with its key");
+            Ok(())
         });
         if let Err(e) = result {
             warn!(%cheat, "hotkey action failed: {}", e.message);
@@ -1637,12 +1764,26 @@ impl AppState {
     /// Does what a phone asked, like the trainer's own buttons.
     pub fn remote_act(&self, a: &crate::remote::Action) -> Result<(), String> {
         let r = match a.op.as_str() {
-            "toggle" => with_trainer(self, |t| t.set_active(&a.id, a.on.unwrap_or(true))),
-            "press" => with_trainer(self, |t| t.press(&a.id)),
-            "set" => with_trainer(self, |t| {
+            "toggle" => {
+                let on = a.on.unwrap_or(true);
+                let verb = if on {
+                    "turned on from your phone"
+                } else {
+                    "turned off from your phone"
+                };
+                with_trainer(self, Some((&a.id, verb.into())), |t| {
+                    t.set_active(&a.id, on)
+                })
+            }
+            "press" => with_trainer(self, Some((&a.id, "used from your phone".into())), |t| {
+                t.press(&a.id)
+            }),
+            "set" => with_trainer(self, Some((&a.id, "set from your phone".into())), |t| {
                 t.set_value(&a.id, a.value.as_deref().unwrap_or(""))
             }),
-            "release" => with_trainer(self, |t| t.release(&a.id)),
+            "release" => with_trainer(self, Some((&a.id, "let go from your phone".into())), |t| {
+                t.release(&a.id)
+            }),
             _ => return Err("unknown action".into()),
         };
         r.map(|_| ()).map_err(|e| e.message)
@@ -1918,7 +2059,7 @@ mod tests {
     fn trainer_commands_need_a_session() {
         let state = AppState::default();
         assert_eq!(
-            with_trainer(&state, |_| Ok(())).unwrap_err().kind,
+            with_trainer(&state, None, |_| Ok(())).unwrap_err().kind,
             "notAttached"
         );
         state.on_hotkey(1, "x"); // no session: ignored, no panic

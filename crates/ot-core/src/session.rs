@@ -14,8 +14,8 @@ use windows::Win32::System::Memory::{
     VirtualProtectEx, VirtualQueryEx,
 };
 use windows::Win32::System::Threading::{
-    PROCESS_QUERY_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_VM_OPERATION, PROCESS_VM_READ,
-    PROCESS_VM_WRITE, WaitForSingleObject,
+    GetExitCodeProcess, GetProcessTimes, PROCESS_QUERY_INFORMATION, PROCESS_SYNCHRONIZE,
+    PROCESS_VM_OPERATION, PROCESS_VM_READ, PROCESS_VM_WRITE, WaitForSingleObject,
 };
 
 use crate::address::{self, AddressExpr};
@@ -147,6 +147,48 @@ impl AttachedProcess {
     pub fn is_alive(&self) -> bool {
         // SAFETY: the handle was opened with SYNCHRONIZE and is valid.
         unsafe { WaitForSingleObject(self.handle.raw(), 0) == WAIT_TIMEOUT }
+    }
+
+    /// How the process ended (its exit code), or `None` while it runs or if
+    /// Windows won't say.
+    pub fn exit_code(&self) -> Option<u32> {
+        if self.is_alive() {
+            return None;
+        }
+        let mut code = 0u32;
+        // SAFETY: the handle was opened with PROCESS_QUERY_INFORMATION and is valid.
+        unsafe { GetExitCodeProcess(self.handle.raw(), &raw mut code) }.ok()?;
+        // STILL_ACTIVE (259) can't be told apart from a real 259 here.
+        (code != 259).then_some(code)
+    }
+
+    /// When the process ended, or `None` while it runs.
+    pub fn exit_time(&self) -> Option<std::time::SystemTime> {
+        if self.is_alive() {
+            return None;
+        }
+        use windows::Win32::Foundation::FILETIME;
+        let (mut created, mut exited, mut kernel, mut user) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        // SAFETY: the handle was opened with PROCESS_QUERY_INFORMATION and is valid.
+        unsafe {
+            GetProcessTimes(
+                self.handle.raw(),
+                &raw mut created,
+                &raw mut exited,
+                &raw mut kernel,
+                &raw mut user,
+            )
+        }
+        .ok()?;
+        // 100 ns ticks since 1601-01-01.
+        let ticks = (u64::from(exited.dwHighDateTime) << 32) | u64::from(exited.dwLowDateTime);
+        let unix = ticks.checked_sub(116_444_736_000_000_000)?;
+        Some(std::time::UNIX_EPOCH + std::time::Duration::from_nanos(unix * 100))
     }
 
     /// The module map captured at attach (or the last refresh).

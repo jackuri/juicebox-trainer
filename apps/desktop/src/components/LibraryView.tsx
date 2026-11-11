@@ -9,6 +9,7 @@ import {
   type StoreKind,
   toCommandError,
 } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const STORE: Record<StoreKind, string> = {
   steam: "Steam",
@@ -39,7 +40,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
   const [findFor, setFindFor] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.libraryList().then(setGames, (e: unknown) => setError(toCommandError(e).message));
+    api.libraryList().then(setGames, (e: unknown) => setError(friendlyError(e)));
   }, []);
 
   useEffect(() => load(), [load]);
@@ -57,7 +58,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
       await api.librarySetHidden(g.id, hidden);
       setGames((list) => list?.map((x) => (x.id === g.id ? { ...x, hidden } : x)) ?? null);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -69,7 +70,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
       onPlayed(await api.libraryPlay(g.id));
     } catch (e) {
       const err = toCommandError(e);
-      if (err.kind !== "cancelled") setError(err.message);
+      if (err.kind !== "cancelled") setError(friendlyError(err));
     } finally {
       setPlaying(null);
       setProgress(null);
@@ -83,7 +84,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
       setAddPath("");
       load();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -93,7 +94,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
       const picked = await api.pickExe("Pick the game's .exe");
       if (picked) await add(picked);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -207,7 +208,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                 <button
                   className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700"
                   aria-label={`Open folder of ${g.name}`}
-                  onClick={() => void api.libraryOpenFolder(g.id).catch((e: unknown) => setError(toCommandError(e).message))}
+                  onClick={() => void api.libraryOpenFolder(g.id).catch((e: unknown) => setError(friendlyError(e)))}
                 >
                   Folder
                 </button>

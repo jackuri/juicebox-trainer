@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, toCommandError, type WebGame, type WebPack } from "../lib/ipc";
+import { api, type WebGame, type WebPack } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 import { WebCheatsPanel } from "./WebCheatsPanel";
 import { WebShareDialog } from "./WebShareDialog";
 
@@ -31,7 +32,7 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.webGames().then((g) => setGames(Array.isArray(g) ? g : []), (e: unknown) => setError(toCommandError(e).message));
+    api.webGames().then((g) => setGames(Array.isArray(g) ? g : []), (e: unknown) => setError(friendlyError(e)));
   }, []);
 
   useEffect(() => {
@@ -44,7 +45,7 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
     const timer = window.setInterval(check, 2000);
     api.communityList(false).then(
       (l) => setCommunity(Array.isArray(l?.web) ? l.web : []),
-      (e: unknown) => setCommunityError(toCommandError(e).message),
+      (e: unknown) => setCommunityError(friendlyError(e)),
     );
     return () => window.clearInterval(timer);
   }, [load]);
@@ -56,7 +57,7 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
     try {
       await f();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

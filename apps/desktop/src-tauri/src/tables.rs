@@ -64,10 +64,7 @@ fn encode(s: &str) -> String {
 pub async fn tables_search(site: String, game: String) -> CmdResult<()> {
     let url = search_url(&site, &game)
         .ok_or_else(|| CommandError::new("badRequest", "unknown site or game name"))?;
-    std::process::Command::new("explorer.exe")
-        .arg(&url)
-        .spawn()
-        .map_err(|e| CommandError::new("io", format!("couldn't open the browser: {e}")))?;
+    crate::browser::open_url(&url)?;
     Ok(())
 }
 

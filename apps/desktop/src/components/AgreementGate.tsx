@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { AGREEMENT_TITLE, PLAY_FAIR, WAIVER } from "../lib/agreement";
-import { type AgreementStatus, api, toCommandError } from "../lib/ipc";
+import { type AgreementStatus, api } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 /** The agreement's text (also shown again from About). */
 export function AgreementText() {
@@ -38,7 +39,7 @@ export function AgreementGate({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.agreementStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
+    api.agreementStatus().then(setStatus, (e: unknown) => setError(friendlyError(e)));
   }, []);
 
   if (status?.accepted) return <>{children}</>;
@@ -49,7 +50,7 @@ export function AgreementGate({ children }: { children: ReactNode }) {
     try {
       setStatus(await api.agreementSign(name));
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

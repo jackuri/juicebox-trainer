@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, onWebCheatsChanged, toCommandError, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { api, onWebCheatsChanged, onWebGameProblem, type Problem, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
+import { ProblemCard } from "./ProblemCard";
 import { keyFromEvent } from "../lib/keys";
 import { keysFor, lockId, where } from "../lib/webCheats";
 
@@ -27,6 +29,23 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
   const [naming, setNaming] = useState<{ target: WebTarget; name: string; value: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** The game page crashed or froze (v1.22.0). */
+  const [pageProblem, setPageProblem] = useState<Problem | null>(null);
+  /** Bumped by Reload game, to wait for the page again. */
+  const [reloads, setReloads] = useState(0);
+  useEffect(() => onWebGameProblem(setPageProblem), []);
+  async function reload() {
+    try {
+      await api.webReload();
+      setPageProblem(null);
+      setSearch(null);
+      setLocked(new Set());
+      setWaiting(true);
+      setReloads((n) => n + 1);
+    } catch (e) {
+      setError(friendlyError(e));
+    }
+  }
   const keys = useMemo(() => keysFor(cheats), [cheats]);
   const cheatsRef = useRef(cheats);
   const searchRef = useRef(search);
@@ -72,7 +91,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
       live = false;
       stop();
     };
-  }, [game.id]);
+  }, [game.id, reloads]);
 
   // Live values: saved cheats, and the search results while there are few enough to show.
   useEffect(() => {
@@ -88,7 +107,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
           if (!st || !Array.isArray(st.locks)) return;
           setLocked(new Set(st.locks));
           const k = keysRef.current;
-          if (st.keysTag !== k.tag) api.webKeys(k.list, k.tag).catch((e: unknown) => setError(toCommandError(e).message));
+          if (st.keysTag !== k.tag) api.webKeys(k.list, k.tag).catch((e: unknown) => setError(friendlyError(e)));
         },
         () => undefined,
       );
@@ -111,7 +130,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
     try {
       await f();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -151,6 +170,17 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
         </button>
       </div>
 
+      {pageProblem && (
+        <ProblemCard
+          problem={pageProblem}
+          onDismiss={() => setPageProblem(null)}
+          actions={
+            <button className="btn-accent rounded-lg px-3 py-1.5 text-xs font-semibold" onClick={() => void reload()}>
+              Reload game
+            </button>
+          }
+        />
+      )}
       {error && (
         <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}

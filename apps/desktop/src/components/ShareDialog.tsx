@@ -9,6 +9,7 @@ import {
   TABLE_AUTHOR,
   toCommandError,
 } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary =
@@ -47,7 +48,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
   const fromSomeoneElse = fromTable || pack.source === "imported";
 
   useEffect(() => {
-    api.githubStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
+    api.githubStatus().then(setStatus, (e: unknown) => setError(friendlyError(e)));
   }, []);
 
   async function signIn() {
@@ -61,7 +62,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     } catch (e) {
       const err = toCommandError(e);
       setCode(null);
-      if (err.kind !== "cancelled") setError(err.message);
+      if (err.kind !== "cancelled") setError(friendlyError(err));
     }
   }
 
@@ -73,7 +74,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     } catch {
       // The code is on screen; typing it works too.
     }
-    await api.githubOpenDevicePage().catch((e: unknown) => setError(toCommandError(e).message));
+    await api.githubOpenDevicePage().catch((e: unknown) => setError(friendlyError(e)));
   }
 
   async function share() {
@@ -95,7 +96,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
     } catch (e) {
       const err = toCommandError(e);
       if (err.kind === "signedOut") setStatus((s) => (s ? { ...s, signedIn: false, login: null } : s));
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSharing(false);
     }

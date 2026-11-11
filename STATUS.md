@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-10 — v1.21.0_
+_Last updated: 2026-11-11 — v1.22.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/opentrainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -295,6 +295,11 @@ _Last updated: 2026-11-10 — v1.21.0_
   no pictures): 1.20 3/3 with 16 questions, $0.57; 1.21 best model first 2/3 (its gold pointer
   path was luck), then after a prompt fix (a one-step path must survive a second restart) 3/3
   with 15 questions, $0.77; 1.21 cheaper model 3/3 with 7 questions, $0.22.
+
+- v1.22.0 Clear problem messages: why a game closed (exit code, Windows crash record, cheats on,
+  last change), web game pages that crash or freeze (Reload game), OpenTrainer's screen restarts
+  itself, Help page with recent problems and common questions, plain error messages, web links
+  through `ShellExecuteW` (FearLess search opened Documents), known table page as the main button.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

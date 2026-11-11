@@ -13,8 +13,8 @@ import {
   type SaveFile,
   type SaveGame,
   type SavesOverview,
-  toCommandError,
-} from "../lib/ipc";
+  } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 import { AccountCopyPanel } from "./AccountCopyPanel";
 import { GamePicker } from "./GamePicker";
 import { SaveDiffView } from "./SaveDiffView";
@@ -51,12 +51,12 @@ export function SavesView({ processes, games, onRefreshProcesses, onOpenAi }: Pr
   }, []);
 
   const reload = useCallback(() => {
-    api.savesOverview().then(apply, (e: unknown) => setError(toCommandError(e).message));
+    api.savesOverview().then(apply, (e: unknown) => setError(friendlyError(e)));
     setReloadKey((k) => k + 1);
   }, [apply]);
 
   useEffect(() => {
-    api.savesOverview().then(apply, (e: unknown) => setError(toCommandError(e).message));
+    api.savesOverview().then(apply, (e: unknown) => setError(friendlyError(e)));
     return onSavesChanged(reload);
   }, [apply, reload]);
 
@@ -66,7 +66,7 @@ export function SavesView({ processes, games, onRefreshProcesses, onOpenAi }: Pr
       const picked = await api.pickExe("Pick the game's .exe");
       if (picked) await add(() => api.savesAddExe(picked));
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -79,7 +79,7 @@ export function SavesView({ processes, games, onRefreshProcesses, onOpenAi }: Pr
       setExePath("");
       reload();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -226,7 +226,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
   const [editing, setEditing] = useState<SaveFile | null>(null);
 
   useEffect(() => {
-    api.savesBackups(game.id).then(setBackups, (e: unknown) => setError(toCommandError(e).message));
+    api.savesBackups(game.id).then(setBackups, (e: unknown) => setError(friendlyError(e)));
     api.savesFiles(game.id).then(setFiles, () => setFiles([]));
     api.savesQuickCodes(game.id).then(setCodes, () => setCodes([]));
   }, [game.id, game.backups, game.folders, reloadKey]);
@@ -255,7 +255,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
     try {
       await action();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

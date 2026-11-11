@@ -51,6 +51,7 @@ attached to, if any.
 | **Make a trainer (AI)** | Let the AI helper find cheats for a game with you |
 | **Web games** | Games that run in a web page: find and lock values |
 | **Themes** | Change how OpenTrainer looks |
+| **Help** | What went wrong lately and what to try, and common questions |
 | **About** | Version, updates, this guide |
 
 ## Use cheats
@@ -132,8 +133,10 @@ In the **Packs** tab:
   backup.
 - **Use a Cheat Engine table:** many games have free cheat tables (`.CT` files) shared on forums
   such as FearLessRevolution. The easy way: in **Games**, click **Find a cheat table** on the game,
-  then **Search FearLess Revolution** (or **Search the web**). Your browser opens the search; open a
-  table's page and download its `.CT` file (some sites ask you to sign in first). Back in
+  then **Search FearLess Revolution** (or **Search the web**). If other players already linked the
+  game's table page, a green button opens that page directly. Your browser opens the page or the
+  search; open the table's page and download its `.CT` file (FearLess Revolution asks you to sign
+  in first). Back in
   OpenTrainer, **Cheat tables in your Downloads** shows it within a few seconds, already matched to
   the game: click **Turn into cheats**. You can also drop a table on the window or click **Open a
   pack or table…**. Before installing, type who made the table and its page address: they're kept
@@ -316,8 +319,21 @@ new versions are on the releases page.
 | Save backups | `%LOCALAPPDATA%\OpenTrainer\saves` |
 | AI logs | `%LOCALAPPDATA%\OpenTrainer\ai-logs` |
 | AI engine | `%LOCALAPPDATA%\org.opentrainer.desktop\ai-helper` |
+| Problems (Help page) | `%LOCALAPPDATA%\OpenTrainer\problems.json` |
 
 ## Something isn't working
+
+When something goes wrong, OpenTrainer says what happened and what to try, and keeps it on the
+**Help** page (a red dot shows on **Help** when there's something new):
+
+- **A game closed:** the Cheats screen says whether it closed normally or crashed, where it crashed
+  (the game itself, or the graphics driver), which cheats were on and what you changed just before.
+  If it crashed right after you turned a cheat on, try the game without that cheat.
+- **A web game page crashed or froze:** its cheats show what happened and a **Reload game** button.
+- **OpenTrainer's screen went blank or froze:** it restarts its screen by itself and says so.
+
+Click **Copy details** on a problem to paste it into a message when asking for help. The list stays
+on your PC (`%LOCALAPPDATA%\OpenTrainer\problems.json`).
 
 - **"Anti-cheat found" / the game is refused:** this is on purpose. OpenTrainer doesn't work while
   anti-cheat runs. If the game's maker offers a way to play without anti-cheat, start it that way.

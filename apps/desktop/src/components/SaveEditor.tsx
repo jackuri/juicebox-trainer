@@ -6,8 +6,8 @@ import {
   type FileView,
   type SaveEdit,
   type SaveFile,
-  toCommandError,
-} from "../lib/ipc";
+  } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700 disabled:opacity-40";
 const input =
@@ -48,7 +48,7 @@ export function SaveEditor({ gameId, file, running, onSaved, onClose }: Props) {
         setPatches([]);
         setShowBytes(v.codec === "hex");
       },
-      (e: unknown) => setError(toCommandError(e).message),
+      (e: unknown) => setError(friendlyError(e)),
     );
   }, [gameId, file.folder, file.path]);
 
@@ -83,7 +83,7 @@ export function SaveEditor({ gameId, file, running, onSaved, onClose }: Props) {
       onSaved(r);
       load();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -233,7 +233,7 @@ function HexView({ gameId, file, size, onPatch }: HexProps) {
 
   useEffect(() => {
     api.savesHex(gameId, file.folder, file.path, offset, HEX_PAGE + 8).then(setBytes, (e: unknown) =>
-      setError(toCommandError(e).message),
+      setError(friendlyError(e)),
     );
   }, [gameId, file.folder, file.path, offset]);
 

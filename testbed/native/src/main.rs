@@ -445,7 +445,19 @@ fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
     Some(msg)
 }
 
+#[link(name = "kernel32")]
+unsafe extern "system" {
+    fn SetErrorMode(mode: u32) -> u32;
+}
+
 fn main() {
+    // Report crashes to Windows like a game started from Explorer or Steam,
+    // even when the starting program turned crash reports off (Node does),
+    // so tests see Windows' crash record (OpenTrainer 1.22's "why it closed").
+    // Programs Node starts directly are also in its job object, which skips
+    // the report: tests start the testbed through cmd for that.
+    // SAFETY: plain Win32 call with no pointers.
+    unsafe { SetErrorMode(0) };
     let json = std::env::args().any(|a| a == "--json");
     WORLD.store(new_world(), Ordering::Release);
     write_app_info();

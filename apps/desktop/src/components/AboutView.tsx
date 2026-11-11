@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { AgreementText } from "./AgreementGate";
-import { type AgreementStatus, type AiStatus, api, onUpdateProgress, toCommandError, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
+import { type AgreementStatus, type AiStatus, api, onUpdateProgress, type UpdateInfo, type UpdateStatus } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -17,7 +18,7 @@ export function AboutView() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.updateStatus().then(setStatus, (e: unknown) => setError(toCommandError(e).message));
+    api.updateStatus().then(setStatus, (e: unknown) => setError(friendlyError(e)));
     api.aiStatus().then(setAi, () => undefined);
     api.agreementStatus().then(setAgreement, () => undefined);
   }, []);
@@ -36,7 +37,7 @@ export function AboutView() {
     setResult(undefined);
     if (!status.enabled) {
       // This copy can't update itself: open the newest release to download.
-      await api.openLink("latest").catch((e: unknown) => setError(toCommandError(e).message));
+      await api.openLink("latest").catch((e: unknown) => setError(friendlyError(e)));
       return;
     }
     setChecking(true);
@@ -44,7 +45,7 @@ export function AboutView() {
     try {
       found = await api.updateCheck();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
       return;
     } finally {
       setChecking(false);
@@ -55,7 +56,7 @@ export function AboutView() {
     try {
       await api.updateInstall();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
       setInstalling(false);
       setProgress(null);
     }
@@ -67,7 +68,7 @@ export function AboutView() {
       await api.aiUninstall();
       setAi(await api.aiStatus());
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 

@@ -4,6 +4,9 @@ import { ThemeView } from "./components/ThemeView";
 import { WebGamesView } from "./components/WebGamesView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
+import { HelpView } from "./components/HelpView";
+import { friendlyError } from "./lib/explain";
+import { ProblemCard } from "./components/ProblemCard";
 import { Icon, Logo } from "./components/Icon";
 import { LibraryView } from "./components/LibraryView";
 import { type OpenFile, PacksView } from "./components/PacksView";
@@ -16,8 +19,10 @@ import {
   type CommandError,
   isPackFile,
   onFileDrop,
+  onProblem,
   onOtpackOpen,
   onUpdateAvailable,
+  type Problem,
   type ProcessInfo,
   type Recovery,
   type RunningGame,
@@ -27,7 +32,7 @@ import {
   type Verdict,
 } from "./lib/ipc";
 
-type View = "games" | "web" | "cheats" | "packs" | "saves" | "ai" | "themes" | "about";
+type View = "games" | "web" | "cheats" | "packs" | "saves" | "ai" | "themes" | "help" | "about";
 
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
@@ -47,6 +52,15 @@ export default function App() {
   const [openPath, setOpenPath] = useState<OpenFile | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [dropError, setDropError] = useState<string | null>(null);
+  /** Why the attached game closed (shown on the Cheats screen, v1.22.0). */
+  const [closed, setClosed] = useState<Problem | null>(null);
+  /** The newest problem not looked at yet (the banner), and whether any are unseen. */
+  const [notice, setNotice] = useState<Problem | null>(null);
+  const [unseen, setUnseen] = useState(false);
+  const problemsSeen = useCallback(() => {
+    setUnseen(false);
+    setNotice(null);
+  }, []);
 
   const openOtpack = useCallback((path: string, exe?: string) => {
     setOpenPath({ path, exe });
@@ -67,10 +81,33 @@ export default function App() {
         setDropError("Only pack files (.otpack or pack.json) and Cheat Engine tables (.CT) can be dropped here.");
       }
     });
+    // Problems: a game closing, a page crashing, OpenTrainer's screen restarting.
+    const stopProblem = onProblem((p) => {
+      if (p.kind === "gameClosed") {
+        setSession(null);
+        setClosed(p);
+      }
+      if (!p.seen) {
+        setUnseen(true);
+        setNotice(p);
+      }
+    });
+    // Problems from last time (OpenTrainer closed after a bug, its screen restarted).
+    api.problemsList().then(
+      (list) => {
+        const fresh = (Array.isArray(list) ? list : []).filter((p) => !p.seen);
+        if (fresh.length > 0) {
+          setUnseen(true);
+          setNotice(fresh[0] ?? null);
+        }
+      },
+      () => undefined,
+    );
     return () => {
       stopOpen();
       stopUpdate();
       stopDrop();
+      stopProblem();
     };
   }, [openOtpack]);
 
@@ -112,6 +149,7 @@ export default function App() {
   async function attach() {
     if (!selected) return;
     setError(null);
+    setClosed(null);
     try {
       setSession(await api.attach(selected.pid));
     } catch (e) {
@@ -129,7 +167,12 @@ export default function App() {
   const sessionLost = useCallback((err: CommandError) => {
     setSession(null);
     if (err.verdict) setVerdict(err.verdict);
-    setError(err);
+    if (err.closed) {
+      setClosed(err.closed);
+      setError(null);
+    } else {
+      setError(err);
+    }
   }, []);
 
   async function refreshModules() {
@@ -167,6 +210,7 @@ export default function App() {
               ["saves", "Save backups", "saves"],
               ["ai", "Make a trainer (AI)", "ai"],
               ["themes", "Themes", "themes"],
+              ["help", "Help", "help"],
               ["about", "About", "about"],
             ] as const
           ).map(([v, label, icon]) => (
@@ -189,6 +233,9 @@ export default function App() {
                 className={`h-[18px] w-[18px] shrink-0 ${view === v ? "text-emerald-300" : "text-zinc-500 group-hover:text-zinc-300"}`}
               />
               {label}
+              {v === "help" && unseen && (
+                <span className="ml-auto h-2 w-2 rounded-full bg-red-400" aria-label="New problems" />
+              )}
             </button>
           ))}
         </nav>
@@ -222,6 +269,17 @@ export default function App() {
             </button>
           </div>
         )}
+        {notice && view !== "help" && !(notice.kind === "gameClosed" && view === "cheats") && (
+          <div className="flex items-center gap-3 bg-red-950/60 px-4 py-1.5 text-xs text-red-100" role="alert">
+            <span className="flex-1">{notice.title}.</span>
+            <button className="rounded bg-red-900/70 px-2 py-0.5 hover:bg-red-800" onClick={() => setView("help")}>
+              See what happened
+            </button>
+            <button className="text-red-300 hover:text-red-100" aria-label="Hide" onClick={() => setNotice(null)}>
+              ✕
+            </button>
+          </div>
+        )}
         {dropError && (
           <div className="flex items-center gap-3 bg-amber-950/60 px-4 py-1.5 text-xs text-amber-100" role="alert">
             <span className="flex-1">{dropError}</span>
@@ -237,6 +295,7 @@ export default function App() {
           onOpenTable={openOtpack}
           onPlayed={(r) => {
             setError(null);
+            setClosed(null);
             setVerdict(null);
             setSelected(r.session.process);
             setSession(r.session);
@@ -250,6 +309,8 @@ export default function App() {
         <AboutView />
       ) : view === "themes" ? (
         <ThemeView />
+      ) : view === "help" ? (
+        <HelpView onSeen={problemsSeen} />
       ) : view === "web" ? (
         <WebGamesView
           onOpenAi={() => {
@@ -300,9 +361,12 @@ export default function App() {
                 </button>
               </div>
             )}
+            {closed && !session && (
+              <ProblemCard problem={closed} onDismiss={() => setClosed(null)} />
+            )}
             {error && !error.verdict && (
               <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
-                {error.message}
+                {friendlyError(error)}
               </p>
             )}
 

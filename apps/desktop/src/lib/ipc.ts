@@ -1117,6 +1117,32 @@ export interface CommandError {
   kind: string;
   message: string;
   verdict: Verdict | null;
+  /** When the game closed: what happened and why (v1.22.0). */
+  closed?: Problem | null;
+}
+
+/** A problem worth telling the player about (src-tauri/src/problems.rs, v1.22.0). */
+export interface Problem {
+  id: number;
+  /** `gameClosed`, `webPage`, `appScreen` or `appCrash`. */
+  kind: string;
+  game: string | null;
+  title: string;
+  why: string;
+  advice: string[];
+  details: string[];
+  crashed: boolean;
+  seen: boolean;
+}
+
+/** A problem was recorded or updated (a game closed, a page crashed…). */
+export function onProblem(cb: (p: Problem) => void): () => void {
+  return on<Problem>("problem", cb);
+}
+
+/** The web game page crashed or froze. */
+export function onWebGameProblem(cb: (p: Problem) => void): () => void {
+  return on<Problem>("web-game-problem", cb);
 }
 
 export function isCommandError(e: unknown): e is CommandError {
@@ -1205,6 +1231,14 @@ export const api = {
   webOpen: (id: string) => invoke<WebGame>("web_open", { id }),
   webCurrent: () => invoke<WebGame | null>("web_current"),
   webClose: () => invoke<void>("web_close"),
+  /** Reloads the web game page (after it crashed or froze). */
+  webReload: () => invoke<void>("web_reload"),
+  /** Recent problems, newest first. */
+  problemsList: () => invoke<Problem[]>("problems_list"),
+  /** Marks every problem as looked at. */
+  problemsSeen: () => invoke<void>("problems_seen"),
+  /** Forgets every problem. */
+  problemsClear: () => invoke<void>("problems_clear"),
   webInfo: () => invoke<WebInfo>("web_call", { method: "info", args: null }),
   webFind: (value: number, kind: "any" | "whole" | "decimal") => invoke<WebSearch>("web_call", { method: "find", args: { value, kind } }),
   webNext: (how: "equals" | "changed" | "unchanged" | "increased" | "decreased", value?: number) =>

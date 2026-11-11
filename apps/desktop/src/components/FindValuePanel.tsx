@@ -22,6 +22,7 @@ import {
   type SessionInfo,
   toCommandError,
 } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const QUICK_NAMES = ["Gold", "Health", "Ammo", "Lives"];
 
@@ -85,7 +86,7 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
       return;
     }
     if (err.kind === "cancelled") setNotice("Stopped. Your earlier results are kept.");
-    else setError(err.message);
+    else setError(friendlyError(err));
     setPhase(back);
   }
 

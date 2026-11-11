@@ -1121,10 +1121,7 @@ pub async fn github_open_pr(url: String) -> CmdResult<()> {
 }
 
 fn open(url: &str) -> CmdResult<()> {
-    std::process::Command::new("explorer.exe")
-        .arg(url)
-        .spawn()
-        .map_err(|e| err("io", format!("couldn't open the browser: {e}")))?;
+    crate::browser::open_url(url)?;
     Ok(())
 }
 

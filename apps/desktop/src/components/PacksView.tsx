@@ -9,8 +9,8 @@ import {
   PACK_SOURCE_LABEL,
   type PackPreview,
   type PackSummary,
-  toCommandError,
-} from "../lib/ipc";
+  } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary =
@@ -50,7 +50,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
   const [credit, setCredit] = useState<Credit>({});
 
   const loadPacks = useCallback(() => {
-    api.packsList().then(setPacks, (e: unknown) => setError(toCommandError(e).message));
+    api.packsList().then(setPacks, (e: unknown) => setError(friendlyError(e)));
   }, []);
 
   /** Downloads the list; `loadingCommunity` is set by the caller. */
@@ -62,7 +62,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
           setCommunity(list);
           setCommunityError(null);
         },
-        (e: unknown) => setCommunityError(toCommandError(e).message),
+        (e: unknown) => setCommunityError(friendlyError(e)),
       )
       .finally(() => setLoadingCommunity(false));
   }, []);
@@ -81,7 +81,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       const p = from.kind === "file" ? await api.packsPreview(from.path, from.exe) : await api.communityPreview(from.id);
       setIncoming({ from, preview: p });
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -102,7 +102,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       const path = await api.packsPickOtpack();
       if (path) await preview({ kind: "file", path });
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -114,7 +114,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       const name = exe?.split(/[\\/]/).pop();
       if (name) await preview({ kind: "file", path, exe: name }, true);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -132,7 +132,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       loadPacks();
       if (from.kind === "community") loadCommunity(false);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }
@@ -145,7 +145,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       const path = await api.packsExport(p.key);
       if (path) setMessage({ text: `Saved ${p.name ?? "the pack"} as ${path}. Send this file to share it.`, path });
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -157,7 +157,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
       setMessage({ text: `Removed ${p.name ?? "the pack"}. A copy is kept in ${kept}.`, path: kept });
       loadPacks();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -345,7 +345,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
               pack={p}
               busy={busy}
               onPreview={() => void preview({ kind: "community", id: p.id })}
-              onCredit={(which) => void api.communityOpenCredit(p.id, which).catch((e: unknown) => setError(toCommandError(e).message))}
+              onCredit={(which) => void api.communityOpenCredit(p.id, which).catch((e: unknown) => setError(friendlyError(e)))}
             />
           ))}
         </ul>

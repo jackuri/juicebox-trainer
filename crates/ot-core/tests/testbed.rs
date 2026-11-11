@@ -134,8 +134,14 @@ fn reads_fail_after_target_exits() {
     let gold = tb.addr("gold");
     let session = AttachedProcess::attach(tb.pid()).unwrap();
     assert!(session.is_alive());
+    assert_eq!(session.exit_code(), None);
+    assert_eq!(session.exit_time(), None);
     tb.kill();
     assert!(!session.is_alive());
+    // Ended from outside (like Task Manager): exit code 1, a moment ago (v1.22.0).
+    assert_eq!(session.exit_code(), Some(1));
+    let ago = session.exit_time().unwrap().elapsed().unwrap_or_default();
+    assert!(ago < std::time::Duration::from_secs(30), "{ago:?}");
     assert!(matches!(
         session.read_value(gold, ValueType::I32),
         Err(Error::ProcessExited { .. })

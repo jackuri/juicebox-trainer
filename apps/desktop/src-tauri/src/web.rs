@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager, State, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, State, Url, WebviewUrl, WebviewWindowBuilder};
 
 use crate::commands::{CmdResult, CommandError};
 
@@ -363,6 +363,88 @@ pub fn web_install(pack: WebPack) -> CmdResult<WebInstalled> {
 #[derive(Default)]
 pub struct WebState {
     open: Mutex<Option<WebGame>>,
+    /// The last change made in the page and when (v1.22.0), to say what
+    /// happened just before it crashed or froze.
+    last_change: Mutex<Option<(std::time::SystemTime, String)>>,
+}
+
+/// What a helper call changes in the page, in words ("\"game.player.gold\"
+/// was locked at 999"), or `None` for calls that only look.
+fn describe_change(method: &str, args: &Value) -> Option<String> {
+    let target = args
+        .get("target")
+        .and_then(|t| t.get("path"))
+        .and_then(Value::as_array)
+        .map(|p| {
+            let parts: Vec<String> = p
+                .iter()
+                .map(|x| x.as_str().map_or_else(|| x.to_string(), str::to_string))
+                .collect();
+            format!("\"{}\"", parts.join("."))
+        })
+        .unwrap_or_else(|| "A value".to_string());
+    let value = args.get("value").map(|v| match v {
+        Value::String(s) => s.clone(),
+        other => other.to_string(),
+    });
+    let value = value.unwrap_or_default();
+    match method {
+        "set" => Some(format!("{target} was set to {value}")),
+        "lock" => Some(format!("{target} was locked at {value}")),
+        "unlock" => Some("A value was unlocked".into()),
+        "find" | "next" => Some("A value search was running".into()),
+        _ => None,
+    }
+}
+
+/// Keeps the change a helper call makes (see [`WebState::last_change`]).
+fn note_change(app: &AppHandle, method: &str, args: &Value) {
+    if let Some(what) = describe_change(method, args) {
+        *app.state::<WebState>()
+            .last_change
+            .lock()
+            .unwrap_or_else(|e| e.into_inner()) = Some((std::time::SystemTime::now(), what));
+    }
+}
+
+/// The game page crashed or froze: tell the player why (v1.22.0).
+fn page_failed(app: &AppHandle, failure: crate::page_watch::PageFailure) {
+    let state = app.state::<WebState>();
+    let game = state
+        .open
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map_or_else(|| "web game".to_string(), |g| g.name.clone());
+    let last = state
+        .last_change
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    let last = last.map(|(at, what)| {
+        let secs = at.elapsed().map_or(0, |d| d.as_secs());
+        (what, secs)
+    });
+    let p = crate::problems::record(crate::problems::web_page(
+        &game,
+        failure,
+        last.as_ref().map(|(w, s)| (w.as_str(), *s)),
+    ));
+    let _ = app.emit("web-game-problem", p);
+}
+
+/// Reloads the game page (after it crashed or froze).
+#[tauri::command]
+pub fn web_reload(app: AppHandle) -> CmdResult<()> {
+    let window = app.get_webview_window(LABEL).ok_or_else(|| {
+        err(
+            "noWebGame",
+            "the game window is closed: open the game again with Play",
+        )
+    })?;
+    window
+        .reload()
+        .map_err(|e| err("webGame", format!("couldn't reload the game: {e}")))
 }
 
 /// Opens a web game in OpenTrainer's game window (closing one that's open).
@@ -384,7 +466,12 @@ pub async fn web_open(
         .initialization_script_for_all_frames(AGENT_JS)
         .build()
         .map_err(|e| err("io", format!("couldn't open the game window: {e}")))?;
+    let watcher = app.clone();
+    if let Some(window) = app.get_webview_window(LABEL) {
+        crate::page_watch::watch(&window, move |failure| page_failed(&watcher, failure));
+    }
     *state.open.lock().unwrap_or_else(|e| e.into_inner()) = Some(game.clone());
+    *state.last_change.lock().unwrap_or_else(|e| e.into_inner()) = None;
     Ok(game)
 }
 
@@ -473,9 +560,13 @@ pub fn call_blocking(app: &AppHandle, method: &str, args: &Value) -> CmdResult<V
             let _ = tx.send(result);
         })
         .map_err(|e| err("webGame", format!("couldn't reach the game page: {e}")))?;
-    let raw = rx
-        .recv_timeout(CALL_TIMEOUT)
-        .map_err(|_| err("webGame", "the game page took too long to answer"))?;
+    note_change(app, method, args);
+    let raw = rx.recv_timeout(CALL_TIMEOUT).map_err(|_| {
+        err(
+            "webGame",
+            "the game page took too long to answer. It may be busy or frozen: wait a moment, or reload the game",
+        )
+    })?;
     parse_answer(&raw)
 }
 

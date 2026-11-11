@@ -83,7 +83,7 @@ describe("FindTable", () => {
   });
 
   it("shows what went wrong", async () => {
-    invoke.mockRejectedValue({ kind: "io", message: "no browser" });
+    invoke.mockRejectedValue({ kind: "browser", message: "no browser" });
     const onError = vi.fn();
     render(<FindTable game={hk} onClose={vi.fn()} onError={onError} />);
     fireEvent.click(screen.getByRole("button", { name: "Search the web" }));

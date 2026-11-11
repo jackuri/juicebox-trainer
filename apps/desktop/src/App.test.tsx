@@ -109,6 +109,63 @@ describe("App", () => {
     expect(screen.queryByText(/closed unexpectedly/)).not.toBeInTheDocument();
   });
 
+  it("says why the game closed instead of a bare error (v1.22.0)", async () => {
+    const base = invoke.getMockImplementation()!;
+    const closed = {
+      id: 1,
+      kind: "gameClosed",
+      game: "testbed_native",
+      title: "testbed_native crashed",
+      why: "It crashed: it tried to use memory it couldn't. \"Infinite ammo\" was turned on 3 seconds before, so that may have caused it.",
+      advice: ["Start the game again and try it without that cheat."],
+      details: ["Exit code: 0xC0000005 (3221225477)"],
+      crashed: true,
+      seen: false,
+    };
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "trainer_state"
+        ? Promise.reject({ kind: "processExited", message: "process 1234 has exited", verdict: null, closed })
+        : base(cmd, args),
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("option", { name: /testbed_native\.exe/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
+    const card = await screen.findByRole("alert", { name: "testbed_native crashed" });
+    expect(card).toHaveTextContent("turned on 3 seconds before");
+    expect(card).toHaveTextContent("try it without that cheat");
+    expect(screen.queryByText(/process 1234 has exited/)).not.toBeInTheDocument();
+    expect(screen.getByText("Not attached")).toBeInTheDocument();
+  });
+
+  it("tells about a problem from last time and opens Help (v1.22.0)", async () => {
+    const base = invoke.getMockImplementation()!;
+    const crash = {
+      id: 2,
+      kind: "appCrash",
+      game: null,
+      title: "OpenTrainer ran into a bug",
+      why: "Something inside OpenTrainer went wrong.",
+      advice: [],
+      details: [],
+      crashed: true,
+      seen: false,
+    };
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "problems_list"
+        ? Promise.resolve([crash])
+        : cmd === "problems_seen"
+          ? Promise.resolve()
+          : base(cmd, args),
+    );
+    render(<App />);
+    expect(await screen.findByText("OpenTrainer ran into a bug.")).toBeInTheDocument();
+    expect(screen.getByLabelText("New problems")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "See what happened" }));
+    expect(await screen.findByRole("heading", { name: "Help" })).toBeInTheDocument();
+    expect(await screen.findByRole("alert", { name: "OpenTrainer ran into a bug" })).toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.queryByLabelText("New problems")).not.toBeInTheDocument());
+  });
+
   it("blocks attaching when the guard finds anti-cheat or an online-only game", async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("option", { name: /cs2\.exe/ }));

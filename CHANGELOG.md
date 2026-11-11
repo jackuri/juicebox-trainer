@@ -4,6 +4,35 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.22.0] - 2026-11-11
+
+### Added
+- **Why did the game close?** When a game OpenTrainer is attached to closes, the Cheats screen
+  says what happened in plain words: whether it closed normally or crashed, where it crashed
+  (in the game itself or in the graphics driver, from Windows' own crash record), which cheats
+  were on, and what you changed just before ("Infinite ammo was turned on 3 seconds before").
+  Then what to try. It's noticed whichever screen you're on.
+- **Web game pages that crash or freeze** are noticed: OpenTrainer says so, names what was
+  changed in the page just before, and offers **Reload game**.
+- **OpenTrainer's own screen** restarts itself if it crashes or freezes instead of staying blank,
+  and says so.
+- **Help** in the left bar: recent problems with why and what to try (**Copy details** for asking
+  for help), and answers to common questions. A red dot shows when there's something new. Kept
+  in `%LOCALAPPDATA%\OpenTrainer\problems.json`; nothing is sent anywhere.
+- If OpenTrainer itself runs into a bug, it's noted for the Help page next time.
+
+### Changed
+- Error messages are in plain words and say what to try ("Get into the game, not a menu, and try
+  again" instead of "could not read 4 byte(s) at 0x1A2B3C"). The expert tools keep the exact
+  messages.
+- **Find a cheat table:** when other players linked the game's table page, a big button opens it
+  directly.
+
+### Fixed
+- **Search FearLess Revolution** opened your Documents folder instead of the browser. Web links
+  are now opened by Windows' browser handler everywhere (they were handed to Explorer, which
+  mistakes some addresses for folders).
+
 ## [1.21.0] - 2026-11-10
 
 ### Added

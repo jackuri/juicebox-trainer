@@ -8,9 +8,9 @@ import {
   onAiInstallProgress,
   type ProcessInfo,
   type RunningGame,
-  toCommandError,
   type WebGame,
 } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 import { GamePicker } from "./GamePicker";
 
 const WISHES = [
@@ -114,7 +114,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
         setStatus(s);
         setEvents(s.transcript);
       },
-      (e: unknown) => setError(toCommandError(e).message),
+      (e: unknown) => setError(friendlyError(e)),
     );
     return onAiEvent((e) => {
       setEvents((list) => [...list, e]);
@@ -172,7 +172,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
       });
       setStatus((s) => (s ? { ...s, running: true } : s));
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setStarting(false);
     }
@@ -183,7 +183,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
     try {
       await api.aiSignIn();
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -192,7 +192,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
       const s = await api.aiStatus();
       setStatus((old) => (old ? { ...old, signedIn: s.signedIn } : s));
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -202,7 +202,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
       setEvents((list) => [...list, { type: "note", text }]);
       setNote("");
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -213,7 +213,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
       setEvents((list) => [...list, { type: "answered", id: ask.id, text }]);
       setReply("");
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -631,7 +631,7 @@ function AiSetup({ status, onReady }: { status: AiStatus; onReady: (s: AiStatus)
       await api.aiInstall();
       onReady(await api.aiStatus());
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     } finally {
       setInstalling(false);
     }

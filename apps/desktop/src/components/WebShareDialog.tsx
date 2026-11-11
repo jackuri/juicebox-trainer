@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type DeviceCode, type GithubStatus, type SharedPack, toCommandError, type WebGame } from "../lib/ipc";
+import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary = "btn-accent rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40";
@@ -45,7 +46,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
       const path = await api.webExport(game.id, by, note);
       if (path) setSaved(path);
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -54,7 +55,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
     try {
       setStatus(await api.githubStatus());
     } catch (e) {
-      setError(toCommandError(e).message);
+      setError(friendlyError(e));
     }
   }
 
@@ -69,14 +70,14 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
     } catch (e) {
       const err = toCommandError(e);
       setCode(null);
-      if (err.kind !== "cancelled") setError(err.message);
+      if (err.kind !== "cancelled") setError(friendlyError(err));
     }
   }
 
   async function copyAndOpen() {
     if (!code) return;
     await navigator.clipboard.writeText(code.userCode).catch(() => undefined);
-    await api.githubOpenDevicePage().catch((e: unknown) => setError(toCommandError(e).message));
+    await api.githubOpenDevicePage().catch((e: unknown) => setError(friendlyError(e)));
   }
 
   async function share() {
@@ -87,7 +88,7 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
     } catch (e) {
       const err = toCommandError(e);
       if (err.kind === "signedOut") setStatus((s) => (s ? { ...s, signedIn: false, login: null } : s));
-      setError(err.message);
+      setError(friendlyError(err));
     } finally {
       setSharing(false);
     }
