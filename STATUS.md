@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-11 — v1.24.0_
+_Last updated: 2026-11-11 — v1.24.1_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -307,6 +307,9 @@ _Last updated: 2026-11-11 — v1.24.0_
 
 - v1.24.0 Juice box faces: holiday looks by month (app corner + taskbar, Themes switch), wink on
   success, crossed-out eyes on problems, the smiling juice box as the everyday icon.
+
+- v1.24.1 The taskbar / Alt+Tab icon follows the season too (Tauri's set_icon only set the small
+  title-bar icon; the big one is set with WM_SETICON ICON_BIG). Checked with WM_GETICON on the built app.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
