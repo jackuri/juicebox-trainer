@@ -310,7 +310,7 @@ _Last updated: 2026-11-11 — v1.24.0_
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
-  through 98efc39 (web cheats). v1.18.0 – v1.23.0 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
+  through 98efc39 (web cheats). v1.18.0 – v1.24.0 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
   installers published). v1.10.0 – v1.12.0 were
   released together inside 1.13.0 (no separate tags). The community list has its first real shared pack (Species Unknown, merged by the user).
 - The community packs repository is live and public: https://github.com/jackuri/juicebox-packs
