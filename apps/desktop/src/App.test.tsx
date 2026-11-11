@@ -137,6 +137,36 @@ describe("App", () => {
     expect(screen.getByText("Not attached")).toBeInTheDocument();
   });
 
+  it("shows the season's juice box and sets it on the taskbar (v1.24.0)", async () => {
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "app_icon_set" ? Promise.resolve() : base(cmd, args),
+    );
+    vi.useFakeTimers({ toFake: ["Date"], now: new Date(2026, 11, 20) });
+    try {
+      render(<App />);
+      await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("app_icon_set", { name: "christmas" }));
+      expect(document.querySelector('aside img[data-season="christmas"]')).toHaveAttribute("src", "/juicebox/christmas.png");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("puts the crossed-out juice box on problems (v1.24.0)", async () => {
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "problems_list"
+        ? Promise.resolve([{ id: 3, kind: "appCrash", game: null, title: "Oops", why: "x", advice: [], details: [], crashed: true, seen: false }])
+        : cmd === "problems_seen"
+          ? Promise.resolve()
+          : base(cmd, args),
+    );
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "See what happened" }));
+    const card = await screen.findByRole("alert", { name: "Oops" });
+    expect(card.querySelector('img[data-mood="error"]')).toHaveAttribute("src", "/juicebox/error.png");
+  });
+
   it("tells about a problem from last time and opens Help (v1.22.0)", async () => {
     const base = invoke.getMockImplementation()!;
     const crash = {

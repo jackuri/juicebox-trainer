@@ -1,3 +1,4 @@
+import { Mascot } from "./Icon";
 import { useEffect, useState } from "react";
 import { pendingAsk } from "../lib/ai";
 import {
@@ -519,6 +520,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
                     }`}
                     role="status"
                   >
+                    {e.ok && <Mascot mood="wink" className="float-left mr-2 h-9 w-9" />}
                     {e.summary}
                     {e.ok && (
                       <p className="mt-1 text-xs">

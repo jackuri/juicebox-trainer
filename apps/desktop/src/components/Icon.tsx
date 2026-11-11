@@ -1,3 +1,5 @@
+import { type Mood, pictureFor, useSeason } from "../lib/mascot";
+
 /** Small line icons for navigation (24×24, stroke = currentColor). Drawn for JuiceBox Trainer. */
 const PATHS = {
   games: "M4 5h7v7H4zM13 5h7v7h-7zM4 14h7v5H4zM13 14h7v5h-7z",
@@ -31,7 +33,31 @@ export function Icon({ name, className = "h-5 w-5" }: { name: IconName; classNam
   );
 }
 
-/** JuiceBox Trainer's mark: the juice box (same picture as the app icon). */
+/** JuiceBox Trainer's mark: the juice box, in its holiday look this month (v1.24.0). */
 export function Logo({ className = "h-8 w-8" }: { className?: string }) {
-  return <img src="/juicebox.png" alt="" aria-hidden="true" draggable={false} className={`${className} object-contain`} />;
+  const season = useSeason();
+  return (
+    <img
+      src={pictureFor(undefined, season)}
+      alt=""
+      aria-hidden="true"
+      data-season={season}
+      draggable={false}
+      className={`${className} object-contain`}
+    />
+  );
+}
+
+/** The juice box's face for a moment: a wink when something worked, crossed-out eyes on errors. */
+export function Mascot({ mood, className = "h-9 w-9" }: { mood: Mood; className?: string }) {
+  return (
+    <img
+      src={pictureFor(mood)}
+      alt=""
+      aria-hidden="true"
+      data-mood={mood}
+      draggable={false}
+      className={`${className} shrink-0 object-contain`}
+    />
+  );
 }

@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from "react";
 import { problemText } from "../lib/explain";
+import { Mascot } from "./Icon";
 import type { Problem } from "../lib/ipc";
 
 /**
@@ -37,6 +38,7 @@ export function ProblemCard({
       aria-label={problem.title}
     >
       <div className="flex items-start gap-3">
+        <Mascot mood="error" className="h-10 w-10" />
         <div className="min-w-0 flex-1">
           <p className="font-semibold">{problem.title}</p>
           {showTime && <p className="text-xs opacity-70">{new Date(problem.id).toLocaleString()}</p>}

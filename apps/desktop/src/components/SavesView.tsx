@@ -1,3 +1,4 @@
+import { Mascot } from "./Icon";
 import { useCallback, useEffect, useState } from "react";
 import { backupReason, fileSize, timeAgo } from "../lib/format";
 import {
@@ -397,6 +398,7 @@ function GamePanel({ game, steamRunning, reloadKey, onChanged, onOpenAi }: GameP
       {message && <p className="text-sm text-emerald-300" role="status">{message}</p>}
       {report && (
         <div className="rounded-lg bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+          <Mascot mood="wink" className="float-left mr-2 h-9 w-9" />
           <p>
             Restored. {report.written} file{report.written === 1 ? "" : "s"} put back
             {report.unchanged > 0 && `, ${report.unchanged} already the same`}

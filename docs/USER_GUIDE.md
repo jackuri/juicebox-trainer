@@ -305,6 +305,11 @@ overlay follows. **JuiceBox Trainer** is the standard look. There are game-inspi
 Next-Gen Blue, Console Green, Pocket LCD, Visor HUD, Wasteland Terminal, Amber Terminal, Inferno)
 and a light one, **Daylight**.
 
+The juice box dresses up for the holidays (Valentine's in February, Halloween in October,
+Thanksgiving in November, Christmas in December) in the app's corner and on the taskbar. Untick
+**Holiday juice boxes** in **Themes** to keep the everyday one. It also winks when something worked
+and shows crossed-out eyes when something went wrong.
+
 ## Updates
 
 Open **About** and click **Update**. If there's a newer version, JuiceBox Trainer downloads it, puts the

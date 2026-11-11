@@ -1,3 +1,4 @@
+import { Mascot } from "./Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShareDialog } from "./ShareDialog";
 import {
@@ -172,6 +173,7 @@ export function PacksView({ openPath, onOpened, onShowCheats }: Props) {
     <main className="flex min-h-0 flex-col gap-5 overflow-y-auto p-6" aria-label="Packs">
       {message && (
         <div className="flex items-center gap-3 rounded-lg bg-emerald-950/40 px-3 py-2 text-sm text-emerald-200" role="status">
+          <Mascot mood="wink" className="h-8 w-8" />
           <span className="flex-1">{message.text}</span>
           {message.path && (
             <button className={button} onClick={() => void api.packsShowFile(message.path ?? "")}>

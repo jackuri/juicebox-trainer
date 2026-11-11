@@ -1235,6 +1235,8 @@ export const api = {
   webClose: () => invoke<void>("web_close"),
   /** Reloads the web game page (after it crashed or froze). */
   webReload: () => invoke<void>("web_reload"),
+  /** Sets the taskbar / window icon to a built-in juice box (v1.24.0). */
+  appIconSet: (name: string) => invoke<void>("app_icon_set", { name }),
   /** Recent problems, newest first. */
   problemsList: () => invoke<Problem[]>("problems_list"),
   /** Marks every problem as looked at. */

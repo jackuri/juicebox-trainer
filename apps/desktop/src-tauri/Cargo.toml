@@ -25,7 +25,8 @@ base64 = "0.22.1"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 serde.workspace = true
 serde_json.workspace = true
-tauri = { version = "2.12.5", features = [] }
+# image-png: the seasonal taskbar icons (v1.24.0).
+tauri = { version = "2.12.5", features = ["image-png"] }
 tauri-plugin-dialog = "2.7.3"
 tauri-plugin-single-instance = "2.4.5"
 # No "zip" feature: our updates are the signed setup .exe (not the old .nsis.zip), and the

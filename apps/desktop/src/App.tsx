@@ -8,6 +8,7 @@ import { HelpView } from "./components/HelpView";
 import { friendlyError } from "./lib/explain";
 import { ProblemCard } from "./components/ProblemCard";
 import { Icon, Logo } from "./components/Icon";
+import { useSeason } from "./lib/mascot";
 import { LibraryView } from "./components/LibraryView";
 import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
@@ -51,6 +52,11 @@ export default function App() {
   /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
   const [openPath, setOpenPath] = useState<OpenFile | null>(null);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
+  // The taskbar's juice box follows the season too (v1.24.0).
+  const season = useSeason();
+  useEffect(() => {
+    api.appIconSet(season).catch(() => undefined);
+  }, [season]);
   /** The one-time "OpenTrainer is now JuiceBox Trainer" note is hidden. */
   const [renameSeen, setRenameSeen] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);

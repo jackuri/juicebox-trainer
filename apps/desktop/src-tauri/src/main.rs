@@ -11,6 +11,7 @@ mod gamepad;
 mod github;
 mod hotkeys;
 mod library;
+mod mascot;
 mod my_cheats;
 mod overlay;
 mod page_watch;
@@ -212,6 +213,7 @@ fn main() {
             sharing::packs_import,
             tables::tables_search,
             problems::problems_list,
+            mascot::app_icon_set,
             problems::problems_seen,
             problems::problems_clear,
             web::web_reload,

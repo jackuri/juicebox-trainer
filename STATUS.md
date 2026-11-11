@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-11 — v1.23.0_
+_Last updated: 2026-11-11 — v1.24.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -304,6 +304,9 @@ _Last updated: 2026-11-11 — v1.23.0_
 - v1.23.0 Rename to JuiceBox Trainer: names, folders moved on first start, installer removes
   OpenTrainer, `.juice` / `.juiceweb` (old endings still open), new icon, community repo text.
   GitHub repositories renamed 2026-11-11 (old addresses forward; checked).
+
+- v1.24.0 Juice box faces: holiday looks by month (app corner + taskbar, Themes switch), wink on
+  success, crossed-out eyes on problems, the smiling juice box as the everyday icon.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

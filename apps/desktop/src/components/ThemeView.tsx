@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { seasonalOn, setSeasonalOn } from "../lib/mascot";
 import { DEFAULT_THEME, loadTheme, saveTheme, type Theme, THEMES } from "../lib/theme";
 
 /** A small live picture of the app in a theme (the card sets its own data-theme). */
@@ -40,6 +41,7 @@ function Preview({ theme }: { theme: Theme }) {
 /** Pick how JuiceBox Trainer looks. The choice is shown at once and remembered. */
 export function ThemeView() {
   const [current, setCurrent] = useState(loadTheme);
+  const [holidays, setHolidays] = useState(seasonalOn);
 
   function pick(id: string) {
     saveTheme(id);
@@ -52,6 +54,24 @@ export function ThemeView() {
         <h2 className="text-2xl font-semibold tracking-tight">Themes</h2>
         <p className="text-zinc-400">Pick a look for JuiceBox Trainer. It changes straight away, and the in-game overlay follows.</p>
       </section>
+      <label className="flex items-start gap-3 rounded-xl bg-zinc-900/70 px-3 py-2.5 ring-1 ring-zinc-800">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={holidays}
+          onChange={(e) => {
+            setSeasonalOn(e.target.checked);
+            setHolidays(e.target.checked);
+          }}
+        />
+        <span>
+          <span className="font-medium">Holiday juice boxes</span>
+          <span className="block text-xs text-zinc-400">
+            The juice box in the corner and on the taskbar dresses up: Valentine&apos;s in February, Halloween in
+            October, Thanksgiving in November and Christmas in December.
+          </span>
+        </span>
+      </label>
       <div className="grid grid-cols-[repeat(auto-fill,minmax(230px,1fr))] gap-4">
         {THEMES.map((t) => {
           const on = t.id === current;

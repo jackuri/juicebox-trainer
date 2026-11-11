@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.24.0] - 2026-11-11
+
+### Added
+- **The juice box has faces and holiday looks** (pictures by the project's maker). It dresses up
+  for Valentine's in February, Halloween in October, Thanksgiving in November and Christmas in
+  December, in the app's corner and on the taskbar. Turn it off in **Themes** (**Holiday juice
+  boxes**). The desktop and Start menu shortcut keep the everyday juice box (Windows takes it from
+  the installed program).
+- It **winks** when something worked (the AI helper made cheats, a pack was installed or saved, a
+  save was restored), and shows **crossed-out eyes** on problems (Help page, "why the game closed").
+
+### Changed
+- The everyday icon is the smiling juice box.
+
 ## [1.23.0] - 2026-11-11
 
 ### Changed
