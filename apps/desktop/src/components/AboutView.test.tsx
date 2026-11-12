@@ -30,7 +30,7 @@ describe("AboutView", () => {
     );
     render(<AboutView />);
     expect(await screen.findByText("Automatic updates are off in this copy.")).toBeInTheDocument();
-    expect(screen.getByText(/any game with anti-cheat/)).toBeInTheDocument();
+    expect(screen.getByText(/while its anti-cheat runs/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("open_link", { which: "latest" }));
     expect(invoke).not.toHaveBeenCalledWith("update_check", undefined);

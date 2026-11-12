@@ -5,11 +5,13 @@ version 1.23.0. Updating from OpenTrainer removes the old program and brings you
 save backups and settings along on the first start; nothing is lost. Packs now end in `.juice`
 (and web cheats in `.juiceweb`); OpenTrainer's `.otpack` and `.otweb` files still open.
 
-JuiceBox Trainer gives you cheats in **single-player PC games**: infinite health, more gold, faster
+JuiceBox Trainer gives you cheats in **PC games without anti-cheat** (single-player, co-op with
+friends, and online games that have no anti-cheat): infinite health, more gold, faster
 movement and so on. It also backs up and edits your saves, and can make new cheats with AI.
 
-It never works in online or multiplayer games, or while a game's anti-cheat is running. It checks
-every game first and refuses those. That can't be switched off.
+It never works while a game's anti-cheat is running. It checks every game first and refuses those.
+That can't be switched off. Online games without anti-cheat are fine; please don't use cheats to
+spoil other players' fun, for example in public, competitive or ranked matches.
 
 Some games come with anti-cheat but have an official way to play without it, like Halo: The Master
 Chief Collection ("Anti-Cheat Disabled" when you press Play in Steam). Started that way, nothing of

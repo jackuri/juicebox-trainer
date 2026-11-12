@@ -512,7 +512,7 @@ fn pr_text(
          - **Cheats ({}):** {}{}\n\
          - **Made by:** {}{}\n\
          - **Tested on:** {}\n\n\
-         The sharer says every cheat works in a single-player game.",
+         The sharer says every cheat works and the game has no anti-cheat.",
         env!("CARGO_PKG_VERSION"),
         plain(&g.name, 80),
         plain(&g.exe, 80),

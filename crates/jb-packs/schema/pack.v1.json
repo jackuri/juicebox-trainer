@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://opentrainer.org/schema/pack.v1.json",
   "title": "JuiceBox Trainer cheat pack v1",
-  "description": "Declarative cheat pack for a PC single-player game. The app also runs checks this schema can't express (unique ids, hotkey conflicts, values that fit their type, safe patch instructions); run `juicepack validate` for the full check.",
+  "description": "Declarative cheat pack for a PC game without anti-cheat. The app also runs checks this schema can't express (unique ids, hotkey conflicts, values that fit their type, safe patch instructions); run `juicepack validate` for the full check.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "game", "meta", "cheats"],

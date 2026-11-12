@@ -24,7 +24,7 @@ use jb_packs::{Pack, Trainer};
 use serde_json::{Value, json};
 
 /// Shown to the model at `initialize`.
-pub const INSTRUCTIONS: &str = "JuiceBox Trainer tools for making cheat packs for single-player PC games. \
+pub const INSTRUCTIONS: &str = "JuiceBox Trainer tools for making cheat packs for PC games without anti-cheat. \
 Attach to the game first (the anti-cheat guard decides; a refusal is final). Find values with \
 scan_first/scan_next while the player changes them in game, make them stable with pointer_scan or \
 make_aob, then build a pack and try it with pack_try and cheat_set. Memory writes are tests and \

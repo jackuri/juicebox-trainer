@@ -443,7 +443,7 @@ export default function App() {
               <div className="m-auto flex max-w-sm flex-col items-center text-center text-sm text-zinc-400">
                 <Logo className="mb-4 h-14 w-14 opacity-90" />
                 <p className="text-base font-medium text-zinc-200">Pick a game to start</p>
-                <p className="mt-1">Choose a single-player game from the list. JuiceBox Trainer checks it, then you attach.</p>
+                <p className="mt-1">Choose a game from the list. JuiceBox Trainer checks it, then you attach.</p>
                 <p className="mt-2 text-xs text-zinc-500">
                   Your game&apos;s saves are backed up when you attach (see Save backups).
                 </p>

@@ -280,7 +280,7 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
           </label>
           <label className="flex items-start gap-2">
             <input type="checkbox" className="mt-1" checked={tested} onChange={(e) => setTested(e.target.checked)} />
-            I tried every cheat in this pack and they work. It&apos;s for a single-player game.
+            I tried every cheat in this pack and they work. The game has no anti-cheat.
           </label>
           {fromSomeoneElse && (
             <fieldset className="flex flex-col gap-1">

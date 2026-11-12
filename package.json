@@ -2,7 +2,7 @@
   "name": "juicebox-trainer",
   "version": "1.27.0",
   "private": true,
-  "description": "Free, open-source trainer + save editor for PC single-player games.",
+  "description": "Free, open-source trainer + save editor for PC games without anti-cheat.",
   "license": "MIT",
   "workspaces": [
     "apps/desktop",

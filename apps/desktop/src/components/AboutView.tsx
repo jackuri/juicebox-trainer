@@ -77,7 +77,7 @@ export function AboutView() {
       <section>
         <h2 className="text-2xl font-semibold tracking-tight">JuiceBox Trainer {status && <span className="font-mono text-sm text-zinc-400">v{status.version}</span>}</h2>
         <p className="text-zinc-400">
-          Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for single-player PC games.
+          Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for PC games without anti-cheat.
         </p>
         <div className="mt-2 flex gap-2">
           <button className={button} onClick={() => void api.openLink("guide").catch(() => undefined)}>
@@ -172,7 +172,7 @@ export function AboutView() {
       <section className="flex flex-col gap-1" aria-label="What JuiceBox Trainer never does">
         <h3 className="font-medium">What JuiceBox Trainer never does</h3>
         <ul className="list-disc pl-5 text-zinc-400">
-          <li>Work in online or multiplayer games, or in any game with anti-cheat. It checks every game and refuses those.</li>
+          <li>Work in a game while its anti-cheat runs. It checks every game and refuses those.</li>
           <li>Hide from, switch off or trick anti-cheat, DRM or ownership checks.</li>
           <li>Run code written by the AI. AI cheats are checked data, and every change can be undone.</li>
           <li>Change a save without backing it up first.</li>

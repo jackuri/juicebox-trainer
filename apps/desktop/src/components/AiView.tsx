@@ -287,7 +287,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
             <p className="text-sm text-zinc-400">
               Start your game, pick it here and tick what you'd like. The helper asks you to do small
               things in the game (like "spend some gold") while it searches, then saves a cheat pack.
-              Single-player games only: games with anti-cheat are refused.
+              Games with anti-cheat are refused.
             </p>
           )}
           <fieldset className="flex flex-col gap-1 text-sm">

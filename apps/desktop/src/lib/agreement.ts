@@ -6,8 +6,8 @@
 export const AGREEMENT_TITLE = "Before you use JuiceBox Trainer";
 
 export const PLAY_FAIR: readonly string[] = [
-  "Use cheats only in single-player games, or in co-op games with friends you invited yourself (private games or LAN).",
-  "Never use cheats in games with strangers, in public, competitive or ranked matches, or in games with anti-cheat. JuiceBox Trainer refuses games with anti-cheat, but it can't recognise every online game.",
+  "Use cheats in single-player games, co-op games with friends (private games or LAN), and online games that have no anti-cheat.",
+  "Never use cheats in games with anti-cheat: JuiceBox Trainer refuses them while their anti-cheat runs. Please don't use cheats to spoil other players' fun, for example in public, competitive or ranked matches.",
   "Other players can report you, and games, stores and websites can ban accounts for cheating, even in co-op.",
   "Cheats and save edits can break a game or a save. Keep backups (JuiceBox Trainer's Save backups can help).",
 ];

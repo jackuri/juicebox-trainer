@@ -327,7 +327,10 @@ _Last updated: 2026-11-12 — v1.27.0_
   forum, OpenCheatTables, GitHub and Reddit r/cheatengine; tables with an open licence (or the
   maker's permission) can be on the community list as `tables/<id>.CT` next to their link, with
   "Turn into cheats now"; sharing a table's link can include the table itself. Community repo
-  builder / check accept them. No real table is on the list yet.
+  builder / check accept them. No real table is on the list yet. Scope widened at the user's request:
+  online games without anti-cheat are allowed (CLAUDE.md, agreement, About, AI prompt, docs,
+  community rules); games are still refused while their anti-cheat runs. Agreement version not
+  raised (the change only allows more).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
@@ -342,8 +345,6 @@ _Last updated: 2026-11-12 — v1.27.0_
 - Next (user's order 2026-11-11): try 1.26's instant cheats on a real Unreal game (Species: Unknown,
   with the user's OK, CPU kept under 85 °C), then instant cheats for Unity (ComeCloser is a Unity
   Mono game on this PC). Both wait until the user is home.
-- The user said online games are fine when they have no anti-cheat (2026-11-11). The app's scope
-  and the community rules still say single-player / private co-op only; ask before changing them.
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
   on. The benchmark could get web and harder test games (values ×10, scrambled).
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate

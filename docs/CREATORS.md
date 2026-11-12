@@ -8,7 +8,7 @@ There's also a short message at the end that JuiceBox Trainer's maintainers send
 
 [JuiceBox Trainer](https://github.com/jackuri/juicebox-trainer) is a free, open-source (MIT) Windows app for
 single-player PC games: a trainer with on/off cheats and hotkeys, a save manager and an AI helper
-that makes cheat packs. It refuses games with anti-cheat and online games.
+that makes cheat packs. It refuses games while their anti-cheat runs.
 
 ## What it does with a table
 

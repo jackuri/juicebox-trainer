@@ -5,7 +5,8 @@
 **JUICE** = **J**ackuri's **U**ltimate **I**n-game **C**heat **E**ngine. Formerly called OpenTrainer
 (renamed in 1.23.0).
 
-A free, open-source Windows app for **PC single-player games**:
+A free, open-source Windows app for **PC games without anti-cheat** (single-player, co-op with
+friends, and online games that have no anti-cheat):
 
 - a **trainer**: infinite health, more gold, faster movement… with hotkeys, controller combos,
   presets, an overlay and a phone remote;
@@ -18,7 +19,8 @@ and read the [user guide](docs/USER_GUIDE.md).
 
 ## Rules this project never relaxes
 
-- Single-player / offline games only. No multiplayer advantage of any kind.
+- Never in a game while its anti-cheat runs. Online games without anti-cheat are allowed (the
+  owner's decision, 1.27.0); please don't use cheats to spoil other players' fun.
 - No anti-cheat, DRM, ownership-check or HWID bypass. If anti-cheat is present, JuiceBox Trainer will not
   attach, and the guard has no off switch.
 - No antivirus evasion. Releases are meant to be code-signed instead (not yet: see the user guide).

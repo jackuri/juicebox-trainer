@@ -18,6 +18,12 @@ All notable changes to this project are documented here. The format follows
 - When you share a table's link, you can include the table itself, if its maker allows it: pick its
   licence and the `.CT` file. A maintainer checks the licence on the table's page before it shows up.
 
+### Changed
+- **Online games without anti-cheat are now allowed**, next to single-player games and co-op with
+  friends. Games are still refused while their anti-cheat runs. The agreement, the About page, the
+  AI helper and the community rules say so (and ask players not to spoil other players' fun in
+  public, competitive or ranked matches).
+
 ## [1.26.0] - 2026-11-12
 
 ### Added

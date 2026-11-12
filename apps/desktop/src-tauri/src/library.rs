@@ -597,7 +597,7 @@ fn play(app: &AppHandle, id: &str) -> CmdResult<PlayResult> {
         return Err(CommandError::new(
             "blocked",
             format!(
-                "JuiceBox Trainer won't start {} with cheats ({why}). It's for single-player games only.",
+                "JuiceBox Trainer won't start {} with cheats ({why}). It doesn't work in games while their anti-cheat runs.",
                 game.install.name
             ),
         ));

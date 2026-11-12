@@ -1,7 +1,8 @@
 # JuiceBox Trainer — Product & Technical Plan (v0 draft)
 
 > Working name. One free, open-source Windows app that combines a **WeMod/Wand-style game trainer** with a
-> **Save Wizard-style save editor** for **PC single-player games**, plus a built-in **AI agent that creates
+> **Save Wizard-style save editor** for **PC games without anti-cheat** (single-player, co-op on a
+> private server or LAN, and online games without anti-cheat, the owner's decision 2026-11-12), plus a built-in **AI agent that creates
 > new trainers and save cheats for games that don't have them yet**. No paywall, no queues, no time limits,
 > works offline once a game's cheat pack exists.
 
