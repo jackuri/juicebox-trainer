@@ -652,6 +652,16 @@ export interface GithubStatus {
   login: string | null;
 }
 
+/** A player's packer XP (v1.32.0), counted by the community list's robot from GitHub. */
+export interface Player {
+  login: string;
+  xp: number;
+  /** Their packs and web cheats accepted into the list. */
+  packs: number;
+  /** Packs they rated. */
+  ratings: number;
+}
+
 export interface DeviceCode {
   /** What the player types on GitHub's page, e.g. ABCD-1234. */
   userCode: string;
@@ -1410,6 +1420,8 @@ export const api = {
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
   /** How players rate the community packs: pack id → rating (v1.29.0). */
   communityRatings: (refresh: boolean) => invoke<Record<string, Rating>>("community_ratings", { refresh }),
+  /** Every player's packer XP, most first (v1.32.0). */
+  communityXp: (refresh: boolean) => invoke<Player[]>("community_xp", { refresh }),
   /** Rates a community pack 1 to 3 stars (GitHub sign-in). */
   communityRate: (issue: number, stars: 1 | 2 | 3) => invoke<number>("community_rate", { issue, stars }),
   /** Games players asked cheats for, most votes first (v1.25.0). */

@@ -475,6 +475,64 @@ pub fn parse_ratings(bytes: &[u8]) -> Result<std::collections::BTreeMap<String, 
     Ok(out)
 }
 
+/// A player's packer XP (v1.32.0), from `xp.json` next to the index: counted
+/// by the community list's robot from GitHub (accepted packs, ratings).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Player {
+    /// Their GitHub name.
+    pub login: String,
+    pub xp: u64,
+    /// Packs and web cheats of theirs accepted into the list.
+    pub packs: u32,
+    /// Packs they rated.
+    pub ratings: u32,
+}
+
+/// The XP list refuses to load above this size.
+pub const MAX_XP_BYTES: u64 = 1 << 20;
+/// The most XP anyone can have (well past level 99).
+const MAX_XP: u64 = 10_000_000;
+
+/// `xp.json`, next to `index.json`.
+pub fn xp_url(index_url: &str) -> String {
+    match index_url.strip_suffix("index.json") {
+        Some(base) => format!("{base}xp.json"),
+        None => format!("{}/xp.json", index_url.trim_end_matches('/')),
+    }
+}
+
+/// A GitHub name: letters, digits and dashes, up to 39, not starting with a dash.
+fn is_login(s: &str) -> bool {
+    (1..=39).contains(&s.len())
+        && !s.starts_with('-')
+        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
+/// Reads `xp.json` leniently: an entry that doesn't look right is left out.
+/// Most XP first.
+pub fn parse_xp(bytes: &[u8]) -> Result<Vec<Player>, String> {
+    if bytes.len() as u64 > MAX_XP_BYTES {
+        return Err("the XP list is too big".into());
+    }
+    let v: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|e| format!("the XP list isn't valid: {e}"))?;
+    if v["format"].as_u64() != Some(1) {
+        return Err("the XP list needs a newer JuiceBox Trainer".into());
+    }
+    let mut out: Vec<Player> = v["players"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| serde_json::from_value::<Player>(p.clone()).ok())
+        .filter(|p| is_login(&p.login) && p.xp <= MAX_XP)
+        .collect();
+    out.sort_by(|a, b| b.xp.cmp(&a.xp).then_with(|| a.login.cmp(&b.login)));
+    out.dedup_by(|a, b| a.login.eq_ignore_ascii_case(&b.login));
+    out.truncate(1000);
+    Ok(out)
+}
+
 pub fn wanted_url(index_url: &str) -> String {
     match index_url.strip_suffix("index.json") {
         Some(base) => format!("{base}wanted.json"),
@@ -631,6 +689,33 @@ mod wanted_tests {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn reads_the_xp_list_leniently() {
+        assert_eq!(
+            xp_url("https://raw.example/main/index.json"),
+            "https://raw.example/main/xp.json"
+        );
+        let list = parse_xp(
+            br#"{"format":1,"updated":"2026-11-12","rules":{"pack":10,"rating":2},"players":[
+                {"login":"ann","xp":14,"packs":1,"ratings":2},
+                {"login":"jackuri","xp":20,"packs":2,"ratings":0},
+                {"login":"-bad","xp":5,"packs":0,"ratings":0},
+                {"login":"huge","xp":99999999999,"packs":0,"ratings":0},
+                {"login":"Ann","xp":1,"packs":0,"ratings":0},
+                {"name":"no login"}
+            ]}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            list.iter()
+                .map(|p| (p.login.as_str(), p.xp))
+                .collect::<Vec<_>>(),
+            [("jackuri", 20), ("ann", 14)]
+        );
+        assert!(parse_xp(br#"{"format":2,"players":[]}"#).is_err());
+        assert!(parse_xp(b"nope").is_err());
+    }
     use super::*;
     use crate::store::BUNDLED;
 

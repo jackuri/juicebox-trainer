@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.32.0] - 2026-11-12
+
+### Added
+- **Packer levels and titles.** Sharing and rating packs earns XP: 10 XP for each pack or web
+  cheats of yours accepted into the community list, 2 XP for each community pack you rate (your
+  own too, once per pack). Levels go from 1 to 99: level 2 takes 10 XP, and each next level 10 XP
+  more than the one before. Titles on the way: Recruit Packer, Pack Rat (level 3), Intern Packer
+  (5), Pro Packer (10), Pack Master (20), Leader of the Pack (30), Pack King (45), Pack Legend (60)
+  and Pack God (99).
+- Your level, title and XP bar sit at the bottom of the menu. Click it for how to earn XP, every
+  title, and the leaderboard. A **Level up!** card pops up when you reach a new level.
+- XP goes with your GitHub name (the same sign-in as sharing and rating). The community list's
+  robot counts it from GitHub itself every hour, so nobody can give themselves XP.
+
 ## [1.31.0] - 2026-11-12
 
 ### Added

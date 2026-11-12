@@ -16,6 +16,7 @@ import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
 import { SessionTools } from "./components/SessionTools";
+import { PackerBadge } from "./components/PackerLevel";
 import type { LiveAsk } from "./components/TrainerPanel";
 import {
   api,
@@ -274,7 +275,10 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="mt-auto rounded-xl bg-zinc-900/80 px-3 py-2.5 text-xs ring-1 ring-zinc-800">
+        <div className="mt-auto">
+          <PackerBadge />
+        </div>
+        <div className="rounded-xl bg-zinc-900/80 px-3 py-2.5 text-xs ring-1 ring-zinc-800">
           {session ? (
             <div className="flex items-start gap-2">
               <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-green-400 shadow-[0_0_8px] shadow-green-400/70" />

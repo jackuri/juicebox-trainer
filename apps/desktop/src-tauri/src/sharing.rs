@@ -29,6 +29,8 @@ pub struct SharingState {
     wanted: Mutex<Option<(Instant, String, Vec<community::Wanted>)>>,
     /// The last ratings download (v1.29.0), for a few minutes.
     ratings: Mutex<Option<(Instant, String, Ratings)>>,
+    /// The XP list (v1.32.0).
+    xp: Mutex<Option<(Instant, String, Vec<community::Player>)>>,
 }
 
 type Ratings = std::collections::BTreeMap<String, community::Rating>;
@@ -567,6 +569,29 @@ pub async fn community_ratings(
         .map_err(|e| CommandError::new("offline", e))?;
     let list = community::parse_ratings(&bytes).map_err(|e| CommandError::new("badIndex", e))?;
     *lock(&state.ratings) = Some((Instant::now(), url, list.clone()));
+    Ok(list)
+}
+
+/// Every player's packer XP, most first (v1.32.0; downloaded at most every
+/// 10 minutes unless `refresh`).
+#[tauri::command]
+pub async fn community_xp(
+    refresh: bool,
+    state: State<'_, SharingState>,
+) -> CmdResult<Vec<community::Player>> {
+    let url = community::xp_url(&index_url());
+    if !refresh
+        && let Some((at, u, list)) = lock(&state.xp).as_ref()
+        && at.elapsed() < CACHE_FOR
+        && *u == url
+    {
+        return Ok(list.clone());
+    }
+    let bytes = fetch(&url, community::MAX_XP_BYTES)
+        .await
+        .map_err(|e| CommandError::new("offline", e))?;
+    let list = community::parse_xp(&bytes).map_err(|e| CommandError::new("badIndex", e))?;
+    *lock(&state.xp) = Some((Instant::now(), url, list.clone()));
     Ok(list)
 }
 

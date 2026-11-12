@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.31.0_
+_Last updated: 2026-11-12 — v1.32.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -358,6 +358,11 @@ _Last updated: 2026-11-12 — v1.31.0_
   puts the player's cheats together, and Ask the AI / Fix with AI work from a web game's cheats
   (the helper may replace the cheats the player asked about; backup kept). User's request after
   Outbreak (five Weak enemy cheats 0xD90 apart). Pushed and tagged 2026-11-12 (CI and Release green).
+
+- v1.32.0 Packer levels: XP (10 per accepted pack or web cheats, 2 per rated pack) counted hourly by
+  the community repo's xp.yml robot from GitHub into xp.json; levels 1–99 (5L(L−1) XP), nine titles
+  ("Pack Rat" instead of the user's slur title), sidebar badge, level panel with leaderboard, LEVEL
+  UP card. Community repo commit 7091a77 (not pushed yet; the user is at level 2 with 20 XP).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

@@ -350,6 +350,22 @@ see the best ones at the top. Installed a community pack? **Tried it? Rate it** 
 on GitHub's page). Each account counts once per pack; rating again changes it. New ratings show up
 on the list within the hour.
 
+### Levels and titles
+
+Sharing and rating earn **packer XP**:
+
+- **10 XP** for each pack or web cheats you share that's accepted into the community list;
+- **2 XP** for each community pack you rate (your own too; once per pack).
+
+Your level, title and XP bar are at the bottom of the menu on the left. Click it to see how to earn
+XP, all the titles and the leaderboard. Levels go from 1 to 99: level 2 takes 10 XP, and each next
+level takes 10 XP more than the one before. Titles: Recruit Packer (level 1), Pack Rat (3), Intern
+Packer (5), Pro Packer (10), Pack Master (20), Leader of the Pack (30), Pack King (45), Pack Legend
+(60) and Pack God (99). A **Level up!** card shows when you reach a new level.
+
+XP goes with your GitHub name, the same sign-in as sharing and rating. GitHub counts it every hour,
+so new XP shows up within the hour. The leaderboard shows GitHub names.
+
 ### Ask for cheats, or help others
 
 - **No cheats for your game?** On the **Games** tab, click **Ask the community for cheats** on it.
