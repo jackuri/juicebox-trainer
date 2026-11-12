@@ -320,7 +320,8 @@ _Last updated: 2026-11-12 — v1.26.0_
   cheats reads the engine's names (GEngine → player → movement / world settings; player values by
   usual names on things the player owns) and saves an `engine-<exe>` pack of pointer paths. Frozen
   pointer paths now pause while they lead nowhere (level loads, respawns). Tested on a fake game in
-  unit tests and on the testbed; not yet on a real Unreal game.
+  unit tests and on the testbed; not yet on a real Unreal game. Pushed and tagged 2026-11-12 at the
+  user's request; the real-game test (Species: Unknown, CPU kept under 85 °C) waits until they are home.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
