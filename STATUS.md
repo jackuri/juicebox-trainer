@@ -350,7 +350,8 @@ _Last updated: 2026-11-12 — v1.30.0_
   into the player's pack, then the pack is reloaded and the cheats turned back on). Find a value
   without a number also reads f64 (Unreal 5) and allows bigger games when memory is free. The user
   tested 1.26's instant cheats on Species: Unknown (2026-11-12): made instantly; health kept but
-  explosions still hurt; ammo only for the starting revolver; jump cheats useless (no jumping).
+  explosions still hurt; ammo only for the starting revolver; jump cheats useless (no jumping). Pushed and tagged
+  2026-11-12 (CI and Release green, installer published).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
