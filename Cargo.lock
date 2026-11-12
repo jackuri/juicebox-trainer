@@ -1924,7 +1924,7 @@ dependencies = [
 
 [[package]]
 name = "jb-core"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "flate2",
  "iced-x86",
@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "jb-mcp"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "jb-core",
  "jb-packs",
@@ -1952,7 +1952,7 @@ dependencies = [
 
 [[package]]
 name = "jb-packs"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "flate2",
  "jb-core",
@@ -1967,7 +1967,7 @@ dependencies = [
 
 [[package]]
 name = "jb-saves"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "base64 0.23.1",
  "crc32fast",
@@ -2150,7 +2150,7 @@ dependencies = [
 
 [[package]]
 name = "juicebox-trainer"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "base64 0.22.1",
  "flate2",
@@ -4355,7 +4355,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-harness"
-version = "1.26.0"
+version = "1.27.0"
 dependencies = [
  "jb-core",
  "serde_json",
@@ -4363,7 +4363,7 @@ dependencies = [
 
 [[package]]
 name = "testbed-native"
-version = "1.26.0"
+version = "1.27.0"
 
 [[package]]
 name = "thiserror"

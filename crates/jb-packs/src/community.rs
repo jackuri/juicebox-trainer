@@ -92,6 +92,61 @@ pub struct TableLink {
     /// `YYYY-MM-DD`.
     #[serde(default)]
     pub added: Option<String>,
+    /// The table's terms (v1.27.0). Needed when the table itself is on the
+    /// list ([`file`](Self::file)): one of [`HOSTING_LICENCES`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub licence: Option<String>,
+    /// The table itself, on the list (`tables/<id>.CT`), when its maker gave
+    /// it an open licence or said it may be shared there. Otherwise the table
+    /// stays on its maker's page only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub file: Option<String>,
+    /// SHA-256 of [`file`](Self::file).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sha256: Option<String>,
+}
+
+/// Terms under which a table itself may be on the community list (v1.27.0):
+/// open licences that allow sharing copies, or the maker's permission.
+pub const HOSTING_LICENCES: &[&str] = &[
+    "CC-BY-4.0",
+    "CC0-1.0",
+    "CC-BY-SA-4.0",
+    "MIT",
+    "Apache-2.0",
+    "GPL-3.0-or-later",
+    crate::schema::LICENCE_PERMISSION,
+];
+
+/// The biggest table file the list may carry.
+pub const MAX_TABLE_FILE: u64 = 2 << 20;
+
+impl TableLink {
+    /// Where the table itself would be on the list.
+    pub fn file_path(&self) -> String {
+        format!("tables/{}.CT", self.id)
+    }
+}
+
+/// The address of a listed table file, next to the index.
+pub fn table_file_url(index_url: &str, link: &TableLink) -> Option<String> {
+    let file = link.file.as_deref()?;
+    let base = index_url.rsplit_once('/').map_or(index_url, |(b, _)| b);
+    Some(format!("{base}/{file}"))
+}
+
+/// Checks a downloaded table file against its link.
+pub fn check_table_file(link: &TableLink, bytes: &[u8]) -> Result<(), String> {
+    if bytes.len() as u64 > MAX_TABLE_FILE {
+        return Err("the table is too big".into());
+    }
+    if link.sha256.as_deref() != Some(jb_core::hash::sha256_bytes(bytes).as_str()) {
+        return Err(
+            "the downloaded table doesn't match the list (it may have just been updated; refresh and try again)"
+                .into(),
+        );
+    }
+    Ok(())
 }
 
 /// The site of a table link (`fearlessrevolution.com`), if it's an https
@@ -122,6 +177,26 @@ pub fn table_problem(t: &TableLink) -> Option<&'static str> {
         .is_some_and(|e| !one_line(e, 120) || e.contains(['/', '\\', ':']))
     {
         Some("bad exe")
+    } else if t
+        .licence
+        .as_deref()
+        .is_some_and(|l| !one_line(l, crate::schema::MAX_SOURCE_LICENCE))
+    {
+        Some("bad licence")
+    } else if let Some(file) = &t.file {
+        if *file != t.file_path() {
+            Some("the table file must be tables/<id>.CT")
+        } else if !t.sha256.as_deref().is_some_and(is_sha256) {
+            Some("the table file needs its SHA-256")
+        } else if !t
+            .licence
+            .as_deref()
+            .is_some_and(|l| HOSTING_LICENCES.contains(&l))
+        {
+            Some("a table on the list needs an open licence or its maker's permission")
+        } else {
+            None
+        }
     } else {
         None
     }
@@ -552,7 +627,52 @@ mod tests {
             url: url.into(),
             cheats: Some(12),
             added: Some("2026-11-09".into()),
+            licence: None,
+            file: None,
+            sha256: None,
         }
+    }
+
+    #[test]
+    fn table_files_need_an_open_licence_and_their_hash() {
+        let table = b"<CheatTable></CheatTable>";
+        let mut t = link("hk-1", "https://fearlessrevolution.com/t");
+        t.file = Some("tables/hk-1.CT".into());
+        t.sha256 = Some(jb_core::hash::sha256_bytes(table));
+        assert!(table_problem(&t).unwrap().contains("open licence"));
+        t.licence = Some("All rights reserved".into());
+        assert!(table_problem(&t).unwrap().contains("open licence"));
+        t.licence = Some("CC-BY-4.0".into());
+        assert_eq!(table_problem(&t), None);
+        t.licence = Some(crate::schema::LICENCE_PERMISSION.into());
+        assert_eq!(table_problem(&t), None);
+
+        let mut elsewhere = t.clone();
+        elsewhere.file = Some("packs/x/pack.json".into());
+        assert!(
+            table_problem(&elsewhere)
+                .unwrap()
+                .contains("tables/<id>.CT")
+        );
+        let mut no_hash = t.clone();
+        no_hash.sha256 = None;
+        assert!(table_problem(&no_hash).unwrap().contains("SHA-256"));
+
+        assert_eq!(
+            table_file_url("https://raw.example/main/index.json", &t).as_deref(),
+            Some("https://raw.example/main/tables/hk-1.CT")
+        );
+        assert_eq!(
+            table_file_url("https://raw.example/index.json", &link("a", "b")),
+            None
+        );
+        assert!(check_table_file(&t, table).is_ok());
+        assert!(check_table_file(&t, b"<CheatTable>changed</CheatTable>").is_err());
+
+        // A licence alone (the table stays on its maker's page) is fine.
+        let mut terms_only = link("hk-2", "https://fearlessrevolution.com/t2");
+        terms_only.licence = Some("Ask before sharing".into());
+        assert_eq!(table_problem(&terms_only), None);
     }
 
     #[test]

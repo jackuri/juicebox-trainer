@@ -1,13 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type LibraryGame, type RecentTable, type TableLink } from "../lib/ipc";
+import { api, type Credit, type LibraryGame, type RecentTable, type TableLink, type TableSite } from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
 import { dismiss, dismissed, exeFor, lastSearch, linksFor, matchGame, rememberSearch, siteOf } from "../lib/tables";
+
+/** The exe's file name ("C:\\G\\hk.exe" → "hk.exe"). */
+function exeOf(path: string | null | undefined): string | undefined {
+  return path?.split(/[\\/]/).pop() || undefined;
+}
 
 const small = "rounded-lg bg-zinc-800 px-2.5 py-1.5 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700";
 
 /** Look for a free Cheat Engine table for one game, on its maker's site. */
-export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClose: () => void; onError: (m: string) => void }) {
+/** More places to search, besides FearLess (v1.27.0). */
+const MORE_SITES: { site: TableSite; label: string }[] = [
+  { site: "cheatengine", label: "Cheat Engine forum" },
+  { site: "opencheattables", label: "OpenCheatTables" },
+  { site: "github", label: "GitHub" },
+  { site: "reddit", label: "Reddit r/cheatengine" },
+  { site: "web", label: "The whole web" },
+];
+
+export function FindTable({
+  game,
+  onClose,
+  onError,
+  onOpenTable,
+}: {
+  game: LibraryGame;
+  onClose: () => void;
+  onError: (m: string) => void;
+  /** Turn a table from the community list into cheats (v1.27.0). */
+  onOpenTable?: (path: string, exe?: string, credit?: Credit) => void;
+}) {
   const [opened, setOpened] = useState<"page" | "search" | null>(null);
+  const [getting, setGetting] = useState<string | null>(null);
   /** Tables other players linked on the community list (null while loading). */
   const [links, setLinks] = useState<TableLink[] | null>(null);
 
@@ -32,7 +58,24 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
     }
   }
 
-  async function search(site: "fearless" | "web") {
+  /** A table the list carries itself: download it and turn it into cheats, with its credit. */
+  async function getTable(l: TableLink) {
+    setGetting(l.id);
+    try {
+      const t = await api.communityGetTable(l.id);
+      onOpenTable?.(t.path, t.exe ?? exeOf(game.exe), {
+        by: t.by,
+        url: t.url,
+        licence: t.licence ?? undefined,
+      });
+    } catch (e) {
+      onError(friendlyError(e));
+    } finally {
+      setGetting(null);
+    }
+  }
+
+  async function search(site: TableSite) {
     try {
       await api.tablesSearch(site, game.name);
       rememberSearch(game.id);
@@ -68,11 +111,24 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
                     by {l.by} · {siteOf(l.url)}
                     {l.cheats != null && ` · ${l.cheats} cheat${l.cheats === 1 ? "" : "s"} JuiceBox Trainer can use`}
                     {l.added && ` · added ${l.added}`}
+                    {l.licence && ` · terms: ${l.licence}`}
                   </span>
                 </span>
-                <button className={small} aria-label={`Open the page of ${l.title}`} onClick={() => void openLink(l.url)}>
-                  Open its page
-                </button>
+                <span className="flex flex-wrap gap-1.5">
+                  {l.file && onOpenTable && (
+                    <button
+                      className="btn-accent rounded-lg px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
+                      disabled={getting !== null}
+                      aria-label={`Turn ${l.title} into cheats`}
+                      onClick={() => void getTable(l)}
+                    >
+                      {getting === l.id ? "Getting it…" : "Turn into cheats now"}
+                    </button>
+                  )}
+                  <button className={small} aria-label={`Open the page of ${l.title}`} onClick={() => void openLink(l.url)}>
+                    Open its page
+                  </button>
+                </span>
               </li>
             ))}
           </ul>
@@ -82,9 +138,11 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
         <button className={small} onClick={() => void search("fearless")}>
           {links && links.length > 0 ? "Search FearLess Revolution for others" : "Search FearLess Revolution"}
         </button>
-        <button className={small} onClick={() => void search("web")}>
-          Search the web
-        </button>
+        {MORE_SITES.map(({ site, label }) => (
+          <button key={site} className={small} onClick={() => void search(site)}>
+            {label}
+          </button>
+        ))}
         <button className="ml-auto text-zinc-500 hover:text-zinc-300" onClick={onClose}>
           Close
         </button>
@@ -95,8 +153,8 @@ export function FindTable({ game, onClose, onError }: { game: LibraryGame; onClo
           {opened === "search"
             ? "Click your game in the list, then the .CT file under the first post."
             : "Click the .CT file under the first post."}{" "}
-          FearLess Revolution asks you to sign in before downloading. Check the table is for your game version, and
-          please thank its maker on their page.
+          Some sites (like FearLess Revolution) ask you to sign in before downloading. Check the table is for your game
+          version, and please thank its maker on their page.
         </p>
       )}
     </div>

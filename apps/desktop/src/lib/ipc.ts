@@ -344,6 +344,34 @@ export interface TableLink {
   url: string;
   cheats: number | null;
   added: string | null;
+  /** The table's terms (v1.27.0). */
+  licence?: string | null;
+  /** The table itself is on the list (its maker gave it an open licence or permission). */
+  file?: string | null;
+  sha256?: string | null;
+}
+
+/** Search places for cheat tables (v1.27.0: more than FearLess). */
+export type TableSite = "fearless" | "cheatengine" | "opencheattables" | "github" | "reddit" | "web";
+
+/** Terms under which a table itself may go on the community list (as `community::HOSTING_LICENCES`). */
+export const HOSTING_LICENCES = [
+  "CC-BY-4.0",
+  "CC0-1.0",
+  "CC-BY-SA-4.0",
+  "MIT",
+  "Apache-2.0",
+  "GPL-3.0-or-later",
+  "Shared with permission; all rights kept by the maker",
+] as const;
+
+/** A table from the community list, saved on this PC (v1.27.0). */
+export interface GotTable {
+  path: string;
+  exe: string | null;
+  by: string;
+  url: string;
+  licence: string | null;
 }
 
 export interface Cheat {
@@ -560,6 +588,8 @@ export interface ShareTerms {
 export interface Credit {
   by?: string;
   url?: string;
+  /** The table's terms (set for a table from the community list). */
+  licence?: string;
 }
 
 /** A Cheat Engine table in the player's Downloads folder (last 30 days). */
@@ -1290,7 +1320,7 @@ export const api = {
   webInstall: (pack: WebPack) => invoke<WebInstalled>("web_install", { pack }),
   communityShareWeb: (id: string, by: string, notes: string | null) => invoke<SharedPack>("community_share_web", { id, by, notes }),
   /** Opens a search for the game's Cheat Engine tables in the browser. */
-  tablesSearch: (site: "fearless" | "web", game: string) => invoke<void>("tables_search", { site, game }),
+  tablesSearch: (site: TableSite, game: string) => invoke<void>("tables_search", { site, game }),
   /** Cheat Engine tables downloaded in the last 30 days, newest first. */
   tablesRecent: () => invoke<RecentTable[]>("tables_recent"),
   packsRemove: (key: string) => invoke<string>("packs_remove", { key }),
@@ -1315,7 +1345,13 @@ export const api = {
   /** Opens a request's page (to vote). */
   communityOpenRequest: (number: number) => invoke<void>("community_open_request", { number }),
   /** Adds the link to the table a pack came from to the community list (a pull request). */
-  communityShareTable: (key: string) => invoke<SharedPack>("community_share_table", { key }),
+  /** Shares a table's link; with `file` and `licence`, the table itself too (v1.27.0). */
+  communityShareTable: (key: string, file?: string, licence?: string) =>
+    invoke<SharedPack>("community_share_table", { key, file: file ?? null, licence: licence ?? null }),
+  /** Downloads a table the community list carries, to turn it into cheats. */
+  communityGetTable: (id: string) => invoke<GotTable>("community_get_table", { id }),
+  /** Lets the player pick a .CT file. */
+  pickTable: () => invoke<string | null>("pick_table"),
   /** Opens a table's page from the community list (only pages the list has). */
   communityOpenTable: (url: string) => invoke<void>("community_open_table", { url }),
   communityPreview: (id: string) => invoke<PackPreview>("community_preview", { id }),

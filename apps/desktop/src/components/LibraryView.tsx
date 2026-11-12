@@ -6,6 +6,7 @@ import {
   type LibraryGame,
   onLibraryProgress,
   type PlayResult,
+  type Credit,
   type StoreKind,
   toCommandError,
   type Wanted,
@@ -26,7 +27,7 @@ interface Props {
   onPlayed: (r: PlayResult) => void;
   onOpenAi: () => void;
   /** Turn a downloaded Cheat Engine table into a pack (Packs view). */
-  onOpenTable: (path: string, exe?: string) => void;
+  onOpenTable: (path: string, exe?: string, credit?: Credit) => void;
 }
 
 /** Games on this PC, with "Play with cheats". */
@@ -245,7 +246,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                 {!g.blocked && !g.pack && <AskCommunity game={g} wanted={wanted} onError={setError} />}
                 {!g.blocked &&
                   (findFor === g.id ? (
-                    <FindTable game={g} onClose={() => setFindFor(null)} onError={setError} />
+                    <FindTable game={g} onClose={() => setFindFor(null)} onError={setError} onOpenTable={onOpenTable} />
                   ) : (
                     <button
                       className="w-full rounded-lg px-3 py-1 text-xs text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"

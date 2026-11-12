@@ -51,8 +51,18 @@ describe("FindTable", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("thank its maker");
     expect(invoke).toHaveBeenCalledWith("tables_search", { site: "fearless", game: "Hollow Knight" });
     expect(JSON.parse(localStorage.getItem("opentrainer.tableSearch") ?? "{}")).toMatchObject({ gameId: "steam:367520" });
-    fireEvent.click(screen.getByRole("button", { name: "Search the web" }));
+    fireEvent.click(screen.getByRole("button", { name: "The whole web" }));
     expect(invoke).toHaveBeenLastCalledWith("tables_search", { site: "web", game: "Hollow Knight" });
+    // More places than FearLess (v1.27.0).
+    for (const [label, site] of [
+      ["Cheat Engine forum", "cheatengine"],
+      ["OpenCheatTables", "opencheattables"],
+      ["GitHub", "github"],
+      ["Reddit r/cheatengine", "reddit"],
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      expect(invoke).toHaveBeenLastCalledWith("tables_search", { site, game: "Hollow Knight" });
+    }
   });
 
   it("lists tables other players linked for this game and opens their pages", async () => {
@@ -86,8 +96,43 @@ describe("FindTable", () => {
     invoke.mockRejectedValue({ kind: "browser", message: "no browser" });
     const onError = vi.fn();
     render(<FindTable game={hk} onClose={vi.fn()} onError={onError} />);
-    fireEvent.click(screen.getByRole("button", { name: "Search the web" }));
+    fireEvent.click(screen.getByRole("button", { name: "The whole web" }));
     await vi.waitFor(() => expect(onError).toHaveBeenCalledWith("no browser"));
+  });
+
+  it("turns a table the list carries (open licence) into cheats, with its credit", async () => {
+    const page = "https://github.com/maker/hk-table";
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "community_list")
+        return Promise.resolve({
+          url: "",
+          contributeUrl: "",
+          updated: null,
+          packs: [],
+          skipped: [],
+          tables: [
+            { id: "hk-2", game: "Hollow Knight", exe: "hollow_knight.exe", title: "HK open", by: "Maker", url: page, cheats: 4, added: null, licence: "CC-BY-4.0", file: "tables/hk-2.CT", sha256: "a".repeat(64) },
+            { id: "hk-3", game: "Hollow Knight", exe: null, title: "HK link only", by: "Other", url: page + "/2", cheats: 2, added: null },
+          ],
+        });
+      if (cmd === "community_get_table")
+        return Promise.resolve({ path: String.raw`C:\cache\hk-2.CT`, exe: "hollow_knight.exe", by: "Maker", url: page, licence: "CC-BY-4.0" });
+      return Promise.resolve(undefined);
+    });
+    const onOpenTable = vi.fn();
+    render(<FindTable game={hk} onClose={vi.fn()} onError={vi.fn()} onOpenTable={onOpenTable} />);
+    expect(await screen.findByText(/terms: CC-BY-4.0/)).toBeInTheDocument();
+    // Only the table the list carries can be turned into cheats here.
+    expect(screen.queryByRole("button", { name: "Turn HK link only into cheats" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Turn HK open into cheats" }));
+    await vi.waitFor(() =>
+      expect(onOpenTable).toHaveBeenCalledWith(String.raw`C:\cache\hk-2.CT`, "hollow_knight.exe", {
+        by: "Maker",
+        url: page,
+        licence: "CC-BY-4.0",
+      }),
+    );
+    expect(invoke).toHaveBeenCalledWith("community_get_table", { id: "hk-2" });
   });
 });
 

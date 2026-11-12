@@ -169,9 +169,45 @@ describe("ShareDialog", () => {
     expect(send).toBeDisabled();
     fireEvent.click(screen.getByRole("checkbox"));
     fireEvent.click(send);
-    await waitFor(() => expect(invoke).toHaveBeenCalledWith("community_share_table", { key: linked.key }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("community_share_table", { key: linked.key, file: null, licence: null }),
+    );
     expect(await screen.findByText(/Sent!/)).toBeInTheDocument();
     expect(invoke).not.toHaveBeenCalledWith("community_share", expect.anything());
+  });
+
+  it("shares the table itself too, only with its licence and the maker's OK (v1.27.0)", async () => {
+    mock({ configured: true, signedIn: true, login: "sam" }, {
+      pick_table: () => Promise.resolve(String.raw`C:\Downloads\Coin_Quest.CT`),
+      community_share_table: () =>
+        Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/10", number: 10, update: false }),
+    });
+    const linked: PackSummary = {
+      ...pack,
+      source: "imported",
+      author: "TableMaker",
+      ai: false,
+      credit: { by: "TableMaker", url: "https://github.com/maker/table", file: "Coin_Quest.CT" },
+      tableLink: true,
+    };
+    render(<ShareDialog pack={linked} mode="link" onClose={vi.fn()} />);
+    fireEvent.click(await screen.findByLabelText(/the table worked for me/));
+    fireEvent.click(screen.getByLabelText(/Also put the table on the list/));
+    const send = screen.getByRole("button", { name: "Share the table and its link" });
+    expect(send).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/Its licence/), { target: { value: "MIT" } });
+    fireEvent.click(screen.getByRole("button", { name: "Choose the .CT file" }));
+    expect(await screen.findByText("Coin_Quest.CT")).toBeInTheDocument();
+    expect(send).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/Its maker allows this/));
+    fireEvent.click(send);
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("community_share_table", {
+        key: linked.key,
+        file: String.raw`C:\Downloads\Coin_Quest.CT`,
+        licence: "MIT",
+      }),
+    );
   });
 
   it("says when this version can't share from the app", async () => {

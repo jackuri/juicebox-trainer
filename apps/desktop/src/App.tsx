@@ -17,6 +17,7 @@ import { SessionTools } from "./components/SessionTools";
 import {
   api,
   type AppInfo,
+  type Credit,
   type CommandError,
   isPackFile,
   onFileDrop,
@@ -70,8 +71,8 @@ export default function App() {
     setNotice(null);
   }, []);
 
-  const openOtpack = useCallback((path: string, exe?: string) => {
-    setOpenPath({ path, exe });
+  const openOtpack = useCallback((path: string, exe?: string, credit?: Credit) => {
+    setOpenPath({ path, exe, credit });
     setView("packs");
   }, []);
   const opened = useCallback(() => setOpenPath(null), []);

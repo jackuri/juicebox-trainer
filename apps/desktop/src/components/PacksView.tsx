@@ -25,6 +25,8 @@ type Incoming = { kind: "file"; path: string; exe?: string } | { kind: "communit
 export interface OpenFile {
   path: string;
   exe?: string;
+  /** The maker's credit, known already (a table from the community list, v1.27.0). */
+  credit?: Credit;
 }
 
 interface Props {
@@ -96,7 +98,8 @@ export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => u
     // After this render: show what's in the file the player opened.
     void Promise.resolve().then(() => {
       onOpened();
-      return preview({ kind: "file", path: openPath.path, exe: openPath.exe });
+      if (openPath.credit) setCredit(openPath.credit);
+      return preview({ kind: "file", path: openPath.path, exe: openPath.exe }, Boolean(openPath.credit));
     });
   }, [openPath, onOpened, preview]);
 

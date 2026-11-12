@@ -282,6 +282,9 @@ fn is_table_path(path: &str) -> bool {
 pub struct Credit {
     pub by: Option<String>,
     pub url: Option<String>,
+    /// The table's terms (v1.27.0: set for a table from the community list).
+    #[serde(default)]
+    pub licence: Option<String>,
 }
 
 /// Adds the maker's credit to a converted table's pack: `meta.source.by` /
@@ -306,6 +309,14 @@ fn with_credit(text: &str, credit: &Credit) -> CmdResult<(Pack, String)> {
     }
     if let Some(url) = url {
         meta["source"]["url"] = url.into();
+    }
+    if let Some(licence) = credit
+        .licence
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+    {
+        meta["source"]["licence"] = licence.into();
     }
     let text = serde_json::to_string_pretty(&v).map_err(|e| bad(e.to_string()))?
         + "
@@ -645,6 +656,58 @@ pub async fn community_open_table(url: String, state: State<'_, SharingState>) -
     Ok(())
 }
 
+/// A table from the community list, saved on this PC to be turned into cheats.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GotTable {
+    pub path: String,
+    pub exe: Option<String>,
+    /// Its maker, page and terms, for the pack's credit.
+    pub by: String,
+    pub url: String,
+    pub licence: Option<String>,
+}
+
+/// Downloads a table the community list carries (one whose maker gave it an
+/// open licence or permission, v1.27.0) to
+/// `%LOCALAPPDATA%\JuiceBox Trainer\tables\<id>.CT`, checked against the list.
+#[tauri::command]
+pub async fn community_get_table(
+    id: String,
+    state: State<'_, SharingState>,
+) -> CmdResult<GotTable> {
+    let Cached { url, index, .. } = index(&state, false).await?;
+    let link = index
+        .tables
+        .iter()
+        .find(|t| t.id == id)
+        .ok_or_else(|| CommandError::new("notFound", format!("{id} isn't on the list")))?;
+    let file_url = community::table_file_url(&url, link).ok_or_else(|| {
+        CommandError::new(
+            "badRequest",
+            "that table stays on its maker's page: open its page to get it",
+        )
+    })?;
+    let bytes = fetch(&file_url, community::MAX_TABLE_FILE)
+        .await
+        .map_err(|e| CommandError::new("offline", e))?;
+    community::check_table_file(link, &bytes).map_err(|e| CommandError::new("badPack", e))?;
+    let dir = community::cache_path()
+        .and_then(|p| p.parent().map(|d| d.join("tables")))
+        .ok_or_else(|| CommandError::new("noAppData", "%LOCALAPPDATA% is not set"))?;
+    let io = |e: std::io::Error| CommandError::new("io", format!("{}: {e}", dir.display()));
+    std::fs::create_dir_all(&dir).map_err(io)?;
+    let path = dir.join(format!("{}.CT", link.id));
+    std::fs::write(&path, &bytes).map_err(io)?;
+    Ok(GotTable {
+        path: path.display().to_string(),
+        exe: link.exe.clone(),
+        by: link.by.clone(),
+        url: link.url.clone(),
+        licence: link.licence.clone(),
+    })
+}
+
 async fn download(state: &SharingState, id: &str) -> CmdResult<(String, Pack, String, Vec<Issue>)> {
     let Cached { url, index, .. } = index(state, false).await?;
     let entry = index
@@ -708,6 +771,7 @@ mod tests {
         let credit = Credit {
             by: Some("  TableMaker ".into()),
             url: Some("https://fearlessrevolution.com/viewtopic.php?t=123".into()),
+            licence: Some("CC-BY-4.0".into()),
         };
         let (pack, text) = with_credit(&o.text, &credit).unwrap();
         assert_eq!(pack.meta.author, "TableMaker");
@@ -718,6 +782,7 @@ mod tests {
             Some("https://fearlessrevolution.com/viewtopic.php?t=123")
         );
         assert_eq!(src.file.as_deref(), Some("Some_Game.CT"));
+        assert_eq!(src.licence.as_deref(), Some("CC-BY-4.0"));
         assert!(text.ends_with("}\n"));
 
         // Blank credit changes nothing; a bad page address is refused.
@@ -726,8 +791,8 @@ mod tests {
         let err = with_credit(
             &o.text,
             &Credit {
-                by: None,
                 url: Some("javascript:alert(1)".into()),
+                ..Credit::default()
             },
         )
         .unwrap_err();

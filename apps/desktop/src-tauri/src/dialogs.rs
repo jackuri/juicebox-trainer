@@ -96,3 +96,16 @@ mod tests {
         assert_eq!(start_dir(None), None);
     }
 }
+
+/// Lets the player pick a Cheat Engine table (`.CT`), to share it (v1.27.0).
+/// `None` if they cancelled.
+#[tauri::command]
+pub async fn pick_table(app: AppHandle) -> CmdResult<Option<String>> {
+    app.dialog()
+        .file()
+        .set_title("Choose the Cheat Engine table (.CT)")
+        .add_filter("Cheat Engine table", &[jb_packs::ct::EXTENSION, "CT"])
+        .blocking_pick_file()
+        .map(path_of)
+        .transpose()
+}

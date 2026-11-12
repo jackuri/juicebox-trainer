@@ -625,6 +625,34 @@ async fn send_file(
     commit_message: impl FnOnce(bool) -> String,
     pr_text: impl FnOnce(bool, &str) -> (String, String),
 ) -> Result<Shared, CommandError> {
+    send_files(
+        hub,
+        token,
+        &[(file, text)],
+        branch_prefix,
+        stamp,
+        commit_message,
+        pr_text,
+    )
+    .await
+}
+
+/// Like [`send_file`] with several files in one pull request (v1.27.0: a
+/// table link and the table itself). The first file says whether it is an
+/// update.
+#[allow(clippy::too_many_arguments)]
+async fn send_files(
+    hub: &Hub,
+    token: &str,
+    files: &[(&str, &str)],
+    branch_prefix: &str,
+    stamp: u64,
+    commit_message: impl FnOnce(bool) -> String,
+    pr_text: impl FnOnce(bool, &str) -> (String, String),
+) -> Result<Shared, CommandError> {
+    let Some(&(file, _)) = files.first() else {
+        return Err(err("badRequest", "nothing to send"));
+    };
     use reqwest::Method;
     let me = hub
         .ok(token, Method::GET, "/user", None, "to say who you are")
@@ -712,32 +740,35 @@ async fn send_file(
         "to start your change",
     )
     .await?;
-    let (status, existing) = hub
-        .call(
+    let message = commit_message(update);
+    for (file, text) in files {
+        let (status, existing) = hub
+            .call(
+                token,
+                Method::GET,
+                &format!("/repos/{head_repo}/contents/{file}?ref={branch}"),
+                None,
+            )
+            .await?;
+        let mut put = json!({
+            "message": message,
+            "content": base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
+            "branch": branch,
+        });
+        if status == 200
+            && let Some(old) = existing["sha"].as_str()
+        {
+            put["sha"] = json!(old);
+        }
+        hub.ok(
             token,
-            Method::GET,
-            &format!("/repos/{head_repo}/contents/{file}?ref={branch}"),
-            None,
+            Method::PUT,
+            &format!("/repos/{head_repo}/contents/{file}"),
+            Some(&put),
+            "to add the file",
         )
         .await?;
-    let mut put = json!({
-        "message": commit_message(update),
-        "content": base64::engine::general_purpose::STANDARD.encode(text.as_bytes()),
-        "branch": branch,
-    });
-    if status == 200
-        && let Some(old) = existing["sha"].as_str()
-    {
-        put["sha"] = json!(old);
     }
-    hub.ok(
-        token,
-        Method::PUT,
-        &format!("/repos/{head_repo}/contents/{file}"),
-        Some(&put),
-        "to add the file",
-    )
-    .await?;
 
     let (title, body) = pr_text(update, &login);
     let head = if head_repo == COMMUNITY_REPO {
@@ -923,6 +954,9 @@ pub fn table_link(
         url,
         cheats: Some(pack.cheats.len()),
         added: Some(today.to_string()),
+        licence: None,
+        file: None,
+        sha256: None,
     };
     if let Some(why) = community::table_problem(&link) {
         return Err(err(
@@ -935,20 +969,36 @@ pub fn table_link(
 
 fn table_pr_text(link: &community::TableLink, update: bool, sharer: &str) -> (String, String) {
     let title = format!(
-        "{} table link: {}",
+        "{} table {}: {}",
         if update { "Update" } else { "Add" },
+        if link.file.is_some() {
+            "and link"
+        } else {
+            "link"
+        },
         plain(&link.game, 80)
     );
+    let what = if link.file.is_some() {
+        format!(
+            "The table itself is included (`{}`), under **{}**. Please check on its page that its \
+             maker gave it this licence or said it may be shared here before merging.",
+            link.file_path(),
+            plain(link.licence.as_deref().unwrap_or("no licence"), 100)
+        )
+    } else {
+        "Only a link: the table stays on its maker's page. Please check the page is the table's \
+         own page on its maker's site."
+            .to_string()
+    };
     let body = format!(
-        "Shared from JuiceBox Trainer {} by @{sharer}.
-
-         - **Game:** {}{}
-         - **Table:** {}
-         - **Made by:** {}
-         - **Page:** {}
-         - **Cheats JuiceBox Trainer can use:** {}
-
-         Only a link: the table stays on its maker's page. Please check the page is the table's own          page on its maker's site.",
+        "Shared from JuiceBox Trainer {} by @{sharer}.\n\n\
+         - **Game:** {}{}\n\
+         - **Table:** {}\n\
+         - **Made by:** {}\n\
+         - **Page:** {}\n\
+         - **Cheats JuiceBox Trainer can use:** {}\n\
+         {}\n\
+         {what}",
         env!("CARGO_PKG_VERSION"),
         plain(&link.game, 80),
         link.exe
@@ -957,16 +1007,78 @@ fn table_pr_text(link: &community::TableLink, update: bool, sharer: &str) -> (St
         plain(&link.title, 120),
         plain(&link.by, 80),
         plain(&link.url, 400),
-        link.cheats.map_or_else(|| "not said".to_string(), |c| c.to_string()),
+        link.cheats
+            .map_or_else(|| "not said".to_string(), |c| c.to_string()),
+        link.licence.as_deref().map_or(String::new(), |l| format!(
+            "- **Terms:** {}\n",
+            plain(l, 100)
+        )),
     );
     (title, body)
 }
 
+/// Adds the table itself to a link (v1.27.0): the `.CT` the player picked,
+/// when its maker gave it an open licence or permission. The file must be a
+/// table JuiceBox Trainer can read, for the same game.
+pub fn with_table_file(
+    mut link: community::TableLink,
+    exe: &str,
+    bytes: &[u8],
+    licence: &str,
+) -> Result<(community::TableLink, String), CommandError> {
+    if !community::HOSTING_LICENCES.contains(&licence) {
+        return Err(err(
+            "badRequest",
+            "the table itself can only be shared under an open licence or with its maker's permission",
+        ));
+    }
+    if bytes.len() as u64 > community::MAX_TABLE_FILE {
+        return Err(err(
+            "badRequest",
+            "the table is too big to share (2 MB at most)",
+        ));
+    }
+    let text = String::from_utf8(bytes.to_vec())
+        .map_err(|_| err("badRequest", "that file isn't a Cheat Engine table"))?;
+    let known_exe = (exe != jb_packs::ct::UNKNOWN_EXE).then_some(exe);
+    // Read without naming the exe, so the table's own addresses say which game it is for.
+    let converted = jb_packs::ct::convert(bytes, "table", None, &jb_packs::share::today())
+        .map_err(|e| err("badRequest", e.to_string()))?;
+    if converted.pack.cheats.is_empty() {
+        return Err(err(
+            "badRequest",
+            "that table has nothing JuiceBox Trainer can use",
+        ));
+    }
+    if converted.exe_known
+        && known_exe.is_some_and(|e| !converted.pack.game.exe.eq_ignore_ascii_case(e))
+    {
+        return Err(err(
+            "badRequest",
+            format!("that table is for {}, not {exe}", converted.pack.game.exe),
+        ));
+    }
+    link.licence = Some(licence.to_string());
+    link.file = Some(link.file_path());
+    link.sha256 = Some(jb_core::hash::sha256_bytes(bytes));
+    if let Some(why) = community::table_problem(&link) {
+        return Err(err(
+            "badRequest",
+            format!("this table can't be listed: {why}"),
+        ));
+    }
+    Ok((link, text))
+}
+
 /// Adds the link to the table one of the player's packs was converted from
-/// to the community list (a pull request with `tables/<id>.json`).
+/// to the community list (a pull request with `tables/<id>.json`). With
+/// `file` and `licence` (v1.27.0), the table itself goes too, as
+/// `tables/<id>.CT`.
 #[tauri::command]
 pub async fn community_share_table(
     key: String,
+    file: Option<String>,
+    licence: Option<String>,
     state: State<'_, GithubState>,
 ) -> CmdResult<Shared> {
     let found = store::all()
@@ -976,21 +1088,50 @@ pub async fn community_share_table(
     let text = found.text.map_err(|e| err("io", e.to_string()))?;
     let (pack, _) = jb_packs::parse(&text)
         .map_err(|e| err("invalidPack", format!("the pack isn't valid: {e}")))?;
-    let link = table_link(&pack, &jb_packs::share::today())?;
-    let json = serde_json::to_string_pretty(&link).map_err(|e| err("io", e.to_string()))?
-        + "
-";
+    let mut link = table_link(&pack, &jb_packs::share::today())?;
+    let licence = licence
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty());
+    let mut table_text = None;
+    match (file, &licence) {
+        (Some(path), Some(l)) => {
+            let bytes = std::fs::read(&path).map_err(|e| err("io", format!("{path}: {e}")))?;
+            let (with_file, t) = with_table_file(link, &pack.game.exe, &bytes, l)?;
+            link = with_file;
+            table_text = Some(t);
+        }
+        (Some(_), None) => {
+            return Err(err(
+                "badRequest",
+                "choose the table's licence to share the table itself",
+            ));
+        }
+        (None, Some(l)) => {
+            link.licence = Some(
+                l.chars()
+                    .take(jb_packs::schema::MAX_SOURCE_LICENCE)
+                    .collect(),
+            );
+        }
+        (None, None) => {}
+    }
+    let json = serde_json::to_string_pretty(&link).map_err(|e| err("io", e.to_string()))? + "\n";
     let token =
         vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
     let stamp = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs());
     let id = link.id.clone();
-    let result = send_file(
+    let link_file = format!("tables/{id}.json");
+    let table_file = link.file_path();
+    let mut files: Vec<(&str, &str)> = vec![(&link_file, &json)];
+    if let Some(t) = &table_text {
+        files.push((&table_file, t));
+    }
+    let result = send_files(
         &Hub::github()?,
         &token,
-        &format!("tables/{id}.json"),
-        &json,
+        &files,
         &format!("table-{}", &id[..id.len().min(40)]),
         stamp,
         |update| format!("{} table link: {id}", if update { "Update" } else { "Add" }),
@@ -1308,6 +1449,109 @@ mod tests {
         v["meta"]["source"] =
             json!({ "by": "TableMaker", "url": url, "file": "Coin_Quest_v1.2.CT" });
         jb_packs::parse(&v.to_string()).unwrap().0
+    }
+
+    fn table_for(exe: &str) -> String {
+        format!(
+            "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<CheatTable CheatEngineTableVersion=\"45\">\n  <CheatEntries>\n    <CheatEntry>\n      <ID>1</ID>\n      <Description>\"Gold\"</Description>\n      <VariableType>4 Bytes</VariableType>\n      <Address>\"{exe}\"+1234</Address>\n    </CheatEntry>\n  </CheatEntries>\n</CheatTable>\n"
+        )
+    }
+
+    /// v1.27.0: the table itself, under an open licence, in the same pull request.
+    #[test]
+    fn shares_a_table_with_its_file_under_an_open_licence() {
+        let link = table_link(
+            &credited("https://fearlessrevolution.com/viewtopic.php?t=99"),
+            "2026-11-12",
+        )
+        .unwrap();
+        let table = table_for("testbed_native.exe");
+
+        let closed = with_table_file(
+            link.clone(),
+            "testbed_native.exe",
+            table.as_bytes(),
+            "All rights reserved",
+        )
+        .unwrap_err();
+        assert!(
+            closed.message.contains("open licence"),
+            "{}",
+            closed.message
+        );
+        let other = with_table_file(
+            link.clone(),
+            "testbed_native.exe",
+            table_for("Other.exe").as_bytes(),
+            "MIT",
+        )
+        .unwrap_err();
+        assert!(other.message.contains("Other.exe"), "{}", other.message);
+        assert!(
+            with_table_file(link.clone(), "testbed_native.exe", b"not a table", "MIT").is_err()
+        );
+
+        let (with_file, text) = with_table_file(
+            link.clone(),
+            "testbed_native.exe",
+            table.as_bytes(),
+            "CC-BY-4.0",
+        )
+        .unwrap();
+        assert_eq!(
+            with_file.file.as_deref(),
+            Some(with_file.file_path().as_str())
+        );
+        assert_eq!(with_file.licence.as_deref(), Some("CC-BY-4.0"));
+        assert_eq!(text, table);
+
+        let (title, body) = table_pr_text(&with_file, false, "sam");
+        assert!(title.starts_with("Add table and link"), "{title}");
+        assert!(
+            body.contains("CC-BY-4.0") && body.contains("check on its page"),
+            "{body}"
+        );
+
+        let (hub, seen) = fake(github_like("sam", false));
+        let json = serde_json::to_string_pretty(&with_file).unwrap() + "\n";
+        let link_file = format!("tables/{}.json", with_file.id);
+        let table_file = with_file.file_path();
+        run(send_files(
+            &hub,
+            "tok",
+            &[(&link_file, &json), (&table_file, &text)],
+            "table-x",
+            42,
+            |_| "Add table link".into(),
+            |u, l| table_pr_text(&with_file, u, l),
+        ))
+        .unwrap();
+        let seen = lock(&seen).clone();
+        let written: Vec<&String> = seen
+            .iter()
+            .filter(|(m, _, _)| m == "PUT")
+            .map(|(_, p, _)| p)
+            .collect();
+        assert!(
+            written.iter().any(|p| p.ends_with(&link_file)),
+            "{written:?}"
+        );
+        let put = seen
+            .iter()
+            .find(|(m, p, _)| m == "PUT" && p.ends_with(&table_file))
+            .expect("the table is written");
+        let put: Value = serde_json::from_str(&put.2).unwrap();
+        let content = base64::engine::general_purpose::STANDARD
+            .decode(put["content"].as_str().unwrap())
+            .unwrap();
+        assert_eq!(content, table.as_bytes());
+        assert_eq!(
+            seen.iter()
+                .filter(|(m, p, _)| m == "POST" && p.ends_with("/pulls"))
+                .count(),
+            1,
+            "one pull request"
+        );
     }
 
     #[test]

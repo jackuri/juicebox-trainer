@@ -150,7 +150,9 @@ In the **Packs** tab:
   backup.
 - **Use a Cheat Engine table:** many games have free cheat tables (`.CT` files) shared on forums
   such as FearLessRevolution. The easy way: in **Games**, click **Find a cheat table** on the game,
-  then **Search FearLess Revolution** (or **Search the web**). If other players already linked the
+  then **Search FearLess Revolution**, or one of the other places: the **Cheat Engine forum**,
+  **OpenCheatTables**, **GitHub**, **Reddit r/cheatengine** or **The whole web** (only the game's
+  name is sent). If other players already linked the
   game's table page, a green button opens that page directly. Your browser opens the page or the
   search; open the table's page and download its `.CT` file (FearLess Revolution asks you to sign
   in first). Back in
@@ -160,7 +162,9 @@ In the **Packs** tab:
   with the pack and shown to anyone it's shared with. JuiceBox Trainer never downloads or re-uploads
   tables itself.
   - **Tables other players found:** **Find a cheat table** also lists tables other players linked
-    for that game, with who made them. **Open its page** opens the table's own page.
+    for that game, with who made them. **Open its page** opens the table's own page. Some tables are
+    on the community list itself, because their maker gave them an open licence or said they may be
+    shared there: **Turn into cheats now** gets them in one click, with the maker's credit and terms.
   - **Credit and terms:** community packs show who made the cheats, their terms (MIT unless the
     maker chose others, such as "shared with permission; the maker keeps all rights"), a **Shared
     by its maker** badge when the maker shared it, and **Maker's page** / **Support the maker**.

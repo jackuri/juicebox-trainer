@@ -3,6 +3,7 @@ import {
   api,
   type DeviceCode,
   type GithubStatus,
+  HOSTING_LICENCES,
   LICENCE_PERMISSION,
   type PackSummary,
   type SharedPack,
@@ -39,6 +40,11 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
   const [otherTerms, setOtherTerms] = useState("");
   const [support, setSupport] = useState("");
   const [sharing, setSharing] = useState(false);
+  /** Link mode (v1.27.0): include the table itself, when its maker allows it. */
+  const [withFile, setWithFile] = useState(false);
+  const [tableFile, setTableFile] = useState<string | null>(null);
+  const [tableLicence, setTableLicence] = useState<string>(HOSTING_LICENCES[0]);
+  const [allowed, setAllowed] = useState(false);
   const [shared, setShared] = useState<SharedPack | null>(null);
   const [error, setError] = useState<string | null>(null);
   const name = pack.name ?? pack.id ?? "this pack";
@@ -86,7 +92,9 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
       const fromMaker = fromSomeoneElse ? madeBy === "me" : !pack.ai;
       setShared(
         link
-          ? await api.communityShareTable(pack.key)
+          ? withFile && tableFile
+            ? await api.communityShareTable(pack.key, tableFile, tableLicence)
+            : await api.communityShareTable(pack.key)
           : await api.communityShare(pack.key, note, fromSomeoneElse && madeBy === "other", {
               fromMaker,
               licence,
@@ -99,6 +107,16 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
       setError(friendlyError(err));
     } finally {
       setSharing(false);
+    }
+  }
+
+  async function chooseTable() {
+    setError(null);
+    try {
+      const path = await api.pickTable();
+      if (path) setTableFile(path);
+    } catch (e) {
+      setError(friendlyError(e));
     }
   }
 
@@ -186,9 +204,53 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
             <input type="checkbox" className="mt-1" checked={tested} onChange={(e) => setTested(e.target.checked)} />
             The address is the table&apos;s own page on its maker&apos;s site, and the table worked for me.
           </label>
+          <fieldset className="flex flex-col gap-2 rounded-lg bg-zinc-950/60 p-3 text-xs ring-1 ring-zinc-800">
+            <legend className="px-1 text-zinc-300">The table itself</legend>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="with-file" className="mt-0.5" checked={!withFile} onChange={() => setWithFile(false)} />
+              Only the link: the table stays on its maker&apos;s page.
+            </label>
+            <label className="flex items-start gap-2">
+              <input type="radio" name="with-file" className="mt-0.5" checked={withFile} onChange={() => setWithFile(true)} />
+              Also put the table on the list, so players can turn it into cheats in one click. Only when its maker gave
+              it an open licence, or said it may be shared here.
+            </label>
+            {withFile && (
+              <div className="flex flex-col gap-2 pl-6">
+                <label className="flex flex-col gap-1">
+                  <span className="text-zinc-400">Its licence (as its page says)</span>
+                  <select
+                    className="rounded bg-zinc-900 px-2 py-1 ring-1 ring-zinc-700"
+                    value={tableLicence}
+                    onChange={(e) => setTableLicence(e.target.value)}
+                  >
+                    {HOSTING_LICENCES.map((l) => (
+                      <option key={l} value={l}>
+                        {l === LICENCE_PERMISSION ? "The maker said it may be shared here" : l}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button className={button} onClick={() => void chooseTable()}>
+                    {tableFile ? "Choose another .CT file" : "Choose the .CT file"}
+                  </button>
+                  {tableFile && <span className="break-all text-zinc-300">{tableFile.split(/[\\/]/).pop()}</span>}
+                </div>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-0.5" checked={allowed} onChange={(e) => setAllowed(e.target.checked)} />
+                  Its maker allows this: the licence is on the table&apos;s page, or they told me it may be shared here.
+                </label>
+              </div>
+            )}
+          </fieldset>
           <div className="flex flex-wrap items-center gap-2">
-            <button className={primary} disabled={sharing || !tested} onClick={() => void share()}>
-              {sharing ? "Sharing…" : "Share the link"}
+            <button
+              className={primary}
+              disabled={sharing || !tested || (withFile && (!tableFile || !allowed))}
+              onClick={() => void share()}
+            >
+              {sharing ? "Sharing…" : withFile ? "Share the table and its link" : "Share the link"}
             </button>
             <button className={button} onClick={close} disabled={sharing}>
               Cancel

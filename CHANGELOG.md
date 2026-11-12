@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.0] - 2026-11-12
+
+### Added
+- **More places to find cheat tables.** **Find a cheat table** now also searches the Cheat Engine
+  forum, OpenCheatTables, GitHub and Reddit's r/cheatengine (only the game's name is sent), next to
+  FearLess Revolution and the whole web.
+- **Tables on the community list.** A table whose maker gave it an open licence (such as CC BY or
+  MIT), or said it may be shared there, can now be on the community list itself, with its maker's
+  credit and terms. **Find a cheat table** shows **Turn into cheats now** for those: no browser, no
+  sign-in, no download by hand. The table is checked against the list before it's used. Other
+  tables are still only linked: they stay on their maker's page.
+- When you share a table's link, you can include the table itself, if its maker allows it: pick its
+  licence and the `.CT` file. A maintainer checks the licence on the table's page before it shows up.
+
 ## [1.26.0] - 2026-11-12
 
 ### Added

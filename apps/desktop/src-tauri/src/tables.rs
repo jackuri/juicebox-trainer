@@ -34,6 +34,26 @@ fn search_url(site: &str, game: &str) -> Option<String> {
             "https://fearlessrevolution.com/search.php?keywords={}&terms=all&sf=titleonly&sr=topics",
             encode(game)
         )),
+        // The official Cheat Engine forum's table section and OpenCheatTables
+        // (v1.27.0): searched through DuckDuckGo, limited to the site.
+        "cheatengine" => Some(format!(
+            "https://duckduckgo.com/?q={}",
+            encode(&format!("site:forum.cheatengine.org {game} table"))
+        )),
+        "opencheattables" => Some(format!(
+            "https://duckduckgo.com/?q={}",
+            encode(&format!("site:opencheattables.com {game}"))
+        )),
+        // Tables people publish on GitHub.
+        "github" => Some(format!(
+            "https://github.com/search?q={}&type=repositories",
+            encode(&format!("{game} cheat table"))
+        )),
+        // Reddit's Cheat Engine community.
+        "reddit" => Some(format!(
+            "https://www.reddit.com/r/cheatengine/search/?q={}&restrict_sr=1",
+            encode(game)
+        )),
         // Any other free site.
         "web" => Some(format!(
             "https://duckduckgo.com/?q={}",
@@ -59,7 +79,7 @@ fn encode(s: &str) -> String {
 }
 
 /// Opens a search for the game's cheat tables in the player's browser.
-/// `site` is `fearless` or `web`.
+/// `site`: `fearless`, `cheatengine`, `opencheattables`, `github`, `reddit` or `web`.
 #[tauri::command]
 pub async fn tables_search(site: String, game: String) -> CmdResult<()> {
     let url = search_url(&site, &game)
@@ -236,6 +256,22 @@ mod tests {
         assert!(
             tricky.contains("keywords=a%26b%3Dc%23d+%22e%22+%C3%A9&"),
             "{tricky}"
+        );
+        assert_eq!(
+            search_url("cheatengine", "Hollow Knight").as_deref(),
+            Some("https://duckduckgo.com/?q=site%3Aforum.cheatengine.org+Hollow+Knight+table")
+        );
+        assert_eq!(
+            search_url("opencheattables", "Hollow Knight").as_deref(),
+            Some("https://duckduckgo.com/?q=site%3Aopencheattables.com+Hollow+Knight")
+        );
+        assert_eq!(
+            search_url("github", "Hollow Knight").as_deref(),
+            Some("https://github.com/search?q=Hollow+Knight+cheat+table&type=repositories")
+        );
+        assert_eq!(
+            search_url("reddit", "a&b").as_deref(),
+            Some("https://www.reddit.com/r/cheatengine/search/?q=a%26b&restrict_sr=1")
         );
         assert_eq!(search_url("evil", "x"), None);
         assert_eq!(search_url("web", "  "), None);
