@@ -342,7 +342,8 @@ _Last updated: 2026-11-12 — v1.29.0_
 
 - v1.29.0 Pack ratings: 1–3 stars per community pack (rating issues + reactions on the community
   repo, counted hourly into ratings.json); Packs shows stars, Best rated first, and Rate it on
-  installed community packs (GitHub sign-in as for sharing).
+  installed community packs (GitHub sign-in as for sharing). Pushed and tagged 2026-11-12; "rating" label made, the robot
+  ran and opened rating issues #4 (testbed-demo) and #5 (Species: Unknown).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
