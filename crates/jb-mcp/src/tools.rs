@@ -1101,11 +1101,23 @@ impl Tools {
             .watch
             .take()
             .ok_or("no watch running; call watch_writes_start first")?;
-        let writers = watch.stop().map_err(err)?;
+        let mut writers = watch.stop().map_err(err)?;
+        // The game's own code first: Windows' and the C runtime's shared code (memory copies)
+        // also trips a watch now and then, and patching it would break everything (v1.33.0).
+        writers.sort_by_key(|w| system_code(w.location.as_deref()));
         let list: Vec<Value> = writers
             .iter()
             .take(10)
             .map(|w| {
+                if system_code(w.location.as_deref()) {
+                    return json!({
+                        "address": hex(w.address),
+                        "location": w.location,
+                        "instruction": w.text,
+                        "count": w.count,
+                        "systemCode": "Windows' or the C runtime's shared code (a memory copy): never patch it",
+                    });
+                }
                 let nops = vec!["90"; w.bytes.split(' ').count()].join(" ");
                 json!({
                     "address": hex(w.address),
@@ -1120,7 +1132,7 @@ impl Tools {
         let note = if list.is_empty() {
             "nothing wrote to it while watching; ask the player to change the value and try again"
         } else {
-            "replacing a writer's bytes with 90 (NOP) stops that change; test it with pack_try"
+            "the game's own writers come first; replacing a writer's bytes with 90 (NOP) stops that change; test it with pack_try"
         };
         Ok(json!({ "writers": list, "note": note }))
     }
@@ -1285,6 +1297,24 @@ fn live_write(fix: &LiveFix, new: Pack) -> Res {
         "cheats": pack.cheats.len(),
         "next": "Undo your tests with revert_all and finish: JuiceBox Trainer loads the pack again when you're done and turns the player's cheats back on.",
     }))
+}
+
+/// A location (`module+0x…`) in Windows' or the C runtime's shared code.
+fn system_code(location: Option<&str>) -> bool {
+    const SHARED: &[&str] = &[
+        "vcruntime",
+        "msvcp",
+        "msvcrt",
+        "ucrtbase",
+        "ntdll",
+        "kernel32",
+        "kernelbase",
+        "combase",
+    ];
+    location.is_some_and(|l| {
+        let module = l.split('+').next().unwrap_or("").to_ascii_lowercase();
+        SHARED.iter().any(|s| module.starts_with(s))
+    })
 }
 
 fn parse_pack(raw: &Value) -> Result<Pack, String> {
@@ -1570,6 +1600,15 @@ pub fn definitions() -> Vec<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn knows_windows_shared_code() {
+        assert!(system_code(Some("VCRUNTIME140.dll+0x1C460")));
+        assert!(system_code(Some("ntdll.dll+0x10")));
+        assert!(!system_code(Some("testbed_native.exe+0x5010")));
+        assert!(!system_code(Some("GameAssembly.dll+0x10")));
+        assert!(!system_code(None));
+    }
 
     #[test]
     fn parses_pointer_paths() {

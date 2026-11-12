@@ -8,6 +8,10 @@ import type { Player } from "./ipc";
 export const MAX_LEVEL = 99;
 export const XP_PER_PACK = 10;
 export const XP_PER_RATING = 2;
+/** Daily check-in (v1.33.0): XP a day, and the reward for every so many days in a row. */
+export const XP_PER_DAY = 2;
+export const STREAK_DAYS = 5;
+export const STREAK_XP = 10;
 
 /** Total XP to reach a level. */
 export const xpFor = (level: number) => 5 * level * (level - 1);
@@ -72,5 +76,59 @@ export function levelUp(login: string, level: number): number | null {
     return typeof was === "number" && level > was ? level : null;
   } catch {
     return null;
+  }
+}
+
+// ----- daily check-in (v1.33.0) --------------------------------------------------------------
+
+/** Today (UTC, as GitHub dates check-ins), `YYYY-MM-DD`. */
+export const utcToday = (now: Date = new Date()) => now.toISOString().slice(0, 10);
+const dayBefore = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
+
+/** Days in a row with today, once checked in today (the XP list may not have today yet). */
+export function streakWithToday(p: Player | null, today: string): number {
+  if (!p?.lastDay) return 1;
+  if (p.lastDay === today) return Math.max(1, p.streak ?? 1);
+  if (p.lastDay === dayBefore(today)) return (p.streak ?? 0) + 1;
+  return 1;
+}
+
+/** The streak reward comes on this day of a run (every 5th). */
+export const streakReward = (streak: number) => streak > 0 && streak % STREAK_DAYS === 0;
+
+const ON = "juicebox.checkIn";
+const DONE = "juicebox.checkedIn";
+
+/** The player turned the daily check-in on (on this PC). */
+export function checkInOn(): boolean {
+  try {
+    return localStorage.getItem(ON) === "on";
+  } catch {
+    return false;
+  }
+}
+export function setCheckInOn(on: boolean): void {
+  try {
+    localStorage.setItem(ON, on ? "on" : "off");
+  } catch {
+    // Only a setting on this PC.
+  }
+}
+
+/** Checked in today already, for this GitHub name, from this PC. */
+export function checkedIn(login: string, day: string): boolean {
+  try {
+    return (JSON.parse(localStorage.getItem(DONE) ?? "{}") as Record<string, string>)[login.toLowerCase()] === day;
+  } catch {
+    return false;
+  }
+}
+export function rememberCheckIn(login: string, day: string): void {
+  try {
+    const all = JSON.parse(localStorage.getItem(DONE) ?? "{}") as Record<string, string>;
+    all[login.toLowerCase()] = day;
+    localStorage.setItem(DONE, JSON.stringify(all));
+  } catch {
+    // Asked again next time: GitHub says it's done already.
   }
 }

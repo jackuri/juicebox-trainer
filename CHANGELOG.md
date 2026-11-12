@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.33.0] - 2026-11-12
+
+### Added
+- **Daily check-in.** Open JuiceBox Trainer on a day and get 2 XP; every 5 days in a row give 10 XP
+  more. Turn it on once: click your level at the bottom of the menu, then tick **Check me in every
+  day I open JuiceBox Trainer**. A **Daily check-in** card shows your XP and your days in a row (five
+  boxes fill up toward the next reward).
+- Check-ins go with your GitHub name like the rest of your XP: the app puts a 👍 on that day's
+  check-in page of the community list, and the list's robot counts the days (only a 👍 GitHub dated
+  that same day counts, so nobody can check in for past days). Days go by world time (UTC).
+
+### Fixed
+- "Find what writes" (used by the AI helper for code cheats) lists the game's own code first. Windows'
+  memory-copy code sometimes shows up too; it's now marked so the helper never patches it.
+
 ## [1.32.0] - 2026-11-12
 
 ### Added

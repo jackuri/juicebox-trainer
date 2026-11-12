@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.32.0_
+_Last updated: 2026-11-12 — v1.33.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -364,6 +364,11 @@ _Last updated: 2026-11-12 — v1.32.0_
   ("Pack Rat" instead of the user's slur title), sidebar badge, level panel with leaderboard, LEVEL
   UP card. Pushed and tagged 2026-11-12 (CI and Release green); community repo 7091a77 pushed, the
   XP robot ran: the user (jackuri) is at level 2 with 20 XP.
+
+- v1.33.0 Daily check-in: opt-in; a 👍 on the day's "Check-in: YYYY-MM-DD" issue (robot opens it at
+  00:02 UTC, closes and locks it after); 2 XP a day, 10 more per 5 in a row, counted by build-xp.mjs
+  (checkins.json). DailyCheckIn card with five streak boxes. The e2e didn't post a real check-in (it
+  would act on the user's GitHub account); the check-in itself is covered by the fake-GitHub test.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

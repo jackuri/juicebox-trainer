@@ -487,6 +487,15 @@ pub struct Player {
     pub packs: u32,
     /// Packs they rated.
     pub ratings: u32,
+    /// Days they checked in (v1.33.0).
+    #[serde(default)]
+    pub days: u32,
+    /// Days in a row up to today or yesterday (UTC).
+    #[serde(default)]
+    pub streak: u32,
+    /// Their last check-in day, `YYYY-MM-DD`.
+    #[serde(default)]
+    pub last_day: Option<String>,
 }
 
 /// The XP list refuses to load above this size.

@@ -17,7 +17,16 @@ fn finds_the_gold_writer(flavor: Flavor) {
     game.send("earn 5");
     let writers = watch.stop().unwrap();
     assert!(!writers.is_empty(), "no writer seen");
-    let w = &writers[0];
+    // The game's own store. Now and then the C runtime's memory copy writes a neighbouring heap
+    // block with a wide masked store that also trips the watch; it isn't in the game's code.
+    let w = writers
+        .iter()
+        .find(|w| {
+            w.location
+                .as_deref()
+                .is_some_and(|l| l.starts_with("testbed_native.exe+"))
+        })
+        .unwrap_or_else(|| panic!("the game's writer wasn't seen: {writers:?}"));
     let expected = if flavor == Flavor::X86 {
         "mov [ecx],eax"
     } else {

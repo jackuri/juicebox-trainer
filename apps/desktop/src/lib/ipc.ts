@@ -660,6 +660,16 @@ export interface Player {
   packs: number;
   /** Packs they rated. */
   ratings: number;
+  /** Days they checked in, their days in a row (to today or yesterday, UTC) and the last one (v1.33.0). */
+  days?: number;
+  streak?: number;
+  lastDay?: string | null;
+}
+
+/** A daily check-in (v1.33.0): done now, already done today, or today's check-in page isn't open yet. */
+export interface CheckIn {
+  day: string;
+  status: "done" | "already" | "notYet";
 }
 
 export interface DeviceCode {
@@ -1422,6 +1432,8 @@ export const api = {
   communityRatings: (refresh: boolean) => invoke<Record<string, Rating>>("community_ratings", { refresh }),
   /** Every player's packer XP, most first (v1.32.0). */
   communityXp: (refresh: boolean) => invoke<Player[]>("community_xp", { refresh }),
+  /** Checks in for today (v1.33.0): a 👍 on today's check-in page (GitHub sign-in). */
+  communityCheckIn: () => invoke<CheckIn>("community_check_in"),
   /** Rates a community pack 1 to 3 stars (GitHub sign-in). */
   communityRate: (issue: number, stars: 1 | 2 | 3) => invoke<number>("community_rate", { issue, stars }),
   /** Games players asked cheats for, most votes first (v1.25.0). */

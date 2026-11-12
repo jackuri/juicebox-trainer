@@ -366,6 +366,13 @@ Packer (5), Pro Packer (10), Pack Master (20), Leader of the Pack (30), Pack Kin
 XP goes with your GitHub name, the same sign-in as sharing and rating. GitHub counts it every hour,
 so new XP shows up within the hour. The leaderboard shows GitHub names.
 
+**Daily check-in:** click your level, then tick **Check me in every day I open JuiceBox Trainer**.
+From then on, each day you open the app gives **2 XP**, and every **5 days in a row** give **10 XP**
+more. A card shows your days in a row: five boxes fill up toward the next reward. It puts a 👍 with
+your GitHub name on that day's check-in page of the community list (anyone can see it). Days go by
+world time (UTC), so a new day may start in your afternoon or evening; just after it starts, the
+check-in can take a few minutes to open.
+
 ### Ask for cheats, or help others
 
 - **No cheats for your game?** On the **Games** tab, click **Ask the community for cheats** on it.

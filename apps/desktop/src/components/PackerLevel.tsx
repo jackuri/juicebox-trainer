@@ -1,11 +1,32 @@
 import { useCallback, useEffect, useState } from "react";
 import { friendlyError } from "../lib/explain";
 import { api, type DeviceCode, type GithubStatus, type Player, toCommandError } from "../lib/ipc";
-import { findPlayer, levelUp, nextTitle, standing, TITLES, titleFor, XP_PER_PACK, XP_PER_RATING } from "../lib/levels";
+import {
+  checkedIn,
+  checkInOn,
+  findPlayer,
+  levelUp,
+  nextTitle,
+  rememberCheckIn,
+  setCheckInOn,
+  standing,
+  STREAK_DAYS,
+  STREAK_XP,
+  streakReward,
+  streakWithToday,
+  TITLES,
+  titleFor,
+  utcToday,
+  XP_PER_DAY,
+  XP_PER_PACK,
+  XP_PER_RATING,
+} from "../lib/levels";
 
 const small = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs ring-1 ring-zinc-700 hover:bg-zinc-700 disabled:opacity-40";
 /** Look again for new XP this often (the list itself changes hourly). */
 const REFRESH_MS = 30 * 60 * 1000;
+/** Today's check-in page opens just after midnight UTC: try again this often until it's there. */
+const CHECK_IN_RETRY_MS = 10 * 60 * 1000;
 
 /** The XP bar: how far into this level. */
 function XpBar({ into, need, max, big = false }: { into: number; need: number; max: boolean; big?: boolean }) {
@@ -26,6 +47,23 @@ function XpBar({ into, need, max, big = false }: { into: number; need: number; m
         </span>
       )}
     </div>
+  );
+}
+
+/** Five dots for the days of the current 5-day run ("●●●○○"). */
+function StreakDots({ streak, light = false }: { streak: number; light?: boolean }) {
+  const filled = streak <= 0 ? 0 : ((streak - 1) % STREAK_DAYS) + 1;
+  return (
+    <span className="flex gap-1" role="img" aria-label={`${filled} of ${STREAK_DAYS} days in a row`}>
+      {Array.from({ length: STREAK_DAYS }, (_, i) => (
+        <span
+          key={i}
+          className={`h-3 w-3 rounded-sm ring-2 ${
+            i < filled ? "bg-amber-400 ring-amber-700" : light ? "bg-teal-950/30 ring-teal-900/60" : "bg-zinc-800 ring-zinc-700"
+          }`}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -53,6 +91,10 @@ export function PackerBadge() {
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [open, setOpen] = useState(false);
   const [celebrate, setCelebrate] = useState<number | null>(null);
+  /** Daily check-in (v1.33.0): turned on by the player; today's, once done; a tick to try again. */
+  const [checkIn, setCheckIn] = useState(checkInOn);
+  const [daily, setDaily] = useState<string | null>(null);
+  const [tries, setTries] = useState(0);
 
   const load = useCallback((refresh: boolean) => {
     api.githubStatus().then(setGithub, () => undefined);
@@ -63,7 +105,10 @@ export function PackerBadge() {
   }, []);
   useEffect(() => {
     load(false);
-    const timer = window.setInterval(() => load(false), REFRESH_MS);
+    const timer = window.setInterval(() => {
+      load(false);
+      setTries((n) => n + 1);
+    }, REFRESH_MS);
     return () => window.clearInterval(timer);
   }, [load]);
 
@@ -77,6 +122,32 @@ export function PackerBadge() {
     const up = levelUp(login, s.level);
     if (up) window.setTimeout(() => setCelebrate(up), 0);
   }, [login, players, s.level]);
+
+  // Check in once a day (UTC), when the player turned it on and is signed in to GitHub.
+  useEffect(() => {
+    if (!login || !checkIn) return;
+    const today = utcToday();
+    if (checkedIn(login, today)) return;
+    let live = true;
+    let retry: number | undefined;
+    api.communityCheckIn().then(
+      (r) => {
+        if (!live) return;
+        if (r.status === "notYet") {
+          retry = window.setTimeout(() => setTries((n) => n + 1), CHECK_IN_RETRY_MS);
+          return;
+        }
+        rememberCheckIn(login, r.day);
+        if (r.status === "done") setDaily(r.day);
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+      window.clearTimeout(retry);
+    };
+  }, [login, checkIn, tries]);
+  const streak = daily ? streakWithToday(me, daily) : 0;
 
   return (
     <>
@@ -95,7 +166,20 @@ export function PackerBadge() {
           )}
         </span>
       </button>
-      {open && <PackerPanel github={github} players={players} onClose={() => setOpen(false)} onChanged={() => load(true)} />}
+      {open && (
+        <PackerPanel
+          github={github}
+          players={players}
+          checkIn={checkIn}
+          onCheckIn={(on) => {
+            setCheckInOn(on);
+            setCheckIn(on);
+          }}
+          onClose={() => setOpen(false)}
+          onChanged={() => load(true)}
+        />
+      )}
+      {daily && celebrate === null && <DailyCheckIn streak={streak} onClose={() => setDaily(null)} />}
       {celebrate !== null && <LevelUp level={celebrate} onClose={() => setCelebrate(null)} />}
     </>
   );
@@ -105,11 +189,16 @@ export function PackerBadge() {
 export function PackerPanel({
   github,
   players,
+  checkIn = false,
+  onCheckIn,
   onClose,
   onChanged,
 }: {
   github: GithubStatus | null;
   players: Player[] | null;
+  /** The daily check-in is on (v1.33.0), and turning it on or off. */
+  checkIn?: boolean;
+  onCheckIn?: (on: boolean) => void;
   onClose: () => void;
   onChanged: () => void;
 }) {
@@ -214,11 +303,45 @@ export function PackerPanel({
             <li>
               <b>{XP_PER_RATING} XP</b> for each community pack you rate, your own too (once per pack).
             </li>
+            <li>
+              <b>{XP_PER_DAY} XP</b> for each day you open JuiceBox Trainer with the daily check-in on, and <b>{STREAK_XP} XP</b> more
+              for every {STREAK_DAYS} days in a row.
+            </li>
           </ul>
           <p className="text-xs text-zinc-500">
             GitHub counts it, every hour: new XP shows up within the hour. Level 2 takes 10 XP, and each next level 10 XP more than the
             one before.
           </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5 text-sm" role="group" aria-label="Daily check-in">
+          <h3 className="font-semibold">Daily check-in</h3>
+          {login ? (
+            <>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" className="mt-1" checked={checkIn} onChange={(e) => onCheckIn?.(e.target.checked)} />
+                <span>
+                  Check me in every day I open JuiceBox Trainer ({XP_PER_DAY} XP a day, {STREAK_XP} XP more for every {STREAK_DAYS} days in a
+                  row).
+                </span>
+              </label>
+              <p className="text-xs text-zinc-500">
+                It puts a 👍 with your GitHub name on that day&apos;s check-in page of the community list, which anyone can see. Days go by
+                world time (UTC).
+              </p>
+              {checkIn && (
+                <div className="flex items-center gap-2 text-xs text-zinc-300">
+                  <StreakDots streak={checkedIn(login, utcToday()) ? streakWithToday(me, utcToday()) : (me?.streak ?? 0)} />
+                  <span>
+                    {checkedIn(login, utcToday()) ? "Checked in today." : "Not checked in yet today."}
+                    {me?.days ? ` ${me.days} day${me.days === 1 ? "" : "s"} so far.` : ""}
+                  </span>
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-xs text-zinc-400">Sign in with GitHub (above) to check in every day you open JuiceBox Trainer.</p>
+          )}
         </div>
 
         <div className="flex flex-col gap-1 text-sm">
@@ -261,6 +384,54 @@ export function PackerPanel({
             </ol>
           )}
         </div>
+      </section>
+    </div>
+  );
+}
+
+/** The daily check-in card: +2 XP, the 5-day run, and the streak reward on every 5th day. */
+export function DailyCheckIn({ streak, onClose }: { streak: number; onClose: () => void }) {
+  const reward = streakReward(streak);
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={onClose}>
+      <section
+        className="relative flex w-80 flex-col items-center gap-3 rounded-xl bg-teal-800 p-4 text-center shadow-2xl ring-4 ring-teal-950"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Daily check-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {reward && (
+          <>
+            <span className="pointer-events-none absolute -left-6 top-6 text-2xl text-amber-300" aria-hidden="true">
+              ★
+            </span>
+            <span className="pointer-events-none absolute -right-5 top-12 text-xl text-amber-300" aria-hidden="true">
+              ★
+            </span>
+          </>
+        )}
+        <div className="flex w-full flex-col items-center gap-2 rounded-md bg-[#a8c4a8] px-3 py-4 font-mono text-teal-950 ring-4 ring-teal-950">
+          <p className="text-lg font-black tracking-wider">DAILY CHECK-IN</p>
+          <p className="text-3xl font-black">+{XP_PER_DAY} XP</p>
+          <StreakDots streak={streak} light />
+          <p className="text-sm font-bold">
+            Day {streak} in a row{reward ? "!" : ""}
+          </p>
+        </div>
+        {reward ? (
+          <p className="w-full rounded bg-amber-400 px-2 py-1 font-mono text-sm font-black uppercase tracking-wider text-zinc-950">
+            {STREAK_DAYS}-day streak: +{STREAK_XP} XP!
+          </p>
+        ) : (
+          <p className="w-full rounded bg-zinc-950 px-2 py-1 font-mono text-xs font-bold uppercase tracking-wider text-white">
+            {STREAK_DAYS - (streak % STREAK_DAYS)} more day{STREAK_DAYS - (streak % STREAK_DAYS) === 1 ? "" : "s"} for +{STREAK_XP} XP
+          </p>
+        )}
+        <p className="text-[11px] text-teal-100">Your XP shows up within the hour.</p>
+        <button className="rounded-lg bg-red-600 px-6 py-2 font-mono text-lg font-bold text-white ring-2 ring-red-900 hover:bg-red-500" onClick={onClose} autoFocus>
+          OK
+        </button>
       </section>
     </div>
   );

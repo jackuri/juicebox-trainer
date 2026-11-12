@@ -259,6 +259,7 @@ fn main() {
             sharing::community_ratings,
             sharing::community_xp,
             github::community_rate,
+            github::community_check_in,
             sharing::community_open_credit,
             sharing::packs_remove,
             sharing::community_list,

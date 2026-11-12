@@ -24,6 +24,14 @@ use crate::commands::{CmdResult, CommandError};
 
 /// The community repository (`owner/name`).
 pub const COMMUNITY_REPO: &str = "jackuri/juicebox-packs";
+
+/// `http://127.0.0.1:<port>` or `http://localhost:<port>` (nothing else).
+fn is_loopback(url: &str) -> bool {
+    ["http://127.0.0.1:", "http://localhost:"].iter().any(|p| {
+        url.strip_prefix(p)
+            .is_some_and(|port| !port.is_empty() && port.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
 const COMMUNITY_OWNER: &str = "jackuri";
 /// JuiceBox Trainer's GitHub OAuth app (public, not a secret; owned by jackuri,
 /// device flow on, tokens don't expire). `JB_GITHUB_CLIENT_ID` overrides it
@@ -153,6 +161,14 @@ pub struct Hub {
 
 impl Hub {
     fn github() -> Result<Self, CommandError> {
+        // Tests of the built app only: a GitHub stand-in on this PC (v1.33.0), so a test never
+        // acts on the player's real account. Anything but a loopback address is ignored.
+        if let Some(api) = std::env::var("JB_GITHUB_API")
+            .ok()
+            .filter(|a| is_loopback(a))
+        {
+            return Self::new(&api, &api);
+        }
         Self::new("https://github.com", "https://api.github.com")
     }
 
@@ -1251,6 +1267,109 @@ pub async fn community_rate(issue: u64, stars: u8, state: State<'_, GithubState>
     result
 }
 
+/// A daily check-in (v1.33.0): `done` (a 👍 added to today's check-in issue),
+/// `already` (checked in today) or `notYet` (today's issue isn't open yet).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CheckIn {
+    /// The day (UTC), `YYYY-MM-DD`.
+    pub day: String,
+    pub status: &'static str,
+}
+
+/// Checks the player in for `today` (UTC): a 👍 on that day's "Check-in:
+/// <day>" issue (label `check-in`) of the community list, which its XP
+/// robot counts (2 XP a day, 10 more per 5 days in a row).
+pub async fn check_in(hub: &Hub, token: &str, today: &str) -> Result<CheckIn, CommandError> {
+    use reqwest::Method;
+    let me = hub
+        .ok(token, Method::GET, "/user", None, "to say who you are")
+        .await?;
+    let login = me["login"]
+        .as_str()
+        .ok_or_else(|| err("github", "GitHub didn't say who you are"))?
+        .to_string();
+    let title = format!("Check-in: {today}");
+    let open = hub
+        .ok(
+            token,
+            Method::GET,
+            &format!("/repos/{COMMUNITY_REPO}/issues?labels=check-in&state=open&per_page=30"),
+            None,
+            "to find today's check-in",
+        )
+        .await?;
+    let issue = open.as_array().into_iter().flatten().find_map(|i| {
+        (i["title"].as_str() == Some(title.as_str())
+            && i.get("pull_request").is_none_or(Value::is_null))
+        .then(|| i["number"].as_u64())
+        .flatten()
+    });
+    let Some(issue) = issue else {
+        return Ok(CheckIn {
+            day: today.into(),
+            status: "notYet",
+        });
+    };
+    let base = format!("/repos/{COMMUNITY_REPO}/issues/{issue}/reactions");
+    for page in 1..=20 {
+        let list = hub
+            .ok(
+                token,
+                Method::GET,
+                &format!("{base}?per_page=100&page={page}"),
+                None,
+                "to read today's check-ins",
+            )
+            .await?;
+        let list = list.as_array().cloned().unwrap_or_default();
+        let mine = list.iter().any(|r| {
+            r["user"]["login"]
+                .as_str()
+                .is_some_and(|l| l.eq_ignore_ascii_case(&login))
+                && r["created_at"]
+                    .as_str()
+                    .is_some_and(|t| t.starts_with(today))
+        });
+        if mine {
+            return Ok(CheckIn {
+                day: today.into(),
+                status: "already",
+            });
+        }
+        if list.len() < 100 {
+            break;
+        }
+    }
+    hub.ok(
+        token,
+        Method::POST,
+        &base,
+        Some(&json!({ "content": "+1" })),
+        "to check you in",
+    )
+    .await?;
+    Ok(CheckIn {
+        day: today.into(),
+        status: "done",
+    })
+}
+
+/// Daily check-in (v1.33.0): see [`check_in`]. The player turns it on.
+#[tauri::command]
+pub async fn community_check_in(state: State<'_, GithubState>) -> CmdResult<CheckIn> {
+    let token =
+        vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
+    let result = check_in(&Hub::github()?, &token, &jb_packs::share::today()).await;
+    if let Err(e) = &result
+        && e.kind == "signedOut"
+    {
+        vault::delete(CREDENTIAL);
+        *lock(&state.login) = None;
+    }
+    result
+}
+
 /// The community-list pack of one of the player's web games: their saved
 /// cheats, checked by the list's rules (https, at most 50 cheats).
 pub fn web_shareable(
@@ -1744,6 +1863,83 @@ mod tests {
         let (plain_pack, _) = jb_packs::parse(&text).unwrap();
         let (_, mit) = pr_text(&plain_pack, &req(false), false, "sam");
         assert!(mit.contains("MIT (the list's default)"), "{mit}");
+    }
+
+    #[test]
+    fn only_a_loopback_stand_in_replaces_github() {
+        assert!(is_loopback("http://127.0.0.1:5000"));
+        assert!(is_loopback("http://localhost:8080"));
+        assert!(!is_loopback("https://evil.example"));
+        assert!(!is_loopback("http://127.0.0.1:5000/x"));
+        assert!(!is_loopback("http://127.0.0.1.evil.example:80"));
+        assert!(!is_loopback("http://localhost:"));
+    }
+
+    /// v1.33.0: the daily check-in adds one 👍 to today's check-in issue, once.
+    #[test]
+    fn checks_in_once_a_day() {
+        let reacted = std::sync::Arc::new(std::sync::Mutex::new(false));
+        let r2 = std::sync::Arc::clone(&reacted);
+        let route = move |m: &str, p: &str, _b: &str| -> (u16, String) {
+            match (m, p) {
+                ("GET", "/user") => (200, json!({ "login": "Sam" }).to_string()),
+                ("GET", p)
+                    if p.starts_with("/repos/jackuri/juicebox-packs/issues?labels=check-in") =>
+                {
+                    (
+                        200,
+                        json!([
+                            { "number": 40, "title": "Check-in: 2026-11-12" },
+                            { "number": 41, "title": "Check-in: 2026-11-13" }
+                        ])
+                        .to_string(),
+                    )
+                }
+                ("GET", p)
+                    if p.starts_with("/repos/jackuri/juicebox-packs/issues/41/reactions") =>
+                {
+                    let mut list = vec![
+                        json!({ "content": "+1", "user": { "login": "alex" }, "created_at": "2026-11-13T01:00:00Z" }),
+                    ];
+                    if *lock(&r2) {
+                        list.push(json!({ "content": "+1", "user": { "login": "sam" }, "created_at": "2026-11-13T09:00:00Z" }));
+                    }
+                    (200, Value::Array(list).to_string())
+                }
+                ("POST", "/repos/jackuri/juicebox-packs/issues/41/reactions") => {
+                    *lock(&r2) = true;
+                    (201, "{}".into())
+                }
+                _ => (404, json!({ "message": "Not Found" }).to_string()),
+            }
+        };
+        let (hub, seen) = fake(route);
+        assert_eq!(
+            run(check_in(&hub, "tok", "2026-11-13")).unwrap().status,
+            "done"
+        );
+        let post = lock(&seen)
+            .iter()
+            .find(|(m, _, _)| m == "POST")
+            .cloned()
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&post.2).unwrap()["content"],
+            "+1"
+        );
+        assert_eq!(
+            run(check_in(&hub, "tok", "2026-11-13")).unwrap().status,
+            "already"
+        );
+        assert_eq!(
+            lock(&seen).iter().filter(|(m, _, _)| m == "POST").count(),
+            1,
+            "checked in once"
+        );
+        assert_eq!(
+            run(check_in(&hub, "tok", "2026-11-14")).unwrap().status,
+            "notYet"
+        );
     }
 
     /// v1.29.0: a rating replaces the player's earlier one on the pack's rating issue.
