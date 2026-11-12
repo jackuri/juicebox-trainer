@@ -357,7 +357,7 @@ _Last updated: 2026-11-12 — v1.31.0_
   count, or `*` in a JavaScript path), locks can keep a number never above / never below, Combine…
   puts the player's cheats together, and Ask the AI / Fix with AI work from a web game's cheats
   (the helper may replace the cheats the player asked about; backup kept). User's request after
-  Outbreak (five Weak enemy cheats 0xD90 apart).
+  Outbreak (five Weak enemy cheats 0xD90 apart). Pushed and tagged 2026-11-12 (CI and Release green).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
