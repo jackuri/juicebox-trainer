@@ -31,10 +31,12 @@ interface Props {
   onSessionLost: (e: CommandError) => void;
   /** Opens the Packs tab (open a pack file, community packs). */
   onShowPacks?: () => void;
+  /** Opens the loaded pack in the cheat book (v1.28.0). */
+  onOpenBook?: (key: string) => void;
 }
 
 /** Trainer tab: pick a pack for the attached game, then toggle its cheats. */
-export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
+export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [view, setView] = useState<TrainerView | null>(null);
@@ -245,6 +247,14 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
         >
           {overlay ? "Hide overlay" : "Show overlay"}
         </button>
+        {onOpenBook && (
+          <button
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium ring-1 ring-zinc-700 hover:bg-zinc-700"
+            onClick={() => onOpenBook(view.key)}
+          >
+            See and edit cheats
+          </button>
+        )}
         <button
           className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium ring-1 ring-zinc-700 hover:bg-zinc-700"
           onClick={() => void act(async () => {

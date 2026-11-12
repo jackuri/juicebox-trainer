@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.27.1_
+_Last updated: 2026-11-12 — v1.28.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -335,6 +335,10 @@ _Last updated: 2026-11-12 — v1.27.1_
 - v1.27.1 Fix: the window went blank while finding a value in a web game once a result's value was
   gone (user's report on Outbreak; reproduced with the testbed web game's weapon swap). Gone values
   show "?"; every view is wrapped in an error boundary with Try again. Pushed and tagged 2026-11-12.
+
+- v1.28.0 Cheat book: see and edit a pack's cheats without the game (names, groups, values, ranges,
+  keys, notes, favourites, removal; never addresses or patches), from Packs, Games and Cheats; "ask
+  the AI to fix it" opens the AI helper with the request filled in.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

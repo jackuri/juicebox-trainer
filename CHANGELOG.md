@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.28.0] - 2026-11-12
+
+### Added
+- **See and edit your cheats without starting the game.** **See and edit cheats** (in **Packs**, on a
+  game in **Games**, and in **Cheats** while you play) opens the pack's cheats by group: what each
+  one does and its key. Change names, groups, descriptions, the value a switch keeps, slider and
+  number ranges, button amounts, keys and notes; mark favourites; remove cheats. Where each cheat
+  looks in the game never changes, so an edit can't break a cheat. Edits are checked like any pack
+  before saving, the old pack is kept as a backup, and a built-in pack is saved as your own copy.
+- **Ask the AI to fix a cheat.** In the cheat book, **It doesn't work: ask the AI to fix it**: say
+  what's wrong and the AI helper opens with it filled in (and the game picked when it's running).
+
 ## [1.27.1] - 2026-11-12
 
 ### Fixed

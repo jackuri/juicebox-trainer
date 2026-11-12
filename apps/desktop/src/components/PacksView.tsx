@@ -1,6 +1,8 @@
 import { Mascot } from "./Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShareDialog } from "./ShareDialog";
+import { CheatBook } from "./CheatBook";
+import type { AiFix } from "../lib/cheatBook";
 import { MostWanted } from "./Wanted";
 import {
   api,
@@ -37,10 +39,23 @@ interface Props {
   onShowCheats: () => void;
   /** Go to the AI helper (to make cheats for a most-wanted game). */
   onOpenAi?: () => void;
+  /** Open this pack in the cheat book (from Games or Cheats, v1.28.0). */
+  openBook?: string | null;
+  onBookOpened?: () => void;
+  /** Ask the AI helper to fix a cheat. */
+  onAskAi?: (fix: AiFix) => void;
 }
 
 /** Your packs, .juice import / export, and the community list. */
-export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => undefined }: Props) {
+export function PacksView({
+  openPath,
+  onOpened,
+  onShowCheats,
+  onOpenAi = () => undefined,
+  openBook = null,
+  onBookOpened = () => undefined,
+  onAskAi = () => undefined,
+}: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [community, setCommunity] = useState<CommunityList | null>(null);
   const [communityError, setCommunityError] = useState<string | null>(null);
@@ -49,6 +64,15 @@ export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => u
   const [incoming, setIncoming] = useState<{ from: Incoming; preview: PackPreview } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sharing, setSharing] = useState<{ pack: PackSummary; mode: "pack" | "link" } | null>(null);
+  /** The pack open in the cheat book (v1.28.0). */
+  const [book, setBook] = useState<string | null>(null);
+  useEffect(() => {
+    if (!openBook) return;
+    void Promise.resolve().then(() => {
+      setBook(openBook);
+      onBookOpened();
+    });
+  }, [openBook, onBookOpened]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; path?: string; cheats?: boolean } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -201,6 +225,16 @@ export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => u
 
       {sharing && <ShareDialog pack={sharing.pack} mode={sharing.mode} onClose={() => setSharing(null)} />}
 
+      {book && (
+        <CheatBook
+          key={book}
+          packKey={book}
+          onClose={() => setBook(null)}
+          onAskAi={onAskAi}
+          onSaved={() => loadPacks()}
+        />
+      )}
+
       {incoming && (
         <InstallDialog
           preview={incoming.preview}
@@ -277,6 +311,17 @@ export function PacksView({ openPath, onOpened, onShowCheats, onOpenAi = () => u
                   Share the table&apos;s link
                 </button>
               )}
+              <button
+                className={button}
+                disabled={Boolean(p.error)}
+                aria-label={`See and edit the cheats in ${p.name ?? p.key}`}
+                onClick={() => {
+                  setBook(p.key);
+                  window.scrollTo?.(0, 0);
+                }}
+              >
+                See and edit cheats
+              </button>
               <button className={button} disabled={Boolean(p.error)} aria-label={`Export ${p.name ?? p.key}`} onClick={() => void exportPack(p)}>
                 Export
               </button>

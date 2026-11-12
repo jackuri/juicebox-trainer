@@ -1,3 +1,4 @@
+import { type AiFix, fixRequest } from "../lib/cheatBook";
 import { ShareDialog } from "./ShareDialog";
 import { WebShareDialog } from "./WebShareDialog";
 import { Mascot } from "./Icon";
@@ -37,6 +38,8 @@ interface Props {
   onRefreshProcesses: () => void;
   /** Start on "a web game" (opened from a web game's cheats). */
   webFirst?: boolean;
+  /** A cheat the player wants fixed (from the cheat book, v1.28.0). */
+  fix?: AiFix | null;
 }
 
 type Backend = "subscription" | "apiKey" | "local";
@@ -88,15 +91,22 @@ function saveSettings(s: Settings) {
 }
 
 /** "Make a trainer": the AI helper finds cheats with the player's help. */
-export function AiView({ processes, games, onRefreshProcesses, webFirst = false }: Props) {
+export function AiView({ processes, games, onRefreshProcesses, webFirst = false, fix = null }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [events, setEvents] = useState<AiEvent[]>([]);
-  const [pid, setPid] = useState("");
+  // Fixing a cheat (v1.28.0): the game is picked already if it's running.
+  const [pid, setPid] = useState(() => {
+    const running = fix && processes.find((p) => p.name.toLowerCase() === fix.exe.toLowerCase());
+    return running ? String(running.pid) : "";
+  });
   const [kind, setKind] = useState<"pc" | "web">(webFirst ? "web" : "pc");
   const [webGame, setWebGame] = useState<WebGame | null>(null);
   const [webTask, setWebTask] = useState(webFirst);
-  const [wishes, setWishes] = useState<string[]>(["Infinite health", "Lots of money / gold"]);
-  const [other, setOther] = useState("");
+  // Fixing a cheat (v1.28.0): only that, in the box the player can read and change.
+  const [wishes, setWishes] = useState<string[]>(fix ? [] : ["Infinite health", "Lots of money / gold"]);
+  /** What the helper is told about a cheat to fix (v1.28.0). */
+  const fixNotes = fix ? fixRequest(fix).notes : "";
+  const [other, setOther] = useState(fix ? fixRequest(fix).wishes.join(", ") : "");
   const [settings, setSettings] = useState<Settings>(loadSettings);
   const { backend, budget } = settings;
   const update = (patch: Partial<Settings>) =>
@@ -189,7 +199,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
         task: web ? "webTrainer" : undefined,
         webGame: web ? webGame?.id : undefined,
         wishes: list,
-        notes: "",
+        notes: fixNotes,
         backend,
         maxBudgetUsd: Number(budget) || 5,
         localUrl: backend === "local" ? settings.localUrl : undefined,
@@ -269,6 +279,12 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false 
           </button>
         )}
       </div>
+      {fix && !running && events.length === 0 && (
+        <p className="rounded-xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-100 ring-1 ring-emerald-800/60" role="note">
+          Fixing <strong>{fix.cheat}</strong> in your {fix.game} cheats: “{fix.problem}”. Start the game{pid ? "" : " and pick it below"}, then click
+          Start. The helper checks the cheat and saves the fixed one in your pack.
+        </p>
+      )}
       {error && (
         <p className="rounded-lg bg-red-950/40 px-3 py-2 text-sm text-red-300" role="alert">
           {error}

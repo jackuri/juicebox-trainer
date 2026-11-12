@@ -39,13 +39,15 @@ interface Props {
   onRefreshModules: () => void;
   /** Opens the Packs tab. */
   onShowPacks?: () => void;
+  /** Opens a pack in the cheat book (v1.28.0). */
+  onOpenBook?: (key: string) => void;
 }
 
 /**
  * Tools shown while attached: trainer (packs), Find a value (guided), scanner, pointer scanner,
  * signature maker, read/write, memory viewer, modules, address list.
  */
-export function SessionTools({ session, gameName, onSessionLost, onRefreshModules, onShowPacks }: Props) {
+export function SessionTools({ session, gameName, onSessionLost, onRefreshModules, onShowPacks, onOpenBook }: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [pointerRequest, setPointerRequest] = useState<PointerRequest | null>(null);
@@ -81,7 +83,7 @@ export function SessionTools({ session, gameName, onSessionLost, onRefreshModule
 
       {/* Panels stay mounted so a scan or typed value survives switching tabs. */}
       <div hidden={tab !== "Trainer"}>
-        <TrainerPanel session={session} onSessionLost={onSessionLost} onShowPacks={onShowPacks} />
+        <TrainerPanel session={session} onSessionLost={onSessionLost} onShowPacks={onShowPacks} onOpenBook={onOpenBook} />
       </div>
       <div hidden={tab !== "Find a value"}>
         <FindValuePanel

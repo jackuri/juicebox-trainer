@@ -11,6 +11,7 @@ import { Icon, Logo } from "./components/Icon";
 import { useSeason } from "./lib/mascot";
 import { LibraryView } from "./components/LibraryView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import type { AiFix } from "./lib/cheatBook";
 import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
@@ -53,6 +54,14 @@ export default function App() {
   const [aiWeb, setAiWeb] = useState(false);
   /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
   const [openPath, setOpenPath] = useState<OpenFile | null>(null);
+  /** A pack to open in the cheat book, and a cheat to fix with AI (v1.28.0). */
+  const [openBook, setOpenBook] = useState<string | null>(null);
+  const [aiFix, setAiFix] = useState<AiFix | null>(null);
+  const showBook = useCallback((key: string) => {
+    setOpenBook(key);
+    setView("packs");
+  }, []);
+  const bookOpened = useCallback(() => setOpenBook(null), []);
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // The taskbar's juice box follows the season too (v1.24.0).
   const season = useSeason();
@@ -230,6 +239,7 @@ export default function App() {
               onClick={() => {
                 setView(v);
                 setAiWeb(false);
+                setAiFix(null);
               }}
               className={`group relative flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
                 view === v
@@ -314,6 +324,7 @@ export default function App() {
         <LibraryView
           onOpenAi={() => setView("ai")}
           onOpenTable={openOtpack}
+          onOpenBook={showBook}
           onPlayed={(r) => {
             setError(null);
             setClosed(null);
@@ -325,7 +336,18 @@ export default function App() {
           }}
         />
       ) : view === "packs" ? (
-        <PacksView openPath={openPath} onOpened={opened} onShowCheats={() => setView("cheats")} onOpenAi={() => setView("ai")} />
+        <PacksView
+          openPath={openPath}
+          onOpened={opened}
+          onShowCheats={() => setView("cheats")}
+          onOpenAi={() => setView("ai")}
+          openBook={openBook}
+          onBookOpened={bookOpened}
+          onAskAi={(f) => {
+            setAiFix(f);
+            setView("ai");
+          }}
+        />
       ) : view === "about" ? (
         <AboutView />
       ) : view === "themes" ? (
@@ -340,7 +362,7 @@ export default function App() {
           }}
         />
       ) : view === "ai" ? (
-        <AiView processes={processes} games={games} onRefreshProcesses={() => void refresh()} webFirst={aiWeb} />
+        <AiView key={aiFix ? `fix:${aiFix.cheat}` : "ai"} processes={processes} games={games} onRefreshProcesses={() => void refresh()} webFirst={aiWeb} fix={aiFix} />
       ) : view === "saves" ? (
         <SavesView
           processes={processes}
@@ -419,6 +441,7 @@ export default function App() {
                     session.process.name.replace(/\.exe$/i, "")
                   }
                   onShowPacks={() => setView("packs")}
+                  onOpenBook={showBook}
                   onSessionLost={sessionLost}
                   onRefreshModules={() => void refreshModules()}
                 />

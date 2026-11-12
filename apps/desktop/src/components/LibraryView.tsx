@@ -28,10 +28,12 @@ interface Props {
   onOpenAi: () => void;
   /** Turn a downloaded Cheat Engine table into a pack (Packs view). */
   onOpenTable: (path: string, exe?: string, credit?: Credit) => void;
+  /** Open a pack in the cheat book (v1.28.0). */
+  onOpenBook?: (key: string) => void;
 }
 
 /** Games on this PC, with "Play with cheats". */
-export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
+export function LibraryView({ onPlayed, onOpenAi, onOpenTable, onOpenBook }: Props) {
   const [wanted, setWanted] = useState<Wanted[]>([]);
   const [games, setGames] = useState<LibraryGame[] | null>(null);
   const [filter, setFilter] = useState("");
@@ -183,7 +185,7 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
               <p className={`line-clamp-2 text-sm font-semibold leading-snug ${g.blocked ? "text-zinc-400" : ""}`}>{g.name}</p>
               <p className="flex flex-col gap-0.5 text-xs text-zinc-500">
                 {g.blocked ? (
-                  <span className="text-amber-400">Online / anti-cheat ({g.blocked.replace(/^anti-cheat found:? ?/, "") || "found"}): not supported</span>
+                  <span className="text-amber-400">Anti-cheat ({g.blocked.replace(/^anti-cheat found:? ?/, "") || "found"}): not supported</span>
                 ) : g.antiCheat && !g.pack ? (
                   <span className="text-amber-300" title="JuiceBox Trainer checks when the game runs and only attaches while its anti-cheat isn't running">
                     Has {g.antiCheat}: works only when the game runs without it
@@ -233,6 +235,15 @@ export function LibraryView({ onPlayed, onOpenAi, onOpenTable }: Props) {
                     onClick={() => void api.libraryRemove(g.id).then(load)}
                   >
                     Remove
+                  </button>
+                )}
+                {g.pack && onOpenBook && (
+                  <button
+                    className="w-full rounded-lg px-3 py-1 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                    aria-label={`See the cheats for ${g.name}`}
+                    onClick={() => onOpenBook(g.pack!.key)}
+                  >
+                    See and edit cheats
                   </button>
                 )}
                 {!g.blocked && !g.pack && (

@@ -4,6 +4,7 @@
 mod agreement;
 mod ai;
 mod browser;
+mod cheat_book;
 mod commands;
 mod covers;
 mod dialogs;
@@ -197,6 +198,8 @@ fn main() {
             commands::my_cheat_save,
             engine_cheats::engine_cheats_support,
             engine_cheats::engine_cheats_make,
+            cheat_book::book_open,
+            cheat_book::book_save,
             commands::address_list,
             commands::address_add,
             commands::address_remove,

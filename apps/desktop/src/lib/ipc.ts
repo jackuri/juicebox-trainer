@@ -403,6 +403,33 @@ export interface Pack {
   cheats: Cheat[];
 }
 
+/** A pack opened in the cheat book (v1.28.0). */
+export interface BookView {
+  key: string;
+  source: PackSummary["source"];
+  pack: Pack;
+  notes: Record<string, string>;
+  favourites: string[];
+  /** The player's own keys: text, or "" for no key. */
+  keys: Record<string, string>;
+  /** In use in Cheats right now. */
+  loaded: boolean;
+}
+
+/** The player's changes in the cheat book. */
+export interface BookEdit {
+  cheats: Cheat[];
+  notes: Record<string, string>;
+  favourites: string[];
+  keys: Record<string, string>;
+}
+
+export interface BookSaved {
+  key: string;
+  copied: boolean;
+  reloaded: boolean;
+}
+
 export type BuildMatch =
   | { status: "verified" | "listed"; label: string | null }
   | { status: "unknown" | "untagged" | "unreadable" };
@@ -1242,6 +1269,10 @@ export const api = {
   finderReset: () => invoke<void>("finder_reset"),
   myCheatSave: (gameName: string, cheat: NewCheat, expect: number) =>
     invoke<MyCheatSaved>("my_cheat_save", { gameName, cheat, expect }),
+  /** Opens a pack's cheats in the cheat book (no game needed). */
+  bookOpen: (key: string) => invoke<BookView>("book_open", { key }),
+  /** Saves the player's changes to a pack's cheats. */
+  bookSave: (key: string, edit: BookEdit) => invoke<BookSaved>("book_save", { key, edit }),
   /** Can the attached game get instant engine cheats? */
   engineCheatsSupport: () => invoke<EngineSupport>("engine_cheats_support"),
   /** Reads the game's engine and saves (and loads) its instant cheats. Can take minutes. */

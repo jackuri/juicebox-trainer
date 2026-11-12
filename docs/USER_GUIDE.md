@@ -123,6 +123,19 @@ second (changed bytes light up). Click a byte to see the numbers it starts, chan
 pointer or add it to the address list. The ⌗ button in the address list opens an entry there.
 Changes to the game's code are put back when you detach.
 
+### See and edit your cheats
+
+**See and edit cheats** (in **Packs** next to a pack, on a game in **Games**, or in **Cheats** while
+you play) shows every cheat in the pack by group: what it does and its key. No game needed. Click
+**Edit** on one to change its name, group, description, the value a switch keeps it at, a slider's
+range, a button's amount, its key and your note, or to remove it; the star marks favourites. Click
+**Save changes**: the edit is checked first, and the old pack is kept as a backup (a built-in pack
+is saved as your own copy). Where a cheat looks in the game never changes here, so an edit can't
+break it. If the pack is in use in Cheats, saving loads it again: turn your cheats back on.
+
+A cheat that doesn't work? **It doesn't work: ask the AI to fix it**, say what's wrong, then **Open
+the AI helper**: it opens with your request filled in. Start the game and click **Start**.
+
 ### Make cheats yours
 
 - **★ Favourites:** click the star to put a cheat at the top.
