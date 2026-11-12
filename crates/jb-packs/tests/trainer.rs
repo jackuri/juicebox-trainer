@@ -172,6 +172,51 @@ fn static_base_pointer_chain() {
     assert_eq!(state(&mut tb)["gold"], 4242);
 }
 
+/// A level loading or a respawn (v1.26.0): while the pointer path leads
+/// nowhere, a kept value isn't written where it used to be; once the path
+/// works again, it is kept at its new place.
+#[test]
+fn kept_values_pause_while_the_path_is_broken() {
+    let _g = serial();
+    let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let chain = &tb.ready["chain"];
+    let mut offsets: Vec<Json> = chain["offsets"].as_array().unwrap().clone();
+    offsets.push(chain["fields"]["health"].clone());
+    let pack = custom_pack(
+        &tb,
+        json!([{ "id": "health", "name": "Health", "ui": "toggle", "toggle": { "value": 100 },
+                 "impl": { "kind": "value", "type": "i32",
+                           "address": { "base": chain["root"], "offsets": offsets } } }]),
+        json!([]),
+    );
+    let mut t = Trainer::load(attach(&tb), pack).unwrap();
+    t.set_active("health", true).unwrap();
+    tb.send("hit 30");
+    sleep(Duration::from_millis(400));
+    assert_eq!(state(&mut tb)["health"], 100, "kept");
+
+    // The path breaks: the old place is left alone.
+    assert_eq!(tb.send("despawn")["message"], "despawned");
+    t.refresh().unwrap();
+    tb.send("hit 30");
+    sleep(Duration::from_millis(400));
+    assert_eq!(
+        state(&mut tb)["health"],
+        70,
+        "not written while the path is broken"
+    );
+    let (st, msg) = status(&mut t, "health");
+    assert_eq!(st, "active");
+    assert!(msg.is_some(), "says why");
+
+    // Back at a new address: kept again there.
+    assert_eq!(tb.send("respawn")["message"], "respawned");
+    t.refresh().unwrap();
+    tb.send("hit 30");
+    sleep(Duration::from_millis(400));
+    assert_eq!(state(&mut tb)["health"], 100, "kept at the new place");
+}
+
 #[test]
 fn broken_signatures_fail_cleanly() {
     let _g = serial();

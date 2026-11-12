@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-11 — v1.25.0_
+_Last updated: 2026-11-12 — v1.26.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -316,6 +316,12 @@ _Last updated: 2026-11-11 — v1.25.0_
   (community repo builds wanted.json from "request" issues hourly). Pushed and tagged 2026-11-11;
   "request" label created on juicebox-packs, Most wanted workflow ran OK.
 
+- v1.26.0 Instant engine cheats for Unreal (idea 1 of 3, Unreal part): Cheats → Make instant
+  cheats reads the engine's names (GEngine → player → movement / world settings; player values by
+  usual names on things the player owns) and saves an `engine-<exe>` pack of pointer paths. Frozen
+  pointer paths now pause while they lead nowhere (level loads, respawns). Tested on a fake game in
+  unit tests and on the testbed; not yet on a real Unreal game.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
@@ -326,8 +332,9 @@ _Last updated: 2026-11-11 — v1.25.0_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
-- Next (user's order 2026-11-11): engine-wide instant cheats (Unity / Unreal), then more Cheat
-  Engine table sources besides FearLess (link with credit; open-licence tables included with credit).
+- Next (user's order 2026-11-11): try 1.26's instant cheats on a real Unreal game (Species: Unknown,
+  with the user's OK), instant cheats for Unity (ComeCloser is a Unity Mono game on this PC), then
+  more Cheat Engine table sources besides FearLess (link with credit; open-licence tables with credit).
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
   on. The benchmark could get web and harder test games (values ×10, scrambled).
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate

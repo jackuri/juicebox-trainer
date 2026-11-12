@@ -688,8 +688,8 @@ impl Trainer {
             };
             self.process.write_value(address, &value)?;
             // A frozen value would undo the button; follow it.
-            if let Some((a, _)) = self.slots[i].frozen {
-                self.freeze(i, a, value);
+            if self.slots[i].frozen.is_some() {
+                self.freeze(i, address, value);
             }
             Ok(())
         })();
@@ -742,7 +742,17 @@ impl Trainer {
                     self.slots[i].error = self.freezer.entry_error(i as u64);
                 }
                 Err(e) if e.is_fatal() => return Err(e),
-                Err(e) => self.slots[i].error = Some(e.to_string()),
+                Err(e) => {
+                    // The path is broken for now (a level is loading, the
+                    // character respawns): stop writing to where the value
+                    // used to be, which may hold something else now, and
+                    // keep it on so it is kept again once the path works.
+                    if old != 0 {
+                        self.freezer.remove(i as u64);
+                        self.slots[i].frozen = Some((0, value));
+                    }
+                    self.slots[i].error = Some(e.to_string());
+                }
             }
         }
         Ok(())

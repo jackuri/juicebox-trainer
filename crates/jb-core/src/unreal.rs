@@ -860,37 +860,12 @@ impl<M: Mem> Reader<M> {
             })
             .collect();
         let mut out = Vec::new();
-        let found;
-        let candidates: &[ObjHead] = if self.scan_mode {
-            let targets: Vec<u64> = self
-                .heads
-                .iter()
-                .filter(|h| {
-                    self.struct_classes.contains(&h.class)
-                        && self.derives_from(h.address, class.address)
-                })
-                .map(|h| h.address)
-                .collect();
-            // A class pointer alone matches stale memory and copies too, so
-            // also require what every live object has: a function table in
-            // the exe, a readable name and an outer object.
-            found = scan_objects(
-                &self.mem,
-                |address, c| targets.contains(&c) && self.is_object_at(address),
-                limit * 4,
-            );
-            &found
-        } else {
-            &self.heads
-        };
-        for h in candidates {
+        let candidates = self.live_heads(class.address, limit * 4);
+        for h in &candidates {
             if out.len() >= limit {
                 break;
             }
             let name = self.obj_name(h);
-            if name.starts_with("Default__") || !self.derives_from(h.class, class.address) {
-                continue;
-            }
             let values = props
                 .iter()
                 .filter_map(|p| {
@@ -927,6 +902,97 @@ impl<M: Mem> Reader<M> {
     pub fn objects_address(&self) -> u64 {
         self.objects
     }
+
+    /// Live objects (not class defaults) whose class is `class` or derives from it.
+    fn live_heads(&self, class: u64, limit: usize) -> Vec<ObjHead> {
+        let found;
+        let candidates: &[ObjHead] = if self.scan_mode {
+            let targets: Vec<u64> = self
+                .heads
+                .iter()
+                .filter(|h| {
+                    self.struct_classes.contains(&h.class) && self.derives_from(h.address, class)
+                })
+                .map(|h| h.address)
+                .collect();
+            // A class pointer alone matches stale memory and copies too, so
+            // also require what every live object has: a function table in
+            // the exe, a readable name and an outer object.
+            found = scan_objects(
+                &self.mem,
+                |address, c| targets.contains(&c) && self.is_object_at(address),
+                limit,
+            );
+            &found
+        } else {
+            &self.heads
+        };
+        candidates
+            .iter()
+            .filter(|h| {
+                self.derives_from(h.class, class) && !self.obj_name(h).starts_with("Default__")
+            })
+            .take(limit)
+            .copied()
+            .collect()
+    }
+}
+
+/// What instant engine cheats need (v1.26.0): the reader answers by name.
+impl<M: Mem> crate::engine_cheats::Graph for Reader<M> {
+    fn ptr(&self, address: u64) -> Option<u64> {
+        self.mem.ptr(address)
+    }
+    fn read(&self, address: u64, len: usize) -> Option<Vec<u8>> {
+        self.mem.read(address, len)
+    }
+    fn properties_of(&self, object: u64) -> Vec<Property> {
+        self.mem
+            .ptr(object + 0x10)
+            .filter(|c| {
+                self.struct_classes
+                    .contains(&self.head(*c).map_or(0, |h| h.class))
+            })
+            .map(|c| self.all_properties(c))
+            .unwrap_or_default()
+    }
+    fn class_name_of(&self, object: u64) -> String {
+        self.mem
+            .ptr(object + 0x10)
+            .and_then(|c| self.head(c))
+            .map(|h| self.obj_name(&h))
+            .unwrap_or_else(|| "?".into())
+    }
+    fn is_a(&self, object: u64, class: &str) -> bool {
+        let (Some(base), Some(c)) = (self.class_named(class), self.mem.ptr(object + 0x10)) else {
+            return false;
+        };
+        self.derives_from(c, base.address)
+    }
+    fn outer_of(&self, object: u64) -> Option<u64> {
+        self.mem.ptr(object + 0x20)
+    }
+    fn find_live(&self, class: &str) -> Option<u64> {
+        let class = self.class_named(class)?.address;
+        self.live_heads(class, 1).first().map(|h| h.address)
+    }
+    fn global_pointing_to(&self, target: u64) -> Option<u64> {
+        let (lo, hi) = self.image;
+        let want = target.to_le_bytes();
+        let mut at = lo & !7;
+        while at < hi {
+            let len = (hi - at).min(1 << 20) as usize;
+            if let Some(buf) = self.mem.read(at, len)
+                && let Some(i) = (0..len.saturating_sub(7))
+                    .step_by(8)
+                    .find(|&i| buf[i..i + 8] == want)
+            {
+                return Some(at + i as u64);
+            }
+            at += len as u64;
+        }
+        None
+    }
 }
 
 #[cfg(test)]
@@ -961,6 +1027,7 @@ mod tests {
 /// Manual check against a running single-player Unreal game on this PC (never
 /// in CI). Attaches through the anti-cheat guard and only reads memory:
 /// `JB_UNREAL_PID=<pid> cargo test -p jb-core unreal_probe -- --ignored --nocapture`
+/// (`JB_UNREAL_CHEATS=1` also lists the instant engine cheats it would make).
 #[cfg(test)]
 mod probe {
     #[test]
@@ -981,6 +1048,22 @@ mod probe {
             started.elapsed(),
             r.layout()
         );
+        // Instant engine cheats (v1.26.0): what would go in the pack.
+        if std::env::var("JB_UNREAL_CHEATS").is_ok() {
+            match crate::engine_cheats::find_unreal(&r) {
+                Ok(found) => {
+                    println!("engine global at {:#X}", found.global);
+                    for c in &found.cheats {
+                        println!(
+                            "  {} ({:?}) = {} from {}: {:?} {:?}",
+                            c.name, c.ty, c.now, c.found_in, c.offsets, c.control
+                        );
+                    }
+                    println!("  not found: {:?}", found.not_found);
+                }
+                Err(e) => println!("instant cheats: {e}"),
+            }
+        }
         let q = std::env::var("JB_UNREAL_QUERY").unwrap_or_else(|_| "Health".into());
         for c in r.search(&q, 15) {
             let props: Vec<String> = c

@@ -430,6 +430,23 @@ export interface GameSettings {
 
 export type StoreKind = "steam" | "epic" | "gog" | "xbox" | "own";
 
+/** Whether the attached game can get instant engine cheats (v1.26.0). */
+export interface EngineSupport {
+  engine: string | null;
+  supported: boolean;
+  why: string | null;
+  /** Its instant cheats pack, if made before. */
+  packKey: string | null;
+}
+
+export interface EngineCheatsMade {
+  key: string;
+  packName: string;
+  cheats: string[];
+  notFound: string[];
+  loaded: boolean;
+}
+
 export interface LibraryGame {
   id: string;
   name: string;
@@ -1194,6 +1211,10 @@ export const api = {
   finderReset: () => invoke<void>("finder_reset"),
   myCheatSave: (gameName: string, cheat: NewCheat, expect: number) =>
     invoke<MyCheatSaved>("my_cheat_save", { gameName, cheat, expect }),
+  /** Can the attached game get instant engine cheats? */
+  engineCheatsSupport: () => invoke<EngineSupport>("engine_cheats_support"),
+  /** Reads the game's engine and saves (and loads) its instant cheats. Can take minutes. */
+  engineCheatsMake: (gameName: string) => invoke<EngineCheatsMade>("engine_cheats_make", { gameName }),
 
   scanFirst: (ty: ValueType, mode: ScanMode, options: ScanOptions) =>
     invoke<ScanSummary>("scan_first", { ty, mode, options }),

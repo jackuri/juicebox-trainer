@@ -311,6 +311,17 @@ fn not_attached() -> CommandError {
 
 pub type CmdResult<T> = Result<T, CommandError>;
 
+/// The attached game's process, for long reads that mustn't hold the session
+/// (instant engine cheats).
+pub(crate) fn live_process(state: &AppState) -> CmdResult<Arc<AttachedProcess>> {
+    with_live(state, |l| Ok(Arc::clone(&l.process)))
+}
+
+/// The key of the pack loaded in the Cheats tab, if any.
+pub(crate) fn loaded_key(state: &AppState) -> CmdResult<Option<String>> {
+    with_live(state, |l| Ok(l.trainer.as_ref().map(|t| t.key.clone())))
+}
+
 /// Runs `f` with the live session, then drops the session on fatal errors.
 fn with_live<T>(state: &AppState, f: impl FnOnce(&mut Live) -> CmdResult<T>) -> CmdResult<T> {
     let result = {

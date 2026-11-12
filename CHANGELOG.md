@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.26.0] - 2026-11-12
+
+### Added
+- **Instant cheats for Unreal Engine games.** In **Cheats**, a game made with Unreal Engine 4.23 or
+  newer (most Unreal games from 2019 on) gets **Make instant cheats**: no pack, no AI and no value
+  search needed. JuiceBox reads the game engine's own names and makes game speed, move speed, jump
+  height, gravity and jumps in the air, plus infinite health, stamina, mana, ammo and money when the
+  game uses the usual names. They are saved as a normal pack you can turn on, change and share.
+  Only values that belong to your character are used, never an enemy's. They work in many Unreal
+  games, not every one.
+
+### Fixed
+- A kept (frozen) value whose pointer path stops working for a moment (a level loading, the
+  character respawning) is no longer written where it used to be, which may hold something else by
+  then. It is kept again once the path works.
+
 ## [1.25.0] - 2026-11-11
 
 ### Added

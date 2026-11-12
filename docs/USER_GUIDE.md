@@ -83,6 +83,18 @@ Or do it yourself:
 When you close the game, unload the pack, detach or close JuiceBox Trainer, every change goes back to how
 the game had it. If JuiceBox Trainer ever crashes, it undoes leftover changes the next time it starts.
 
+### Instant cheats for Unreal games
+
+For a game made with Unreal Engine (4.23 or newer), **Cheats** shows **Make instant cheats** when
+there's no pack yet. Load your save first, so your character is in the world, then click it.
+JuiceBox reads the game engine's own names (this can take a few minutes the first time on a big
+game) and makes cheats straight away: game speed, move speed, jump height, gravity and jumps in the
+air, plus infinite health, stamina, mana or ammo and setting your money when the game uses the
+usual names. They're saved as a normal pack, so you can turn them on with their keys, change them
+and share them. They work in many Unreal games, not every one: if one does nothing, the game keeps
+that value its own way, and the AI helper can look for it. After a game update, click **Make them
+again**.
+
 ### No pack for your game? Find a value
 
 Attach to the game, then open **Find a value** (next to Trainer). It finds a number for you by

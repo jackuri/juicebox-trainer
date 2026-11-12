@@ -1,6 +1,8 @@
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { chosenPacks as chosenFor, formatStep, groupByCategory } from "../lib/trainer";
 import { CheatSettings } from "./CheatSettings";
+import { InstantCheats } from "./InstantCheats";
+import { madeNote } from "../lib/instant";
 import { PresetBar } from "./PresetBar";
 import { RemotePanel } from "./RemotePanel";
 import {
@@ -149,6 +151,15 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks }: Props) {
         {matching.map((p) => (
           <PackRow key={p.key} pack={p} loading={loading} onLoad={() => void load(p.key)} />
         ))}
+        <InstantCheats
+          processName={session.process.name}
+          onMade={(r) => {
+            setRepairNote(madeNote(r));
+            setAutoLoaded(false);
+            loadPacks();
+            poll();
+          }}
+        />
         {packs !== null && matching.length === 0 && (
           <p className="text-sm text-zinc-400">
             No pack for this game yet. Get one in Packs (open a pack file, or install one from the community

@@ -7,6 +7,7 @@ mod browser;
 mod commands;
 mod covers;
 mod dialogs;
+mod engine_cheats;
 mod gamepad;
 mod github;
 mod hotkeys;
@@ -194,6 +195,8 @@ fn main() {
             commands::finder_results,
             commands::finder_reset,
             commands::my_cheat_save,
+            engine_cheats::engine_cheats_support,
+            engine_cheats::engine_cheats_make,
             commands::address_list,
             commands::address_add,
             commands::address_remove,

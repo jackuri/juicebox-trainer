@@ -9,6 +9,7 @@
 pub mod community;
 pub mod ct;
 pub(crate) mod ct_script;
+pub mod engine;
 pub mod heal;
 pub mod hotkey;
 pub mod numbers;

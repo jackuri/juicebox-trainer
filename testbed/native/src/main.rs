@@ -23,6 +23,10 @@
 //! | 3 | load the static root | x64 `48 8B 0D rel32` (`mov rcx,[rip+WORLD]`), x86 `8B 0D abs32` |
 //! | 4 | earn: `gold += amount` | `8B 01 01 D0 89 01` (`mov eax,[rcx]; add eax,edx; mov [rcx],eax`) |
 //!
+//! `despawn` takes the player's stats away for a moment (like a level
+//! loading: the chain leads nowhere, and the game keeps using the old stats)
+//! and `respawn` brings new ones, copied from the old, at a new address.
+//!
 //! `save` writes the stats to `AppData\LocalLow\TestCo\Testbed\save1.json` and
 //! `load` reads them back, like a Unity game (it also writes
 //! `<exe>_Datapp.info`), so the save manager has something to back up.
@@ -68,6 +72,9 @@ struct World {
 /// Static root of the pointer chain. Lives in the exe image, so its address is
 /// `module base + fixed offset`.
 static WORLD: AtomicPtr<World> = AtomicPtr::new(ptr::null_mut());
+
+/// The stats the game keeps using while the player is despawned.
+static GONE: AtomicPtr<Stats> = AtomicPtr::new(ptr::null_mut());
 
 unsafe extern "C" {
     /// Provided by the MSVC linker: the base address of this image.
@@ -173,7 +180,39 @@ macro_rules! asm_op {
 
 fn stats() -> *mut Stats {
     // SAFETY: WORLD is set once in main before any command runs and never freed.
-    unsafe { ptr::read_volatile(addr_of!((*(*world()).player).stats)) }
+    let s = unsafe { ptr::read_volatile(addr_of!((*(*world()).player).stats)) };
+    if s.is_null() {
+        GONE.load(Ordering::Acquire)
+    } else {
+        s
+    }
+}
+
+/// Takes the stats out of the pointer chain (`despawn`) or puts a new copy
+/// in (`respawn`). Old stats are leaked, never freed.
+fn spawn(back: bool) -> String {
+    // SAFETY: WORLD and its player are live for the whole run; only the
+    // player's stats pointer is changed, and every Stats allocation is leaked.
+    unsafe {
+        let at = addr_of_mut!((*(*world()).player).stats);
+        let now = ptr::read_volatile(at);
+        if back {
+            if !now.is_null() {
+                return "already here".into();
+            }
+            let old = GONE.load(Ordering::Acquire);
+            let new = Box::into_raw(Box::new(ptr::read_volatile(old)));
+            ptr::write_volatile(at, new);
+            "respawned".into()
+        } else {
+            if now.is_null() {
+                return "already gone".into();
+            }
+            GONE.store(now, Ordering::Release);
+            ptr::write_volatile(at, ptr::null_mut());
+            "despawned".into()
+        }
+    }
 }
 
 macro_rules! get {
@@ -303,7 +342,7 @@ fn human_state() -> String {
     )
 }
 
-const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | save | load | tick | help | quit";
+const HELP: &str = "commands: state | hit [n] | heal | fire [n] | reload | earn [n] | spend [n] | save | load | tick | despawn | respawn | help | quit";
 
 /// Where `save` writes, like a Unity game: `AppData\LocalLow\TestCo\Testbed`.
 /// Tests point it elsewhere with `JB_TESTBED_SAVE_DIR`.
@@ -438,6 +477,8 @@ fn run(cmd: &str, arg: Option<i32>) -> Option<String> {
         "save" => save_game(),
         "load" => load_game(),
         "tick" => format!("tick {}", bump_tick()),
+        "despawn" => spawn(false),
+        "respawn" => spawn(true),
         "help" => HELP.into(),
         "quit" | "exit" => return None,
         other => format!("unknown command '{other}'. {HELP}"),

@@ -11,6 +11,7 @@ pub mod capture;
 pub mod code;
 pub mod dotnet;
 pub mod engine;
+pub mod engine_cheats;
 pub mod error;
 pub mod finder;
 pub mod freeze;
