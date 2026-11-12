@@ -330,7 +330,7 @@ _Last updated: 2026-11-12 — v1.27.0_
   builder / check accept them. No real table is on the list yet. Scope widened at the user's request:
   online games without anti-cheat are allowed (CLAUDE.md, agreement, About, AI prompt, docs,
   community rules); games are still refused while their anti-cheat runs. Agreement version not
-  raised (the change only allows more).
+  raised (the change only allows more). Pushed and tagged 2026-11-12 (both repos).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
