@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.29.0] - 2026-11-12
+
+### Added
+- **Star ratings for community packs.** Every pack in **Packs → Community packs** shows how players
+  rate it: ★ broken, ★★ works but has bugs, ★★★ works great, with the average and how many rated
+  it. Tick **Best rated first** to see the best packs at the top.
+- **Rate the packs you use.** Community packs you installed show **Tried it? Rate it** with 1, 2 or
+  3 stars. Rating uses the same free GitHub sign-in as sharing; each account counts once per pack,
+  and rating again changes your rating. The list counts new ratings within the hour.
+
 ## [1.28.0] - 2026-11-12
 
 ### Added

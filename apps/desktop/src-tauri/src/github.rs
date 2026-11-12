@@ -1147,6 +1147,110 @@ pub async fn community_share_table(
     result
 }
 
+/// A rating is a reaction on the pack's rating issue (v1.29.0): 1 star
+/// broken, 2 works with bugs, 3 works great.
+pub const RATING_REACTIONS: [&str; 3] = ["-1", "confused", "+1"];
+
+/// Rates a community pack for the signed-in player: their earlier rating of
+/// it is taken back and the new one added, so each account counts once.
+/// Only an open issue the list made for rating ("Rate: <id>", label
+/// `rating`) can be rated.
+pub async fn rate(hub: &Hub, token: &str, issue: u64, stars: u8) -> Result<u8, CommandError> {
+    use reqwest::Method;
+    let want = *RATING_REACTIONS
+        .get(usize::from(stars).wrapping_sub(1))
+        .ok_or_else(|| err("badRequest", "a rating is 1, 2 or 3 stars"))?;
+    let me = hub
+        .ok(token, Method::GET, "/user", None, "to say who you are")
+        .await?;
+    let login = me["login"]
+        .as_str()
+        .ok_or_else(|| err("github", "GitHub didn't say who you are"))?
+        .to_string();
+    let base = format!("/repos/{COMMUNITY_REPO}/issues/{issue}");
+    let it = hub
+        .ok(
+            token,
+            Method::GET,
+            &base,
+            None,
+            "to find the pack's ratings",
+        )
+        .await?;
+    let is_rating = it["title"]
+        .as_str()
+        .is_some_and(|t| t.starts_with("Rate: "))
+        && it["state"] == "open"
+        && it.get("pull_request").is_none_or(Value::is_null)
+        && it["labels"]
+            .as_array()
+            .is_some_and(|l| l.iter().any(|x| x["name"] == "rating"));
+    if !is_rating {
+        return Err(err("badRequest", "that isn't a pack's rating page"));
+    }
+    // Take back this player's earlier rating of the pack (only the rating kinds).
+    for page in 1..=10 {
+        let list = hub
+            .ok(
+                token,
+                Method::GET,
+                &format!("{base}/reactions?per_page=100&page={page}"),
+                None,
+                "to read the ratings",
+            )
+            .await?;
+        let list = list.as_array().cloned().unwrap_or_default();
+        for r in &list {
+            let mine = r["user"]["login"]
+                .as_str()
+                .is_some_and(|l| l.eq_ignore_ascii_case(&login));
+            let content = r["content"].as_str().unwrap_or("");
+            if mine
+                && content != want
+                && RATING_REACTIONS.contains(&content)
+                && let Some(id) = r["id"].as_u64()
+            {
+                hub.ok(
+                    token,
+                    Method::DELETE,
+                    &format!("{base}/reactions/{id}"),
+                    None,
+                    "to change your rating",
+                )
+                .await?;
+            }
+        }
+        if list.len() < 100 {
+            break;
+        }
+    }
+    hub.ok(
+        token,
+        Method::POST,
+        &format!("{base}/reactions"),
+        Some(&json!({ "content": want })),
+        "to add your rating",
+    )
+    .await?;
+    Ok(stars)
+}
+
+/// Rates a community pack 1 to 3 stars (v1.29.0) through the player's
+/// GitHub sign-in. Counted on the list within the hour.
+#[tauri::command]
+pub async fn community_rate(issue: u64, stars: u8, state: State<'_, GithubState>) -> CmdResult<u8> {
+    let token =
+        vault::load(CREDENTIAL).ok_or_else(|| err("signedOut", "sign in to GitHub first"))?;
+    let result = rate(&Hub::github()?, &token, issue, stars).await;
+    if let Err(e) = &result
+        && e.kind == "signedOut"
+    {
+        vault::delete(CREDENTIAL);
+        *lock(&state.login) = None;
+    }
+    result
+}
+
 /// The community-list pack of one of the player's web games: their saved
 /// cheats, checked by the list's rules (https, at most 50 cheats).
 pub fn web_shareable(
@@ -1640,6 +1744,71 @@ mod tests {
         let (plain_pack, _) = jb_packs::parse(&text).unwrap();
         let (_, mit) = pr_text(&plain_pack, &req(false), false, "sam");
         assert!(mit.contains("MIT (the list's default)"), "{mit}");
+    }
+
+    /// v1.29.0: a rating replaces the player's earlier one on the pack's rating issue.
+    #[test]
+    fn rates_a_pack_once_per_player() {
+        let route = |m: &str, p: &str, _b: &str| -> (u16, String) {
+            match (m, p) {
+                ("GET", "/user") => (200, json!({ "login": "Sam" }).to_string()),
+                ("GET", "/repos/jackuri/juicebox-packs/issues/12") => (
+                    200,
+                    json!({ "title": "Rate: coin-quest", "state": "open", "labels": [{ "name": "rating" }] }).to_string(),
+                ),
+                ("GET", "/repos/jackuri/juicebox-packs/issues/13") => (
+                    200,
+                    json!({ "title": "Fix the installer", "state": "open", "labels": [{ "name": "bug" }] }).to_string(),
+                ),
+                ("GET", p) if p.starts_with("/repos/jackuri/juicebox-packs/issues/12/reactions") => (
+                    200,
+                    json!([
+                        { "id": 1, "content": "-1", "user": { "login": "sam" } },
+                        { "id": 2, "content": "heart", "user": { "login": "sam" } },
+                        { "id": 3, "content": "-1", "user": { "login": "alex" } },
+                        { "id": 4, "content": "+1", "user": { "login": "sam" } }
+                    ])
+                    .to_string(),
+                ),
+                ("DELETE", _) => (204, String::new()),
+                ("POST", "/repos/jackuri/juicebox-packs/issues/12/reactions") => (201, "{}".into()),
+                _ => (404, json!({ "message": "Not Found" }).to_string()),
+            }
+        };
+        let (hub, seen) = fake(route);
+        assert_eq!(run(rate(&hub, "tok", 12, 2)).unwrap(), 2);
+        let seen = lock(&seen).clone();
+        let deleted: Vec<&String> = seen
+            .iter()
+            .filter(|(m, _, _)| m == "DELETE")
+            .map(|(_, p, _)| p)
+            .collect();
+        // Sam's earlier 1-star and 3-star ratings go; their heart and Alex's rating stay.
+        assert_eq!(
+            deleted,
+            [
+                "/repos/jackuri/juicebox-packs/issues/12/reactions/1",
+                "/repos/jackuri/juicebox-packs/issues/12/reactions/4"
+            ]
+        );
+        let post = seen
+            .iter()
+            .find(|(m, p, _)| m == "POST" && p.ends_with("/12/reactions"))
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&post.2).unwrap()["content"],
+            "confused"
+        );
+
+        let (hub, seen) = fake(route);
+        let e = run(rate(&hub, "tok", 13, 3)).unwrap_err();
+        assert!(e.message.contains("rating page"), "{}", e.message);
+        assert!(
+            lock(&seen).iter().all(|(m, _, _)| m == "GET"),
+            "nothing changed on another issue"
+        );
+        assert!(run(rate(&hub, "tok", 12, 4)).is_err());
+        assert!(run(rate(&hub, "tok", 12, 0)).is_err());
     }
 
     #[test]

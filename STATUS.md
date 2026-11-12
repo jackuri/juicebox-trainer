@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.28.0_
+_Last updated: 2026-11-12 — v1.29.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -339,6 +339,10 @@ _Last updated: 2026-11-12 — v1.28.0_
 - v1.28.0 Cheat book: see and edit a pack's cheats without the game (names, groups, values, ranges,
   keys, notes, favourites, removal; never addresses or patches), from Packs, Games and Cheats; "ask
   the AI to fix it" opens the AI helper with the request filled in. Pushed and tagged 2026-11-12.
+
+- v1.29.0 Pack ratings: 1–3 stars per community pack (rating issues + reactions on the community
+  repo, counted hourly into ratings.json); Packs shows stars, Best rated first, and Rate it on
+  installed community packs (GitHub sign-in as for sharing).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

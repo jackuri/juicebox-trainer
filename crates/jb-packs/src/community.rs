@@ -420,6 +420,61 @@ pub struct Wanted {
 }
 
 /// `wanted.json` next to the `index.json` at `index_url`.
+/// How players rate a community pack (v1.29.0), from `ratings.json` next to
+/// the index: 1 star broken, 2 works with bugs, 3 works great.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Rating {
+    /// The pack's rating issue (a reaction on it is a rating).
+    pub issue: u64,
+    /// Ratings counted (one per GitHub account).
+    pub count: u32,
+    /// The average, 1 to 3 (0 without ratings).
+    pub stars: f32,
+    /// How many gave 1, 2 and 3 stars.
+    pub votes: [u32; 3],
+}
+
+/// The ratings list refuses to load above this size.
+pub const MAX_RATINGS_BYTES: u64 = 1 << 20;
+
+/// `ratings.json`, next to `index.json`.
+pub fn ratings_url(index_url: &str) -> String {
+    match index_url.strip_suffix("index.json") {
+        Some(base) => format!("{base}ratings.json"),
+        None => format!("{}/ratings.json", index_url.trim_end_matches('/')),
+    }
+}
+
+/// Reads `ratings.json` leniently: an entry that doesn't add up is left out.
+pub fn parse_ratings(bytes: &[u8]) -> Result<std::collections::BTreeMap<String, Rating>, String> {
+    if bytes.len() as u64 > MAX_RATINGS_BYTES {
+        return Err("the ratings list is too big".into());
+    }
+    let v: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|e| format!("the ratings list isn't valid: {e}"))?;
+    if v["format"].as_u64() != Some(1) {
+        return Err("the ratings list needs a newer JuiceBox Trainer".into());
+    }
+    let mut out = std::collections::BTreeMap::new();
+    if let Some(map) = v["ratings"].as_object() {
+        for (id, r) in map {
+            let Ok(r) = serde_json::from_value::<Rating>(r.clone()) else {
+                continue;
+            };
+            let total: u32 = r.votes.iter().sum();
+            let ok = is_slug(id)
+                && r.issue > 0
+                && total == r.count
+                && (r.count == 0 || (1.0..=3.0).contains(&r.stars));
+            if ok {
+                out.insert(id.clone(), r);
+            }
+        }
+    }
+    Ok(out)
+}
+
 pub fn wanted_url(index_url: &str) -> String {
     match index_url.strip_suffix("index.json") {
         Some(base) => format!("{base}wanted.json"),
@@ -631,6 +686,27 @@ mod tests {
             file: None,
             sha256: None,
         }
+    }
+
+    #[test]
+    fn reads_ratings_and_skips_ones_that_dont_add_up() {
+        assert_eq!(
+            ratings_url("https://raw.example/main/index.json"),
+            "https://raw.example/main/ratings.json"
+        );
+        let json = br#"{"format":1,"updated":"2026-11-12","ratings":{
+            "coin-quest":{"issue":12,"count":3,"stars":2.3,"votes":[1,0,2]},
+            "new-pack":{"issue":13,"count":0,"stars":0,"votes":[0,0,0]},
+            "bad-sum":{"issue":14,"count":5,"stars":2,"votes":[1,1,1]},
+            "too-many-stars":{"issue":15,"count":1,"stars":9,"votes":[0,0,1]},
+            "Bad Id":{"issue":16,"count":1,"stars":3,"votes":[0,0,1]},
+            "no-issue":{"issue":0,"count":0,"stars":0,"votes":[0,0,0]},
+            "junk":"x"}}"#;
+        let r = parse_ratings(json).unwrap();
+        assert_eq!(r.keys().collect::<Vec<_>>(), ["coin-quest", "new-pack"]);
+        assert_eq!(r["coin-quest"].votes, [1, 0, 2]);
+        assert!(parse_ratings(br#"{"format":2,"ratings":{}}"#).is_err());
+        assert!(parse_ratings(b"<html>").is_err());
     }
 
     #[test]

@@ -311,6 +311,15 @@ numbers.
    like and click **Start**. It may ask you to read a number or do something in the game, then
    adds the cheats that work to the game's cheats. Keep the game window open while it works.
 
+### Star ratings
+
+Community packs show how players rate them: ★ broken, ★★ works but has bugs, ★★★ works great,
+with the average and how many players rated. Tick **Best rated first** in **Community packs** to
+see the best ones at the top. Installed a community pack? **Tried it? Rate it** under it: click 1,
+2 or 3 stars. Rating uses the same free GitHub sign-in as sharing (the first time, you paste a code
+on GitHub's page). Each account counts once per pack; rating again changes it. New ratings show up
+on the list within the hour.
+
 ### Ask for cheats, or help others
 
 - **No cheats for your game?** On the **Games** tab, click **Ask the community for cheats** on it.

@@ -255,6 +255,8 @@ fn main() {
             github::community_share_table,
             sharing::community_open_table,
             sharing::community_get_table,
+            sharing::community_ratings,
+            github::community_rate,
             sharing::community_open_credit,
             sharing::packs_remove,
             sharing::community_list,

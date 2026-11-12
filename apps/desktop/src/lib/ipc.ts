@@ -683,6 +683,17 @@ export interface CommunityPack {
   installed: "none" | "installed" | "update" | "other";
 }
 
+/** How players rate a community pack (v1.29.0): 1 star broken, 2 works with bugs, 3 works great. */
+export interface Rating {
+  /** The pack's rating page (issue number). */
+  issue: number;
+  count: number;
+  /** The average, 1 to 3 (0 without ratings). */
+  stars: number;
+  /** How many gave 1, 2 and 3 stars. */
+  votes: [number, number, number];
+}
+
 export interface CommunityList {
   url: string;
   contributeUrl: string;
@@ -1370,6 +1381,10 @@ export const api = {
   /** Opens a community pack maker's page or support page (only what the list gives). */
   communityOpenCredit: (id: string, which: "page" | "support") => invoke<void>("community_open_credit", { id, which }),
   communityList: (refresh: boolean) => invoke<CommunityList>("community_list", { refresh }),
+  /** How players rate the community packs: pack id → rating (v1.29.0). */
+  communityRatings: (refresh: boolean) => invoke<Record<string, Rating>>("community_ratings", { refresh }),
+  /** Rates a community pack 1 to 3 stars (GitHub sign-in). */
+  communityRate: (issue: number, stars: 1 | 2 | 3) => invoke<number>("community_rate", { issue, stars }),
   /** Games players asked cheats for, most votes first (v1.25.0). */
   communityWanted: (refresh: boolean) => invoke<Wanted[]>("community_wanted", { refresh }),
   /** Opens the filled-in request form for a game in the browser. */

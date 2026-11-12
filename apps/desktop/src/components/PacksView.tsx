@@ -1,6 +1,8 @@
 import { Mascot } from "./Icon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ShareDialog } from "./ShareDialog";
+import { RatePack, Stars } from "./Ratings";
+import { bestFirst } from "../lib/ratings";
 import { CheatBook } from "./CheatBook";
 import type { AiFix } from "../lib/cheatBook";
 import { MostWanted } from "./Wanted";
@@ -13,6 +15,7 @@ import {
   PACK_SOURCE_LABEL,
   type PackPreview,
   type PackSummary,
+  type Rating,
   } from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
 
@@ -64,6 +67,13 @@ export function PacksView({
   const [incoming, setIncoming] = useState<{ from: Incoming; preview: PackPreview } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sharing, setSharing] = useState<{ pack: PackSummary; mode: "pack" | "link" } | null>(null);
+  /** How players rate the community packs, and the order to show them in (v1.29.0). */
+  const [ratings, setRatings] = useState<Record<string, Rating>>({});
+  const [best, setBest] = useState(false);
+  const loadRatings = useCallback((refresh: boolean) => {
+    api.communityRatings(refresh).then((r) => setRatings(r && typeof r === "object" ? r : {}), () => undefined);
+  }, []);
+  useEffect(() => loadRatings(false), [loadRatings]);
   /** The pack open in the cheat book (v1.28.0). */
   const [book, setBook] = useState<string | null>(null);
   useEffect(() => {
@@ -194,10 +204,11 @@ export function PacksView({
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    return (community?.packs ?? []).filter(
+    const list = (community?.packs ?? []).filter(
       (p) => !q || p.name.toLowerCase().includes(q) || p.exe.toLowerCase().includes(q),
     );
-  }, [community, filter]);
+    return best ? bestFirst(list, ratings) : list;
+  }, [community, filter, best, ratings]);
 
   return (
     <main className="flex min-h-0 flex-col gap-5 overflow-y-auto p-6" aria-label="Packs">
@@ -365,10 +376,15 @@ export function PacksView({
             onClick={() => {
               setLoadingCommunity(true);
               loadCommunity(true);
+              loadRatings(true);
             }}
           >
             Refresh
           </button>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-300">
+            <input type="checkbox" checked={best} onChange={(e) => setBest(e.target.checked)} />
+            Best rated first
+          </label>
           <button
             className={button}
             onClick={() =>
@@ -398,6 +414,7 @@ export function PacksView({
             <CommunityRow
               key={p.id}
               pack={p}
+              rating={ratings[p.id]}
               busy={busy}
               onPreview={() => void preview({ kind: "community", id: p.id })}
               onCredit={(which) => void api.communityOpenCredit(p.id, which).catch((e: unknown) => setError(friendlyError(e)))}
@@ -418,11 +435,13 @@ const STATE_TEXT: Record<CommunityPack["installed"], string | null> = {
 
 function CommunityRow({
   pack,
+  rating,
   busy,
   onPreview,
   onCredit,
 }: {
   pack: CommunityPack;
+  rating?: Rating;
   busy: boolean;
   onPreview: () => void;
   onCredit: (which: "page" | "support") => void;
@@ -440,6 +459,7 @@ function CommunityRow({
             <span className="ml-2 rounded bg-violet-900/60 px-1.5 py-0.5 text-[10px] text-violet-200">AI-made</span>
           )}
         </p>
+        <Stars rating={rating} />
         {pack.notes && <p className="text-xs text-zinc-500">{pack.notes}</p>}
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-400" data-testid="credit">
           {pack.source?.by && <span>Cheats made by {pack.source.by}</span>}
@@ -461,6 +481,7 @@ function CommunityRow({
           )}
         </p>
         {state && <p className={`text-xs ${pack.installed === "installed" ? "text-emerald-400" : "text-sky-300"}`}>{state}</p>}
+        {(pack.installed === "installed" || pack.installed === "update") && <RatePack id={pack.id} name={pack.name} rating={rating} />}
       </div>
       <button className={pack.installed === "installed" ? button : primary} disabled={busy} aria-label={`See ${pack.name}`} onClick={onPreview}>
         {pack.installed === "update" ? "See the update" : "See what's inside"}

@@ -27,7 +27,11 @@ pub struct SharingState {
     index: Mutex<Option<Cached>>,
     /// The last most-wanted list download (v1.25.0), for a few minutes.
     wanted: Mutex<Option<(Instant, String, Vec<community::Wanted>)>>,
+    /// The last ratings download (v1.29.0), for a few minutes.
+    ratings: Mutex<Option<(Instant, String, Ratings)>>,
 }
+
+type Ratings = std::collections::BTreeMap<String, community::Rating>;
 
 #[derive(Debug, Clone)]
 struct Cached {
@@ -541,6 +545,29 @@ async fn index(state: &SharingState, refresh: bool) -> CmdResult<Cached> {
     };
     *lock(&state.index) = Some(cached.clone());
     Ok(cached)
+}
+
+/// How players rate the community packs (v1.29.0): pack id → rating
+/// (downloaded at most every 10 minutes unless `refresh`).
+#[tauri::command]
+pub async fn community_ratings(
+    refresh: bool,
+    state: State<'_, SharingState>,
+) -> CmdResult<Ratings> {
+    let url = community::ratings_url(&index_url());
+    if !refresh
+        && let Some((at, u, list)) = lock(&state.ratings).as_ref()
+        && at.elapsed() < CACHE_FOR
+        && *u == url
+    {
+        return Ok(list.clone());
+    }
+    let bytes = fetch(&url, community::MAX_RATINGS_BYTES)
+        .await
+        .map_err(|e| CommandError::new("offline", e))?;
+    let list = community::parse_ratings(&bytes).map_err(|e| CommandError::new("badIndex", e))?;
+    *lock(&state.ratings) = Some((Instant::now(), url, list.clone()));
+    Ok(list)
 }
 
 /// The games players asked cheats for, most votes first (v1.25.0;
