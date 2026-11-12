@@ -369,6 +369,8 @@ _Last updated: 2026-11-12 — v1.33.0_
   00:02 UTC, closes and locks it after); 2 XP a day, 10 more per 5 in a row, counted by build-xp.mjs
   (checkins.json). DailyCheckIn card with five streak boxes. The e2e didn't post a real check-in (it
   would act on the user's GitHub account); the check-in itself is covered by the fake-GitHub test.
+  Pushed and tagged 2026-11-12 (CI and Release green); "check-in" label made, the robot opened
+  the first check-in issue (#6, Check-in: 2026-11-12).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
