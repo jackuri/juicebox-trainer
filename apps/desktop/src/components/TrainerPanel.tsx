@@ -2,6 +2,7 @@ import { type ReactNode, useCallback, useEffect, useRef, useState } from "react"
 import { chosenPacks as chosenFor, formatStep, groupByCategory } from "../lib/trainer";
 import { CheatSettings } from "./CheatSettings";
 import { InstantCheats } from "./InstantCheats";
+import { LiveHelper } from "./LiveHelper";
 import { madeNote } from "../lib/instant";
 import { PresetBar } from "./PresetBar";
 import { RemotePanel } from "./RemotePanel";
@@ -33,10 +34,22 @@ interface Props {
   onShowPacks?: () => void;
   /** Opens the loaded pack in the cheat book (v1.28.0). */
   onOpenBook?: (key: string) => void;
+  /** A cheat to fix with AI, asked in the cheat book while playing (v1.30.0). */
+  liveAsk?: LiveAsk | null;
+  /** The cheat book's request was taken. */
+  onLiveAskUsed?: () => void;
+  /** Opens "Make a trainer (AI)" (to set the helper up). */
+  onOpenAi?: () => void;
+}
+
+/** A cheat to fix with AI while playing (or `fix: null` for a new cheat). */
+export interface LiveAsk {
+  fix: string | null;
+  problem: string;
 }
 
 /** Trainer tab: pick a pack for the attached game, then toggle its cheats. */
-export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }: Props) {
+export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook, liveAsk = null, onLiveAskUsed, onOpenAi }: Props) {
   const [packs, setPacks] = useState<PackSummary[] | null>(null);
   const [folder, setFolder] = useState<string | null>(null);
   const [view, setView] = useState<TrainerView | null>(null);
@@ -51,6 +64,26 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }
   const [polled, setPolled] = useState(false);
   /** The pack was loaded automatically (the only one for this game). */
   const [autoLoaded, setAutoLoaded] = useState(false);
+  /** The AI helper, fixing a cheat or making one while the player plays (v1.30.0). */
+  const [helper, setHelper] = useState<(LiveAsk & { resume: boolean }) | null>(() =>
+    liveAsk ? { ...liveAsk, resume: false } : null,
+  );
+  useEffect(() => {
+    if (liveAsk) onLiveAskUsed?.();
+  }, [liveAsk, onLiveAskUsed]);
+  // A live session is running already (the player came back to this tab).
+  useEffect(() => {
+    let live = true;
+    api.aiStatus().then(
+      (s) => {
+        if (live && s?.live) setHelper((h) => h ?? { fix: null, problem: "", resume: true });
+      },
+      () => undefined,
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
 
   useEffect(() => {
     api.overlayVisible().then(setOverlay, () => undefined);
@@ -247,6 +280,13 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }
         >
           {overlay ? "Hide overlay" : "Show overlay"}
         </button>
+        <button
+          className="rounded-lg bg-violet-900/60 px-3 py-1.5 text-xs font-medium text-violet-100 ring-1 ring-violet-700 hover:bg-violet-800/60"
+          title="Ask the AI to make a new cheat, or fix one, while you play"
+          onClick={() => setHelper({ fix: null, problem: "", resume: false })}
+        >
+          Ask the AI
+        </button>
         {onOpenBook && (
           <button
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium ring-1 ring-zinc-700 hover:bg-zinc-700"
@@ -306,6 +346,22 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }
         </p>
       )}
 
+      {helper && (
+        <LiveHelper
+          key={`${helper.fix ?? "new"}:${helper.resume}`}
+          pid={session.process.pid}
+          packKey={view.key}
+          fix={(() => {
+            const c = helper.fix ? pack.cheats.find((x) => x.id === helper.fix) : undefined;
+            return c ? { id: c.id, name: c.name } : null;
+          })()}
+          problem={helper.problem}
+          resume={helper.resume}
+          onClose={() => setHelper(null)}
+          onOpenAi={onOpenAi}
+        />
+      )}
+
       <PresetBar view={view} act={act} />
 
       {groups.map(([category, cheats]) => (
@@ -329,6 +385,7 @@ export function TrainerPanel({ session, onSessionLost, onShowPacks, onOpenBook }
                   onSet={(v) => void act(() => api.trainerSet(c.id, v))}
                   onRelease={() => void act(() => api.trainerRelease(c.id))}
                   onPress={() => void act(() => api.trainerPress(c.id))}
+                  onFixAi={() => setHelper({ fix: c.id, problem: "", resume: false })}
                 />
               ) : null;
             })}
@@ -397,6 +454,8 @@ interface RowProps {
   onSet: (value: string) => void;
   onRelease: () => void;
   onPress: () => void;
+  /** Fix this cheat with AI while playing (v1.30.0). */
+  onFixAi?: () => void;
 }
 
 function CheatRow(props: RowProps) {
@@ -474,6 +533,15 @@ function CheatRow(props: RowProps) {
             <summary className="cursor-pointer select-none">Keys &amp; note</summary>
             {settings}
           </details>
+        )}
+        {props.onFixAi && (
+          <button
+            className="self-start text-[11px] text-violet-300 hover:text-violet-200"
+            aria-label={`Fix ${cheat.name} with AI`}
+            onClick={props.onFixAi}
+          >
+            Not working? Fix with AI
+          </button>
         )}
       </div>
     </li>

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.30.0] - 2026-11-12
+
+### Added
+- **Fix or make cheats with AI while you play.** In **Cheats**, every cheat has **Not working? Fix
+  with AI**, and the top has **Ask the AI** for a new cheat (for example "infinite flashlight
+  battery: it drains but shows no number"). Say what's wrong, click **Fix it now**, and keep
+  playing: your other cheats stay on. The AI may ask you to do small things in the game. When it's
+  done, your cheats are loaded again with the fix and turned back on.
+- In the cheat book, **ask the AI to fix it** now opens this live helper in Cheats when the game is
+  running with that pack loaded.
+
+### Changed
+- **Find a value with no number on screen** finds more: it also reads 8-byte decimals, the way
+  Unreal Engine 5 games keep most hidden values (stamina, batteries, meters). It can search games
+  that use more memory when your PC has memory free. The **There's no number on screen** choice is
+  now a button, with a tip for things that drain by themselves.
+
+### Fixed
+- The AI helper and the app no longer share one undo journal for a game, so neither can undo the
+  other's cheats.
+
 ## [1.29.0] - 2026-11-12
 
 ### Added

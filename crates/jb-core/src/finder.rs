@@ -17,8 +17,9 @@ use crate::value::{Value, ValueType};
 /// are offered (whole numbers are the most common).
 const EXACT_TYPES: [ValueType; 3] = [ValueType::I32, ValueType::F32, ValueType::F64];
 /// Types searched when there's no number to type. One 4-byte snapshot is
-/// taken and read both ways, so memory isn't copied twice.
-const UNKNOWN_TYPES: [ValueType; 2] = [ValueType::I32, ValueType::F32];
+/// taken and read every way (8-byte decimals at 8-aligned places, which is
+/// how Unreal 5 keeps most of them, v1.30.0), so memory isn't copied twice.
+const UNKNOWN_TYPES: [ValueType; 3] = [ValueType::I32, ValueType::F32, ValueType::F64];
 
 /// How to start.
 #[derive(Debug, Clone, PartialEq)]

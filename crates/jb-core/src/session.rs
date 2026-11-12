@@ -114,13 +114,33 @@ impl AttachedProcess {
     /// the game are taken over, so detaching restores them too. Returns how
     /// many were taken over.
     pub fn enable_journal(&self, dir: &std::path::Path) -> Result<usize> {
-        let started = self
-            .started
-            .ok_or_else(|| Error::Journal("the game's start time could not be read".into()))?;
-        std::fs::create_dir_all(dir)
-            .map_err(|e| Error::Journal(format!("could not create {}: {e}", dir.display())))?;
+        let started = self.journal_start()?;
+        self.journal_at(dir.join(journal::file_name(self.pid(), started)))
+    }
+
+    /// Like [`Self::enable_journal`], but in a journal of its own for this
+    /// run of the game, named after `owner` (v1.30.0). The AI helper keeps
+    /// one while the app's cheats stay on, so neither ever takes over, or
+    /// undoes, the other's changes.
+    pub fn enable_journal_as(&self, dir: &std::path::Path, owner: &str) -> Result<usize> {
+        let started = self.journal_start()?;
+        self.journal_at(dir.join(journal::owned_file_name(self.pid(), started, owner)))
+    }
+
+    fn journal_start(&self) -> Result<u64> {
+        self.started
+            .ok_or_else(|| Error::Journal("the game's start time could not be read".into()))
+    }
+
+    /// Keeps the journal in this file (recovery uses the file it found).
+    pub(crate) fn journal_at(&self, path: std::path::PathBuf) -> Result<usize> {
+        let started = self.journal_start()?;
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| Error::Journal(format!("could not create {}: {e}", dir.display())))?;
+        }
         let target = JournalTarget {
-            path: dir.join(journal::file_name(self.pid(), started)),
+            path,
             pid: self.pid(),
             started,
             exe: self.info.name.clone(),

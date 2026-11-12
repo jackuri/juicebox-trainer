@@ -24,6 +24,19 @@ export interface WebGameRef {
   url: string;
 }
 
+/**
+ * While the player plays (v1.30.0): their pack is loaded in JuiceBox Trainer
+ * with some cheats on, and the helper fixes one or adds new ones on the spot.
+ */
+export interface LiveFix {
+  /** The player's pack file, where the fix is saved. */
+  pack: string;
+  /** Cheats that are on in the app; the tools won't touch them. */
+  on: { id: string; name: string }[];
+  /** The cheat to fix and what's wrong with it, or none for new cheats. */
+  fixing?: { id: string; name: string; problem: string };
+}
+
 export interface StartMessage {
   type: "start";
   /** What to do; "trainer" by default. */
@@ -46,6 +59,8 @@ export interface StartMessage {
   analysis?: AnalysisServer;
   /** The helper may look at the game window (v1.21.0; on unless false). */
   pictures?: boolean;
+  /** Fixing or adding cheats while the player plays (v1.30.0). */
+  live?: LiveFix;
 }
 
 export type Inbound =
@@ -105,6 +120,7 @@ export function parseInbound(line: string): Inbound | null {
         localUrl: typeof m.localUrl === "string" ? m.localUrl : undefined,
         analysis: parseAnalysis(m.analysis),
         pictures: m.pictures === false ? false : undefined,
+        live: task === "trainer" ? parseLive(m.live) : undefined,
       };
     }
     case "answer":
@@ -121,6 +137,19 @@ export function parseInbound(line: string): Inbound | null {
     default:
       return null;
   }
+}
+
+function parseLive(v: unknown): LiveFix | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const l = v as Record<string, unknown>;
+  if (typeof l.pack !== "string" || !l.pack.trim()) return undefined;
+  const named = (x: unknown): x is { id: string; name: string } =>
+    typeof x === "object" && x !== null && typeof (x as { id?: unknown }).id === "string" && typeof (x as { name?: unknown }).name === "string";
+  const on = Array.isArray(l.on) ? l.on.filter(named).map((c) => ({ id: c.id, name: c.name })) : [];
+  const f = l.fixing as Record<string, unknown> | null | undefined;
+  const problem = f && typeof f.problem === "string" ? f.problem.slice(0, MAX_NOTE) : "";
+  const fixing = f && named(f) ? { id: f.id, name: f.name, problem } : undefined;
+  return { pack: l.pack, on, fixing };
 }
 
 function parseAnalysis(v: unknown): AnalysisServer | undefined {

@@ -9,6 +9,9 @@ export interface AiFix {
   problem: string;
   /** What the cheat is now ("switch: keeps it at 100"). */
   describe: string;
+  /** The pack and the cheat (v1.30.0: fixed on the spot when the game runs with this pack loaded). */
+  key?: string;
+  id?: string;
 }
 
 /** "keep" for a switch that keeps a value, "patch" for one that changes the game's code. */

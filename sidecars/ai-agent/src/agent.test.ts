@@ -69,6 +69,46 @@ describe("prompt", () => {
   });
 });
 
+describe("live fixes (v1.30.0)", () => {
+  const live = {
+    ...start,
+    wishes: [],
+    live: {
+      pack: "C:\\packs\\game\\pack.json",
+      on: [{ id: "health", name: "Infinite health" }],
+      fixing: { id: "ammo", name: "Infinite ammo", problem: "only works with the first gun" },
+    },
+  };
+
+  it("passes the player's pack to the tools and tells the helper what's on", () => {
+    process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+    const o = buildOptions(live, mcp, io(), new AbortController(), "0.8.0");
+    const jb = o.mcpServers?.jb as { env: Record<string, string> };
+    expect(jb.env.JB_LIVE_PACK).toBe("C:\\packs\\game\\pack.json");
+    expect(jb.env.JB_LIVE_ON).toBe("health");
+    expect(String(o.systemPrompt)).toContain("Cheats that are on in the app stay on");
+    const k = kickoff(live);
+    expect(k).toContain("these are on: Infinite health");
+    expect(k).toContain('Fix their cheat "Infinite ammo"');
+    expect(k).toContain("only works with the first gun");
+    const plain = buildOptions(start, mcp, io(), new AbortController(), "0.8.0");
+    expect((plain.mcpServers?.jb as { env: Record<string, string> }).env.JB_LIVE_PACK).toBeUndefined();
+  });
+
+  it("parses the live part of a start message", () => {
+    const m = parseInbound(
+      JSON.stringify({
+        type: "start",
+        game: { pid: 1, name: "g.exe" },
+        wishes: ["Infinite flashlight"],
+        live: { pack: "p.json", on: [{ id: "a", name: "A" }, { id: 3 }], fixing: null },
+      }),
+    );
+    expect(m?.type === "start" && m.live).toEqual({ pack: "p.json", on: [{ id: "a", name: "A" }], fixing: undefined });
+    expect(kickoff(m as StartMessage)).toContain("They want a new cheat:\n- Infinite flashlight");
+  });
+});
+
 describe("options", () => {
   it("gives the agent only the guarded tools and denies the rest", () => {
     process.env.ANTHROPIC_API_KEY = "test-key-not-real";

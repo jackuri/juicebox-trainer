@@ -1133,18 +1133,32 @@ export type AiEvent =
   | { type: "cost"; usd: number }
   | { type: "finished"; ok: boolean; summary: string }
   | { type: "error"; message: string }
+  /** A live session ended (v1.30.0): the pack was loaded again if it changed, and these cheats are back on. */
+  | { type: "liveDone"; reloaded: boolean; backOn: string[]; problems: string[] }
   | { type: "exit" };
 
 export interface AiStatus {
   available: boolean;
   problem: string | null;
   running: boolean;
+  /** The running session fixes cheats while the player plays (v1.30.0). */
+  live?: boolean;
   transcript: AiEvent[];
   /** Signed in to a Claude account; null if it couldn't be checked. */
   signedIn: boolean | null;
   /** The AI engine: downloaded on first use in the installed app. */
   download: "notNeeded" | "missing" | "outdated" | "ready";
   installing: boolean;
+}
+
+/** The AI helper while the player plays (v1.30.0). */
+export interface LiveRequest {
+  /** The loaded pack's key. */
+  packKey: string;
+  /** The cheat to fix; none to add new cheats. */
+  fix?: string;
+  /** What's wrong with it, in the player's words. */
+  problem?: string;
 }
 
 export interface AiStartRequest {
@@ -1159,6 +1173,8 @@ export interface AiStartRequest {
   backup?: string;
   wishes: string[];
   notes: string;
+  /** Fix a cheat (or add new ones) while the player plays with this pack loaded (v1.30.0). */
+  live?: LiveRequest;
   backend: "subscription" | "apiKey" | "local";
   maxBudgetUsd: number;
   /** For "local": Ollama (http://localhost:11434) or LM Studio (http://localhost:1234). */

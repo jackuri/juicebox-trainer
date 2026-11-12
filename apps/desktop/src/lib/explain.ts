@@ -26,7 +26,7 @@ const PLAIN: Record<string, string> = {
     "This cheat found more than one possible place in the game, so it didn't guess. Ask the AI helper to make it again for this version.",
   wrongArch: "This pack is for another version of the game (32-bit or 64-bit). Look for a pack made for your version.",
   scanTooLarge:
-    "This search is too big. Choose a more exact kind of number, or search for the exact value you see in the game.",
+    "This game uses more memory than this PC has free for a search with no number. Close other programs and try again, or ask the AI helper (Cheats: Ask the AI).",
   cancelled: "Stopped.",
   invalidValue: "That isn't a number this value can hold. Check the number and try again.",
   noWebGame: "Open the game first: go to Web games and click Play.",

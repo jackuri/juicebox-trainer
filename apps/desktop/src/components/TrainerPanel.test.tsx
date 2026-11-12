@@ -427,4 +427,26 @@ describe("TrainerPanel extras", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Hide overlay" }));
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("overlay_set", { show: false }));
   });
+
+  it("asks the AI to fix a cheat or make one while playing (v1.30.0)", async () => {
+    loaded = true;
+    render(<TrainerPanel session={session} onSessionLost={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Fix Infinite Health with AI" }));
+    expect(await screen.findByRole("region", { name: "AI helper" })).toHaveTextContent("Fix “Infinite Health” with AI");
+    expect(screen.getByText("What's wrong with Infinite Health?")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("region", { name: "AI helper" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ask the AI" }));
+    expect(await screen.findByText("What cheat do you want?")).toBeInTheDocument();
+  });
+
+  it("opens the AI helper for a cheat asked in the cheat book", async () => {
+    loaded = true;
+    const used = vi.fn();
+    render(
+      <TrainerPanel session={session} onSessionLost={vi.fn()} liveAsk={{ fix: "inf_health", problem: "fire still hurts" }} onLiveAskUsed={used} />,
+    );
+    expect(await screen.findByLabelText("What's wrong")).toHaveValue("fire still hurts");
+    expect(used).toHaveBeenCalled();
+  });
 });

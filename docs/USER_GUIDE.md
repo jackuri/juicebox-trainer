@@ -104,8 +104,11 @@ asking simple questions, with no value types or memory addresses:
 
 1. Pick what to change (**Gold**, **Health**, **Ammo**, or type a name).
 2. Type the number the game shows now (`1250` or `1,250`), then **Search**. No number on screen,
-   like a health bar? Click **There's no number on screen**, then say whether it **went down** or
-   **went up** each time you change it.
+   like a health bar or a flashlight battery? Click **There's no number on screen**, then say
+   whether it **went down** or **went up** each time you change it. For something that drains by
+   itself, let it drain and say **It went down**, then stop using it for a moment and say **It
+   stayed the same**; do that a few times. Big games take a minute or two the first time. Still
+   stuck? Ask the AI (below).
 3. Change it in the game (spend some gold, take a hit) and type the new number. Repeat until only a
    few places are left. JuiceBox Trainer then tries them one by one and asks **Does it show 625 now?**
    Answer **Yes** or **No**. Your real number is put back after each try. Some games only redraw
@@ -134,7 +137,22 @@ is saved as your own copy). Where a cheat looks in the game never changes here, 
 break it. If the pack is in use in Cheats, saving loads it again: turn your cheats back on.
 
 A cheat that doesn't work? **It doesn't work: ask the AI to fix it**, say what's wrong, then **Open
-the AI helper**: it opens with your request filled in. Start the game and click **Start**.
+the AI helper**: it opens with your request filled in. Start the game and click **Start**. If the
+game is already running with this pack loaded in Cheats, it opens the AI helper right there instead
+(see below).
+
+### Fix or make cheats with AI while you play
+
+In **Cheats**, with a pack loaded, each cheat has **Not working? Fix with AI**. Say what's wrong
+("it only works with the gun I start with") and click **Fix it now**. Want a cheat the pack doesn't
+have? Click **Ask the AI** at the top and say what you want ("infinite flashlight battery: it
+drains, but there's no number").
+
+Keep playing: your other cheats stay on while the AI works. It may ask you to do small things in the
+game (press **Done**, **Yes** or **No**, or type your own answer), and you can tell it things while
+it works. When it's done, your cheats are loaded again with the fix, and turned back on. **Stop**
+ends it (a fix it already saved is kept). It uses the AI settings from **Make a trainer (AI)** (set it up
+there first).
 
 ### Make cheats yours
 

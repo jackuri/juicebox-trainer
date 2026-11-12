@@ -15,6 +15,7 @@ fn tools(tmp: &TempDir) -> Tools {
         web: None,
         only: None,
         notes_dir: Some(tmp.0.join("notes")),
+        live: None,
     })
 }
 
@@ -115,7 +116,7 @@ fn agent_finds_gold_and_writes_a_pack() {
     assert!(ptr["count"].as_u64().unwrap() > 0);
     // The testbed's own chain (static root -> world -> player -> stats) is
     // among the paths found.
-    let chain = &game.ready["chain"];
+    let chain = game.ready["chain"].clone();
     let path = format!(
         "[[[{}]+{}]+{}]+{}",
         chain["root"].as_str().unwrap(),
@@ -344,4 +345,110 @@ fn unreal_find_refuses_other_games() {
         .unwrap_err();
     assert!(e.contains("for Unreal Engine games"), "{e}");
     call(&mut t, "detach", json!({}));
+}
+
+/// v1.30.0: the player keeps infinite health on in the app while the helper
+/// fixes another cheat in their pack. The helper can't load the cheat that's
+/// on, saves its fix into the player's pack, and leaving the game doesn't
+/// undo the app's change (each keeps its own journal).
+#[test]
+fn helper_fixes_a_cheat_while_the_app_keeps_its_cheats_on() {
+    use std::sync::Arc;
+    let _s = serial();
+    let tmp = TempDir::new("mcp-live-fix");
+    let mut game = Testbed::spawn(&testbed_exe(Flavor::X64));
+    let journal = tmp.0.join("restore");
+
+    // Make the code cheat once (as an earlier helper session would have).
+    let mut maker = tools(&tmp);
+    call(&mut maker, "attach", json!({ "pid": game.pid() }));
+    let health_at = format!("0x{:X}", game.addr("health"));
+    call(
+        &mut maker,
+        "watch_writes_start",
+        json!({ "address": health_at }),
+    );
+    game.send("hit 1");
+    let found = call(&mut maker, "watch_writes_stop", json!({}));
+    let idea = found["writers"][0]["patchIdea"].clone();
+    let sig = call(
+        &mut maker,
+        "make_aob",
+        json!({ "address": idea["makeAobAt"] }),
+    );
+    call(&mut maker, "detach", json!({}));
+    let chain = game.ready["chain"].clone();
+    let pack = json!({
+        "schema": 1,
+        "game": { "id": "testbed-live", "name": "Testbed", "exe": "testbed_native.exe", "arch": "x64" },
+        "meta": { "author": "someone", "packVersion": "1.0.0" },
+        "cheats": [
+            { "id": "inf_health", "name": "Infinite health", "ui": "toggle",
+              "impl": { "kind": "patch", "aob": sig["pattern"], "offset": 0,
+                        "original": idea["original"], "replace": idea["replace"] } },
+            { "id": "gold", "name": "Set gold", "ui": "number",
+              "impl": { "kind": "value", "type": "i32", "address": {
+                  "base": chain["root"], "offsets": [chain["offsets"][0], chain["offsets"][1], "0x0"] } } }
+        ]
+    });
+    let file = tmp.0.join("packs").join("testbed-live").join("pack.json");
+    std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+    std::fs::write(&file, pack.to_string()).unwrap();
+
+    // The app: infinite health on, with its own journal.
+    let app = Arc::new(jb_core::AttachedProcess::attach(game.pid()).unwrap());
+    app.enable_journal(&journal).unwrap();
+    let (loaded, _) = jb_packs::parse(&pack.to_string()).unwrap();
+    let mut trainer = jb_packs::Trainer::load(Arc::clone(&app), loaded).unwrap();
+    trainer.set_active("inf_health", true).unwrap();
+    let hp = game.send("state")["health"].as_i64().unwrap();
+    assert_eq!(game.send("hit 5")["health"].as_i64().unwrap(), hp);
+
+    // The helper, live: fixing gold (its offset is wrong).
+    let mut t = Tools::new(Config {
+        journal_dir: Some(journal.clone()),
+        packs_dir: Some(tmp.0.join("packs")),
+        live: Some(jb_mcp::LiveFix {
+            pack: file.clone(),
+            on: vec!["inf_health".into()],
+        }),
+        ..Config::default()
+    });
+    call(&mut t, "attach", json!({ "pid": game.pid() }));
+    let known = call(&mut t, "known_cheats", json!({}));
+    assert_eq!(
+        known["playingNow"]["onInTheApp"],
+        json!(["Infinite health"])
+    );
+    let refused = t.call("pack_try", &json!({ "pack": pack })).unwrap_err();
+    assert!(refused.contains("Infinite health"), "{refused}");
+
+    let mut fix = pack.clone();
+    fix["cheats"] = json!([{ "id": "gold", "name": "Set gold", "ui": "number",
+        "impl": { "kind": "value", "type": "i32", "address": {
+            "base": chain["root"],
+            "offsets": [chain["offsets"][0], chain["offsets"][1], chain["fields"]["gold"]] } } }]);
+    call(&mut t, "pack_try", json!({ "pack": fix }));
+    call(&mut t, "cheat_set", json!({ "id": "gold", "value": "777" }));
+    assert_eq!(game.send("state")["gold"].as_i64().unwrap(), 777);
+    let written = call(&mut t, "pack_write", json!({ "pack": fix }));
+    assert_eq!(written["fixed"], json!(["Set gold"]), "{written}");
+    assert_eq!(written["cheats"], 2);
+    let saved = std::fs::read_to_string(&file).unwrap();
+    let (saved, _) = jb_packs::parse(&saved).unwrap();
+    assert_eq!(saved.meta.author, "someone");
+    assert_eq!(saved.cheats.len(), 2);
+    assert!(file.with_file_name("pack.json.bak").is_file());
+
+    // The helper leaves; the app's infinite health is still on.
+    call(&mut t, "revert_all", json!({}));
+    call(&mut t, "detach", json!({}));
+    let hp = game.send("state")["health"].as_i64().unwrap();
+    assert_eq!(
+        game.send("hit 5")["health"].as_i64().unwrap(),
+        hp,
+        "the helper undid the app's cheat"
+    );
+    trainer.restore_all().unwrap();
+    assert_eq!(game.send("hit 1")["health"].as_i64().unwrap(), hp - 1);
 }

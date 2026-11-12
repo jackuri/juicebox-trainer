@@ -50,6 +50,14 @@ Steps for each cheat the player wants:
 
 Then build a pack: game.id a lowercase slug of the exe name, game.exe the exe name, meta.author "ai", packVersion "0.1.0", value cheats with the address and type. pack_validate, then pack_try and cheat_set each cheat (only tried cheats are saved), revert_all, pack_write, note_save. Finish with two sentences: which cheats work and that the pack is in Cheats (Trainer tab, Load).`;
 
+/** Added while the player plays with their cheats on (v1.30.0). */
+export const LIVE_NOTE = `Right now the player is playing, with their cheat pack loaded in JuiceBox Trainer, and wants you to fix a cheat or add one on the spot. Be quick: they're in the game.
+- known_cheats shows their pack as playingNow. Cheats that are on in the app stay on: never load them with pack_try or change them (the tools refuse). The cheat you're fixing was turned off for you.
+- To fix a cheat: read how it works now (its address or patch), check it in the game (read, write_test, game_screenshot), and find out why it doesn't work. Examples: ammo kept for the first gun only (the value is per weapon: find the gun in hand, often through the player's current or equipped weapon, and point the cheat there); damage that still gets through (find the instruction that writes the value with watch_writes and patch it, or another writer). Keep the cheat's id so the fix replaces it.
+- A new cheat gets a new id, and no hotkey the pack already uses.
+- For a value with no number on screen (a battery, a meter, a bar), scan_first with mode "unknown", then scan_next "decreased" while it drains and "unchanged" while it doesn't (for example with the flashlight off), a few times. Unreal Engine 5 games keep most such values as f64, Unity games as f32: start with that type.
+- Save with pack_write holding only the fixed or new cheats (the others stay in the pack), then revert_all and finish in one or two sentences. JuiceBox Trainer loads the pack again when you finish and turns the player's cheats back on, including the fixed one. Don't ask the player to restart the game unless there's no other way.`;
+
 /** Added when the player set up a static-analysis tool server (e.g. REA). */
 export const ANALYSIS_NOTE = `You also have static-analysis tools (names starting with mcp__rea__) that read the game's files on disk. Use them only to understand the code around a value or instruction you found (for example, which function a writer belongs to). Never use them to change files. They are optional: if one fails, carry on without it.`;
 
@@ -106,6 +114,21 @@ export function kickoff(start: StartMessage): string {
       `The player wants:\n${wishes}`,
       start.notes?.trim() ? `The player's note: ${start.notes.trim()}` : "",
       "Start with web_game.",
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  if (start.live) {
+    const on = start.live.on.map((c) => c.name);
+    const f = start.live.fixing;
+    return [
+      `Game: ${start.game.name} (pid ${start.game.pid})${start.game.exe ? `, ${start.game.exe}` : ""}.`,
+      `The player is playing now with their cheats loaded in JuiceBox Trainer${on.length ? `; these are on: ${on.join(", ")}` : ""}.`,
+      f
+        ? `Fix their cheat "${f.name}" (id ${f.id}).${f.problem.trim() ? ` What the player says: ${f.problem.trim()}` : ""}`
+        : `They want a new cheat:\n${wishes}`,
+      start.notes?.trim() ? `The player's note: ${start.notes.trim()}` : "",
+      "Start by attaching to the game, then call known_cheats (it shows their pack as playingNow).",
     ]
       .filter(Boolean)
       .join("\n\n");

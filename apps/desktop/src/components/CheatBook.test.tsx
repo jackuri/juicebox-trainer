@@ -104,6 +104,8 @@ describe("CheatBook", () => {
       cheat: "Infinite health",
       problem: "health still goes down",
       describe: "switch: keeps it at 100",
+      key: "C:/packs/hero/pack.json",
+      id: "health",
     });
   });
 

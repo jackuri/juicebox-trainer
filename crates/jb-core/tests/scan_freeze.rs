@@ -313,7 +313,7 @@ fn finder_without_a_number_reads_memory_both_ways() {
     use jb_core::{FindNext, FindStart, ValueFinder};
     let _g = serial();
     let mut tb = Testbed::spawn(&testbed_exe(Flavor::X64));
-    let (health, speed) = (tb.addr("health"), tb.addr("speed"));
+    let (health, speed, ammo) = (tb.addr("health"), tb.addr("speed"), tb.addr("ammo"));
     let session = AttachedProcess::attach(tb.pid()).unwrap();
     let ctl = ScanControl::new();
     let has = |f: &ValueFinder, a: u64, ty: ValueType| {
@@ -321,17 +321,24 @@ fn finder_without_a_number_reads_memory_both_ways() {
             .iter()
             .any(|h| h.address == a && h.ty == ty)
     };
+    // An 8-byte decimal, the way Unreal 5 keeps most of them (v1.30.0): here
+    // ammo and gold, next to each other, read as one.
+    assert_eq!(ammo % 8, 0, "ammo isn't 8-aligned");
+    session.write_value(ammo, &Value::F64(2.0)).unwrap();
 
     let mut f = ValueFinder::start(&session, FindStart::Unknown, &ctl).unwrap();
     let start = f.count();
     assert!(f.hits(10).is_empty(), "nothing to show before a comparison");
     tb.send("hit 5");
     session.write_value(speed, &Value::F32(0.5)).unwrap();
+    session.write_value(ammo, &Value::F64(1.5)).unwrap();
     f.next(&session, FindNext::Decreased, &ctl).unwrap();
     assert!(has(&f, health, ValueType::I32), "health (whole) missed");
     assert!(has(&f, speed, ValueType::F32), "speed (decimal) missed");
+    assert!(has(&f, ammo, ValueType::F64), "8-byte decimal missed");
     f.next(&session, FindNext::Unchanged, &ctl).unwrap();
     assert!(has(&f, health, ValueType::I32));
+    assert!(has(&f, ammo, ValueType::F64));
     assert!(
         f.count() < start / 100,
         "only narrowed from {start} to {}",

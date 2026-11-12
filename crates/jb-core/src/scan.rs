@@ -41,8 +41,32 @@ macro_rules! dispatch {
 /// Largest block scanned as one unit.
 pub const BLOCK_SIZE: u64 = 16 * 1024 * 1024;
 
-/// An unknown-value first scan copies all scanned memory; refuse beyond this.
+/// An unknown-value first scan copies all scanned memory; refuse beyond this
+/// unless the PC has more memory free (see [`unknown_scan_limit`]).
 pub const UNKNOWN_SCAN_LIMIT: u64 = 4 * 1024 * 1024 * 1024;
+
+/// The most an unknown-value first scan may copy: [`UNKNOWN_SCAN_LIMIT`], or
+/// more on a PC with more memory free (keeping 1.5 GiB for the game and
+/// Windows, and at most 24 GiB), v1.30.0.
+pub fn unknown_scan_limit() -> u64 {
+    const KEEP: u64 = 3 * 512 * 1024 * 1024;
+    const MOST: u64 = 24 * 1024 * 1024 * 1024;
+    free_memory().map_or(UNKNOWN_SCAN_LIMIT, |free| {
+        free.saturating_sub(KEEP).clamp(UNKNOWN_SCAN_LIMIT, MOST)
+    })
+}
+
+/// Physical memory free now.
+fn free_memory() -> Option<u64> {
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    let mut m = MEMORYSTATUSEX {
+        dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+        ..Default::default()
+    };
+    // SAFETY: `m` is a valid MEMORYSTATUSEX with its length set.
+    unsafe { GlobalMemoryStatusEx(&mut m) }.ok()?;
+    Some(m.ullAvailPhys)
+}
 
 /// Options fixed for the lifetime of a scan.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -218,11 +242,14 @@ impl Scan {
             }
         }
         let total: u64 = jobs.iter().map(|j| j.read_len as u64).sum();
-        if matches!(mode, FirstScan::Unknown) && total > UNKNOWN_SCAN_LIMIT {
-            return Err(Error::ScanTooLarge {
-                bytes: total,
-                limit: UNKNOWN_SCAN_LIMIT,
-            });
+        if matches!(mode, FirstScan::Unknown) {
+            let limit = unknown_scan_limit();
+            if total > limit {
+                return Err(Error::ScanTooLarge {
+                    bytes: total,
+                    limit,
+                });
+            }
         }
         control.begin(total);
 
@@ -297,8 +324,10 @@ impl Scan {
     }
 
     /// Narrows a copy of this scan that reads its slots as `ty`, a type of the
-    /// same size (an unknown-value scan as `i32` can go on as `f32`). This
-    /// scan is left as it was.
+    /// same size (an unknown-value scan as `i32` can go on as `f32`). A fresh
+    /// unknown-value snapshot can also go on as a type twice the size, at
+    /// places aligned to that size (`i32` as `f64`, v1.30.0: Unreal 5 keeps
+    /// most decimals as `f64`). This scan is left as it was.
     pub fn next_as(
         &self,
         process: &AttachedProcess,
@@ -306,7 +335,14 @@ impl Scan {
         mode: NextScan,
         control: &ScanControl,
     ) -> Result<Scan> {
-        if ty.size(self.arch) != self.ty.size(self.arch) {
+        let widen = ty.size(self.arch) == 2 * self.ty.size(self.arch)
+            && self.rounds == 1
+            && self.options.aligned
+            && self
+                .blocks
+                .iter()
+                .all(|b| matches!(&b.data, BlockData::Dense { slots, .. } if *slots == b.count));
+        if ty.size(self.arch) != self.ty.size(self.arch) && !widen {
             return Err(Error::InvalidValue {
                 input: format!("a {} scan read as {ty}", self.ty),
                 ty,
@@ -333,20 +369,35 @@ impl Scan {
         let total: u64 = self.blocks.iter().map(|b| b.read_span(size).1 as u64).sum();
         control.begin(total);
         let tol = tolerance(ty, self.options);
-        let step = self.step();
         let arch = self.arch;
-        copy.blocks = dispatch!(
-            ty,
-            arch,
-            next_typed,
-            process,
-            &self.blocks,
-            &mode,
-            arch,
-            step,
-            tol,
-            control
-        )?;
+        copy.blocks = if widen {
+            dispatch!(
+                ty,
+                arch,
+                widen_typed,
+                process,
+                &self.blocks,
+                &mode,
+                arch,
+                size,
+                tol,
+                control
+            )?
+        } else {
+            let step = self.step();
+            dispatch!(
+                ty,
+                arch,
+                next_typed,
+                process,
+                &self.blocks,
+                &mode,
+                arch,
+                step,
+                tol,
+                control
+            )?
+        };
         copy.count = copy.blocks.iter().map(|b| b.count).sum();
         copy.rounds += 1;
         Ok(copy)
@@ -800,6 +851,46 @@ fn next_typed<T: Scalar>(
     })
 }
 
+/// Narrows a fresh unknown-value snapshot (every slot alive, dense blocks)
+/// read as `T`, a type twice its slot size, at `step`-aligned places.
+#[allow(clippy::too_many_arguments)]
+fn widen_typed<T: Scalar>(
+    p: &AttachedProcess,
+    blocks: &[Block],
+    mode: &NextScan,
+    arch: Arch,
+    step: usize,
+    tol: f64,
+    control: &ScanControl,
+) -> Result<Vec<Block>> {
+    let cond = next_cond::<T>(mode, arch);
+    parallel(blocks, control, |block| {
+        let BlockData::Dense { bytes, .. } = &block.data else {
+            return Ok(None);
+        };
+        let fresh = read_or_skip(p, block.base, bytes.len())?;
+        control.add(bytes.len() as u64);
+        let Some(fresh) = fresh else { return Ok(None) };
+        Ok(widen_block::<T>(block.base, bytes, fresh, step, cond, tol))
+    })
+}
+
+/// One block of [`widen_typed`].
+fn widen_block<T: Scalar>(
+    base: u64,
+    prev: &[u8],
+    fresh: Vec<u8>,
+    step: usize,
+    cond: Cond<T>,
+    tol: f64,
+) -> Option<Block> {
+    let len = prev.len().min(fresh.len());
+    let slots = slot_count(len, len, step, T::SIZE);
+    let all = vec![u64::MAX; slots.div_ceil(64)];
+    let (alive, count) = next_dense::<T>(prev, &fresh, &all, slots, step, cond, tol);
+    compact(base, fresh, alive, slots, count, step, T::SIZE)
+}
+
 /// Runs `f` over `items` on all cores, keeping input order in the output.
 pub(crate) fn parallel<I, O, F>(items: &[I], control: &ScanControl, f: F) -> Result<Vec<O>>
 where
@@ -915,6 +1006,20 @@ mod tests {
         assert_eq!(alive_slots(&alive, slots), vec![0, 1]);
         let (_, any, _) = first_block::<f32>(&bytes, 16, 4, Cond::Any, 1e-3);
         assert_eq!(any, 3, "NaN slots are never candidates");
+    }
+
+    #[test]
+    fn a_fresh_snapshot_reads_as_doubles() {
+        let le_f64s = |v: &[f64]| v.iter().flat_map(|x| x.to_le_bytes()).collect::<Vec<u8>>();
+        let prev = le_f64s(&[1.0, 0.75, 5.0]);
+        let fresh = le_f64s(&[1.0, 0.5, 5.0]);
+        let b = widen_block::<f64>(0x1000, &prev, fresh, 8, Cond::Decreased, 1e-9).unwrap();
+        assert_eq!(b.count, 1);
+        let BlockData::Sparse { offsets, .. } = &b.data else {
+            panic!("one survivor is kept sparse");
+        };
+        assert_eq!(offsets, &[8]);
+        assert!(unknown_scan_limit() >= UNKNOWN_SCAN_LIMIT);
     }
 
     #[test]

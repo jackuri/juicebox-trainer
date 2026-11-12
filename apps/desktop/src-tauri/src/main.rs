@@ -13,6 +13,7 @@ mod gamepad;
 mod github;
 mod hotkeys;
 mod library;
+mod live_fix;
 mod mascot;
 mod my_cheats;
 mod overlay;

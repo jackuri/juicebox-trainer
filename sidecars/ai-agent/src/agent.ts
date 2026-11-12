@@ -6,7 +6,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
+import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LIVE_NOTE, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools jb-mcp offers (crates/jb-mcp/src/tools.rs). */
@@ -187,20 +187,20 @@ export function buildOptions(
     list.filter((t) => pictures || !(PICTURE_TOOLS as readonly string[]).includes(t));
   const tools = keep(explain ? EXPLAIN_TOOLS : web ? WEB_TOOLS : local ? LOCAL_TOOLS : JB_TOOLS);
   const serverEnv: Record<string, string> = { ...(link ?? {}), JB_MCP_TOOLS: tools.join(",") };
+  // While the player plays (v1.30.0): the tools save into their pack and
+  // leave the cheats that are on alone.
+  const live = !explain && !web ? start.live : undefined;
+  if (live) {
+    serverEnv.JB_LIVE_PACK = live.pack;
+    serverEnv.JB_LIVE_ON = live.on.map((c) => c.id).join(",");
+  }
+  const base = local ? LOCAL_PROMPT : analysis ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}` : SYSTEM_PROMPT;
 
   return {
     model: start.model ?? DEFAULT_MODEL,
     // Local servers may not know the effort setting.
     effort: local ? undefined : "high",
-    systemPrompt: explain
-      ? EXPLAIN_SAVE_PROMPT
-      : web
-        ? WEB_PROMPT
-        : local
-          ? LOCAL_PROMPT
-          : analysis
-        ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}`
-        : SYSTEM_PROMPT,
+    systemPrompt: explain ? EXPLAIN_SAVE_PROMPT : web ? WEB_PROMPT : live ? `${base}\n\n${LIVE_NOTE}` : base,
     tools: [],
     mcpServers: {
       jb: { type: "stdio", command: mcp.command, args: mcp.args, env: serverEnv },

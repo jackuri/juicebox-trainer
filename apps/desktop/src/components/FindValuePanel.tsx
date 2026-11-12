@@ -373,11 +373,8 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
                   Search
                 </button>
               </div>
-              <button
-                className="self-start text-xs text-zinc-400 underline hover:text-zinc-200"
-                onClick={() => setNoNumber(true)}
-              >
-                There's no number on screen (a bar, a meter)
+              <button className={`${secondary} self-start`} onClick={() => setNoNumber(true)}>
+                There's no number on screen (a bar, a battery, a meter)
               </button>
             </div>
           ) : (
@@ -385,6 +382,11 @@ export function FindValuePanel({ session, gameName, onSessionLost, onListChanged
               <p>
                 OK. JuiceBox Trainer remembers the game's memory now. Then you change {label} in the game and say whether
                 it went up or down.
+              </p>
+              <p className="text-xs text-zinc-400">
+                Tip: for something that drains by itself (like a flashlight battery), let it drain a little and say
+                &ldquo;It went down&rdquo;, then turn it off (or don&apos;t use it) for a moment and say &ldquo;It stayed
+                the same&rdquo;. Do that a few times. Big games take a minute or two the first time.
               </p>
               <div className="flex gap-2">
                 <button className={primary} onClick={() => void start()}>

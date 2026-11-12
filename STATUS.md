@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.29.0_
+_Last updated: 2026-11-12 — v1.30.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -345,6 +345,13 @@ _Last updated: 2026-11-12 — v1.29.0_
   installed community packs (GitHub sign-in as for sharing). Pushed and tagged 2026-11-12; "rating" label made, the robot
   ran and opened rating issues #4 (testbed-demo) and #5 (Species: Unknown).
 
+- v1.30.0 Live AI fixes: Cheats has "Ask the AI" and "Fix with AI" per cheat; the helper works while
+  the player's other cheats stay on (own journal, tools refuse the cheats that are on, the fix goes
+  into the player's pack, then the pack is reloaded and the cheats turned back on). Find a value
+  without a number also reads f64 (Unreal 5) and allows bigger games when memory is free. The user
+  tested 1.26's instant cheats on Species: Unknown (2026-11-12): made instantly; health kept but
+  explosions still hurt; ammo only for the starting revolver; jump cheats useless (no jumping).
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
@@ -355,9 +362,10 @@ _Last updated: 2026-11-12 — v1.29.0_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
-- Next (user's order 2026-11-11): try 1.26's instant cheats on a real Unreal game (Species: Unknown,
-  with the user's OK, CPU kept under 85 °C), then instant cheats for Unity (ComeCloser is a Unity
-  Mono game on this PC). Both wait until the user is home.
+- Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
+  PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
+- 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and
+  a helper that stops at once).
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test
   on. The benchmark could get web and harder test games (values ×10, scrambled).
 - The user's choices, when they want them (docs/RELEASING.md): a code-signing certificate

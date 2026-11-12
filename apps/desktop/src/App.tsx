@@ -16,6 +16,7 @@ import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
 import { SessionTools } from "./components/SessionTools";
+import type { LiveAsk } from "./components/TrainerPanel";
 import {
   api,
   type AppInfo,
@@ -62,6 +63,20 @@ export default function App() {
     setView("packs");
   }, []);
   const bookOpened = useCallback(() => setOpenBook(null), []);
+  /** A cheat to fix on the spot, in Cheats, while the game runs with its pack loaded (v1.30.0). */
+  const [liveAsk, setLiveAsk] = useState<LiveAsk | null>(null);
+  const liveAskUsed = useCallback(() => setLiveAsk(null), []);
+  /** "Fix it with AI" from the cheat book: on the spot when that pack is in use, else the AI page. */
+  async function askAi(f: AiFix) {
+    const loaded = await api.trainerState().catch(() => null);
+    if (f.id && f.key && loaded?.key === f.key) {
+      setLiveAsk({ fix: f.id, problem: f.problem });
+      setView("cheats");
+      return;
+    }
+    setAiFix(f);
+    setView("ai");
+  }
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   // The taskbar's juice box follows the season too (v1.24.0).
   const season = useSeason();
@@ -343,10 +358,7 @@ export default function App() {
           onOpenAi={() => setView("ai")}
           openBook={openBook}
           onBookOpened={bookOpened}
-          onAskAi={(f) => {
-            setAiFix(f);
-            setView("ai");
-          }}
+          onAskAi={(f) => void askAi(f)}
         />
       ) : view === "about" ? (
         <AboutView />
@@ -442,6 +454,9 @@ export default function App() {
                   }
                   onShowPacks={() => setView("packs")}
                   onOpenBook={showBook}
+                  liveAsk={liveAsk}
+                  onLiveAskUsed={liveAskUsed}
+                  onOpenAi={() => setView("ai")}
                   onSessionLost={sessionLost}
                   onRefreshModules={() => void refreshModules()}
                 />

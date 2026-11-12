@@ -17,7 +17,7 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tracing::{info, warn};
 
 use crate::commands::{AppState, CommandError};
@@ -42,6 +42,8 @@ pub struct AiState {
     transcript: Arc<Mutex<Vec<Value>>>,
     /// The engine download is running.
     installing: AtomicBool,
+    /// A session while the player plays with their cheats on (v1.30.0).
+    live: Arc<Mutex<Option<crate::live_fix::LivePlan>>>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -248,6 +250,8 @@ pub struct AiStatus {
     pub download: Download,
     pub installing: bool,
     pub running: bool,
+    /// The running session fixes cheats while the player plays (v1.30.0).
+    pub live: bool,
     pub transcript: Vec<Value>,
     /// Signed in to a Claude account (for the subscription option).
     pub signed_in: Option<bool>,
@@ -290,6 +294,7 @@ pub async fn ai_status(state: State<'_, AiState>) -> CmdResult<AiStatus> {
         .ok()
         .flatten();
     let running = lock(&state.running).is_some();
+    let live = running && lock(&state.live).is_some();
     let transcript = lock(&state.transcript).clone();
     Ok(AiStatus {
         available: problem.is_none(),
@@ -297,6 +302,7 @@ pub async fn ai_status(state: State<'_, AiState>) -> CmdResult<AiStatus> {
         download: download_state(),
         installing: state.installing.load(Ordering::SeqCst),
         running,
+        live,
         transcript,
         signed_in,
     })
@@ -432,6 +438,10 @@ pub struct AiStartRequest {
     pub backup: Option<String>,
     pub wishes: Vec<String>,
     pub notes: String,
+    /// Fix or add cheats while the player plays with the pack loaded and its
+    /// cheats on (v1.30.0); the app keeps the game.
+    #[serde(default)]
+    pub live: Option<crate::live_fix::LiveRequest>,
     /// `subscription` (Claude login), `apiKey` (ANTHROPIC_API_KEY) or
     /// `local` (Ollama / LM Studio).
     pub backend: String,
@@ -464,7 +474,6 @@ pub async fn ai_start(
     state: State<'_, AiState>,
     session: State<'_, AppState>,
 ) -> CmdResult<()> {
-    use std::os::windows::process::CommandExt;
     if lock(&state.running).is_some() {
         return Err(CommandError::new(
             "aiRunning",
@@ -477,6 +486,7 @@ pub async fn ai_start(
     let explain = request.task.as_deref() == Some("explainSave");
     let web = request.task.as_deref() == Some("webTrainer");
     let mut link = None;
+    let mut live = None;
     let game = if web {
         crate::agreement::require()?;
         let open = crate::web::open_game(&app).ok_or_else(|| {
@@ -523,38 +533,30 @@ pub async fn ai_start(
             e.verdict = Some(Box::new(verdict));
             return Err(e);
         }
-        // The helper attaches on its own; the app lets go of the game first.
-        session.shutdown();
+        match &request.live {
+            // The player keeps playing with their cheats on (v1.30.0).
+            Some(req) => {
+                let (plan, tell) = crate::live_fix::prepare(&session, process.pid, req)?;
+                live = Some((plan, tell));
+            }
+            // The helper attaches on its own; the app lets go of the game first.
+            None => session.shutdown(),
+        }
         json!({ "pid": process.pid, "name": process.name, "exe": process.exe_path })
     };
 
     refresh_scripts();
-    let script =
-        sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
-    let exe = std::env::current_exe()
-        .map_err(|e| CommandError::new("io", format!("can't find JuiceBox Trainer's exe: {e}")))?;
-    let mut command = Command::new("node");
-    for (k, _) in std::env::vars_os() {
-        if k.to_str().is_some_and(is_inherited_claude_var) {
-            command.env_remove(k);
+    let spawned = spawn_helper(link.as_ref());
+    let mut child = match spawned {
+        Ok(c) => c,
+        Err(e) => {
+            // Live: the cheat being fixed goes back on as it was.
+            if let Some((plan, _)) = live {
+                crate::live_fix::finish(&session, plan);
+            }
+            return Err(e);
         }
-    }
-    if let Some(l) = &link {
-        command
-            .env("JB_WEB_LINK", &l.addr)
-            .env("JB_WEB_TOKEN", &l.token);
-    }
-    let mut child = command
-        .arg(&script)
-        .env("JB_MCP_COMMAND", &exe)
-        .env("JB_MCP_ARGS", r#"["--mcp"]"#)
-        .env("JB_APP_VERSION", env!("CARGO_PKG_VERSION"))
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| CommandError::new("io", format!("could not start the AI helper: {e}")))?;
+    };
     let stdin = child
         .stdin
         .take()
@@ -568,6 +570,9 @@ pub async fn ai_start(
     lock(&state.transcript).clear();
     *lock(&state.running) = Some(Running { child, stdin });
     *lock(&state.link) = link;
+    let (plan, live_tell) = live.map_or((None, None), |(p, t)| (Some(p), Some(t)));
+    *lock(&state.live) = plan;
+    let live_plan = Arc::clone(&state.live);
 
     let running = Arc::clone(&state.running);
     let web_link = Arc::clone(&state.link);
@@ -599,6 +604,18 @@ pub async fn ai_start(
             let link = lock(&web_link).take();
             if let Some(link) = link {
                 link.finish();
+            }
+            // While the player played: load the fixed pack again and turn
+            // their cheats back on (v1.30.0).
+            let plan = lock(&live_plan).take();
+            if let Some(plan) = plan {
+                let session = app.state::<AppState>();
+                let done = crate::live_fix::finish(&session, plan);
+                push(
+                    &transcript,
+                    &app,
+                    json!({ "type": "liveDone", "reloaded": done.reloaded, "backOn": done.back_on, "problems": done.problems }),
+                );
             }
             lock(&running).take();
             push(&transcript, &app, json!({ "type": "exit" }));
@@ -632,8 +649,41 @@ pub async fn ai_start(
             .map(|command| json!({ "command": command, "args": request.analysis_args })),
         "maxBudgetUsd": request.max_budget_usd.clamp(0.5, 50.0),
         "pictures": request.pictures != Some(false),
+        "live": live_tell,
     });
     state.send(&start)
+}
+
+/// Starts the helper's Node process (the sidecar script, with the app's own
+/// exe as its guarded tool server).
+fn spawn_helper(link: Option<&crate::web_link::Link>) -> CmdResult<Child> {
+    use std::os::windows::process::CommandExt;
+    let script =
+        sidecar_script().ok_or_else(|| CommandError::new("aiUnavailable", "no sidecar"))?;
+    let exe = std::env::current_exe()
+        .map_err(|e| CommandError::new("io", format!("can't find JuiceBox Trainer's exe: {e}")))?;
+    let mut command = Command::new("node");
+    for (k, _) in std::env::vars_os() {
+        if k.to_str().is_some_and(is_inherited_claude_var) {
+            command.env_remove(k);
+        }
+    }
+    if let Some(l) = link {
+        command
+            .env("JB_WEB_LINK", &l.addr)
+            .env("JB_WEB_TOKEN", &l.token);
+    }
+    command
+        .arg(&script)
+        .env("JB_MCP_COMMAND", &exe)
+        .env("JB_MCP_ARGS", r#"["--mcp"]"#)
+        .env("JB_APP_VERSION", env!("CARGO_PKG_VERSION"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| CommandError::new("io", format!("could not start the AI helper: {e}")))
 }
 
 #[tauri::command]

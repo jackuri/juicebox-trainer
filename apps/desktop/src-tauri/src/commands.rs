@@ -1485,6 +1485,99 @@ fn no_trainer() -> CommandError {
     CommandError::new("noTrainer", "no pack is loaded")
 }
 
+/// A cheat that's on, as the live AI helper needs it (v1.30.0).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct OnCheat {
+    pub id: String,
+    pub name: String,
+    /// The value a slider or number holds (toggles have none).
+    pub held: Option<String>,
+}
+
+/// The loaded pack and its cheats that are on, for the AI helper working
+/// while the player plays (v1.30.0). The cheat it fixes (`fix`) is turned off
+/// first, and returned as it was if it was on.
+pub(crate) fn live_snapshot(
+    state: &AppState,
+    pid: u32,
+    fix: Option<&str>,
+) -> CmdResult<(Pack, Vec<OnCheat>, Option<OnCheat>)> {
+    with_live(state, |l| {
+        if l.process.pid() != pid {
+            return Err(CommandError::new(
+                "notAttached",
+                "JuiceBox Trainer is connected to another game",
+            ));
+        }
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        let pack = t.trainer.pack().clone();
+        if let Some(id) = fix
+            && !pack.cheats.iter().any(|c| c.id == id)
+        {
+            return Err(CommandError::new("notFound", format!("no cheat '{id}'")));
+        }
+        let mut on = Vec::new();
+        for s in t.trainer.states()? {
+            if !s.active {
+                continue;
+            }
+            let Some(c) = pack.cheats.iter().find(|c| c.id == s.id) else {
+                continue;
+            };
+            let held = (c.ui != jb_packs::Ui::Toggle)
+                .then(|| s.value.clone())
+                .flatten();
+            on.push(OnCheat {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                held,
+            });
+        }
+        let mut fixed = None;
+        if let Some(id) = fix
+            && let Some(i) = on.iter().position(|c| c.id == id)
+        {
+            let c = on.remove(i);
+            if c.held.is_some() {
+                t.trainer.release(id)?;
+            } else {
+                t.trainer.set_active(id, false)?;
+            }
+            fixed = Some(c);
+        }
+        Ok((pack, on, fixed))
+    })
+}
+
+/// Turns cheats back on (after their pack was loaded again, v1.30.0).
+/// Returns the names of those that didn't come back on, with why.
+pub(crate) fn turn_back_on(state: &AppState, cheats: &[OnCheat]) -> Vec<String> {
+    let r = with_live(state, |l| {
+        let t = l.trainer.as_mut().ok_or_else(no_trainer)?;
+        let mut problems = Vec::new();
+        for c in cheats {
+            let toggle = t
+                .trainer
+                .pack()
+                .cheats
+                .iter()
+                .find(|p| p.id == c.id)
+                .map(|p| p.ui == jb_packs::Ui::Toggle);
+            let r = match (toggle, &c.held) {
+                (None, _) => continue,
+                (Some(true), _) => t.trainer.set_active(&c.id, true),
+                (Some(false), Some(v)) => t.trainer.set_value(&c.id, v),
+                (Some(false), None) => continue,
+            };
+            if let Err(e) = r {
+                problems.push(format!("{}: {e}", c.name));
+            }
+        }
+        Ok(problems)
+    });
+    r.unwrap_or_else(|e| vec![e.message])
+}
+
 /// Runs `f` on the loaded trainer and returns the fresh view. A cheat-level
 /// error is returned as the error (the cheat also shows it on its row).
 fn with_trainer(

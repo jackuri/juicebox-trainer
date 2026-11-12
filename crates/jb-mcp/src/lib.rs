@@ -13,7 +13,7 @@ pub mod protocol;
 pub mod tools;
 pub mod web;
 
-pub use tools::{Config, Tools};
+pub use tools::{Config, LiveFix, Tools};
 
 /// Serves MCP on stdin/stdout until stdin closes, then undoes every change.
 pub fn serve_stdio(config: Config) {

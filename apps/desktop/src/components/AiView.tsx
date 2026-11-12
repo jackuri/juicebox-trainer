@@ -16,6 +16,7 @@ import {
   type WebGame,
 } from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
+import { type Backend, CHEAPER_MODEL, loadSettings, saveSettings, type Settings } from "../lib/aiSettings";
 import { GamePicker } from "./GamePicker";
 
 const WISHES = [
@@ -40,54 +41,6 @@ interface Props {
   webFirst?: boolean;
   /** A cheat the player wants fixed (from the cheat book, v1.28.0). */
   fix?: AiFix | null;
-}
-
-type Backend = "subscription" | "apiKey" | "local";
-
-interface Settings {
-  backend: Backend;
-  budget: string;
-  localUrl: string;
-  model: string;
-  analysisCommand: string;
-  analysisArgs: string;
-  /** The helper may look at the game window (v1.21.0). */
-  pictures: boolean;
-  /** Claude backends: the best model, or a cheaper and faster one. */
-  quality: "best" | "cheaper";
-}
-
-/** The cheaper Claude model (the best one is the helper's default). */
-export const CHEAPER_MODEL = "claude-sonnet-5-5";
-
-const DEFAULTS: Settings = {
-  backend: "subscription",
-  budget: "5",
-  localUrl: "http://localhost:11434",
-  model: "",
-  analysisCommand: "",
-  analysisArgs: "",
-  pictures: true,
-  quality: "best",
-};
-
-const SETTINGS_KEY = "opentrainer.ai.settings";
-
-function loadSettings(): Settings {
-  try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    return raw ? { ...DEFAULTS, ...(JSON.parse(raw) as Partial<Settings>) } : DEFAULTS;
-  } catch {
-    return DEFAULTS;
-  }
-}
-
-function saveSettings(s: Settings) {
-  try {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
-  } catch {
-    // Settings are a convenience; the helper works without them.
-  }
 }
 
 /** "Make a trainer": the AI helper finds cheats with the player's help. */

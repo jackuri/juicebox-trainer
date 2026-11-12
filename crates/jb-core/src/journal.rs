@@ -202,6 +202,13 @@ pub fn file_name(pid: u32, started: u64) -> String {
     format!("{pid}-{started}.json")
 }
 
+/// File name of a second journal for the same run of a game, kept by
+/// `owner` (letters and digits; v1.30.0, the AI helper's own).
+pub fn owned_file_name(pid: u32, started: u64, owner: &str) -> String {
+    let owner: String = owner.chars().filter(char::is_ascii_alphanumeric).collect();
+    format!("{pid}-{started}-{owner}.json")
+}
+
 /// The app's journal folder: `%LOCALAPPDATA%\JuiceBox Trainer\restore`.
 pub fn default_dir() -> Option<PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA")?;
@@ -249,12 +256,12 @@ pub fn recover(dir: &Path) -> Vec<Recovery> {
                 continue;
             }
         };
-        out.push(recover_one(dir, &path, file));
+        out.push(recover_one(&path, file));
     }
     out
 }
 
-fn recover_one(dir: &Path, path: &Path, file: JournalFile) -> Recovery {
+fn recover_one(path: &Path, file: JournalFile) -> Recovery {
     let mut report = Recovery {
         exe: file.exe.clone(),
         pid: file.pid,
@@ -278,7 +285,9 @@ fn recover_one(dir: &Path, path: &Path, file: JournalFile) -> Recovery {
             return report;
         }
     };
-    if let Err(e) = process.enable_journal(dir) {
+    // The journal it found, not the app's own name for it: the AI helper
+    // keeps a second one for the same run of the game (v1.30.0).
+    if let Err(e) = process.journal_at(path.to_path_buf()) {
         report.problems.push(e.to_string());
         return report;
     }
@@ -306,6 +315,13 @@ mod tests {
             original: vec![0x29; len],
             written: vec![0x90; len],
         }
+    }
+
+    #[test]
+    fn a_helper_keeps_a_journal_of_its_own() {
+        assert_eq!(owned_file_name(7, 9, "helper"), "7-9-helper.json");
+        assert_eq!(owned_file_name(7, 9, "../x"), "7-9-x.json");
+        assert_ne!(owned_file_name(7, 9, "helper"), file_name(7, 9));
     }
 
     #[test]

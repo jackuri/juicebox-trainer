@@ -17,7 +17,7 @@ import { ModuleTable } from "./ModuleTable";
 import { PointerPanel, type PointerRequest } from "./PointerPanel";
 import { ScannerPanel } from "./ScannerPanel";
 import { SignaturePanel } from "./SignaturePanel";
-import { TrainerPanel } from "./TrainerPanel";
+import { type LiveAsk, TrainerPanel } from "./TrainerPanel";
 
 const TABS = [
   "Trainer",
@@ -41,13 +41,27 @@ interface Props {
   onShowPacks?: () => void;
   /** Opens a pack in the cheat book (v1.28.0). */
   onOpenBook?: (key: string) => void;
+  /** A cheat to fix with AI while playing (v1.30.0). */
+  liveAsk?: LiveAsk | null;
+  onLiveAskUsed?: () => void;
+  onOpenAi?: () => void;
 }
 
 /**
  * Tools shown while attached: trainer (packs), Find a value (guided), scanner, pointer scanner,
  * signature maker, read/write, memory viewer, modules, address list.
  */
-export function SessionTools({ session, gameName, onSessionLost, onRefreshModules, onShowPacks, onOpenBook }: Props) {
+export function SessionTools({
+  session,
+  gameName,
+  onSessionLost,
+  onRefreshModules,
+  onShowPacks,
+  onOpenBook,
+  liveAsk,
+  onLiveAskUsed,
+  onOpenAi,
+}: Props) {
   const [tab, setTab] = useState<Tab>("Trainer");
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [pointerRequest, setPointerRequest] = useState<PointerRequest | null>(null);
@@ -83,7 +97,15 @@ export function SessionTools({ session, gameName, onSessionLost, onRefreshModule
 
       {/* Panels stay mounted so a scan or typed value survives switching tabs. */}
       <div hidden={tab !== "Trainer"}>
-        <TrainerPanel session={session} onSessionLost={onSessionLost} onShowPacks={onShowPacks} onOpenBook={onOpenBook} />
+        <TrainerPanel
+          session={session}
+          onSessionLost={onSessionLost}
+          onShowPacks={onShowPacks}
+          onOpenBook={onOpenBook}
+          liveAsk={liveAsk}
+          onLiveAskUsed={onLiveAskUsed}
+          onOpenAi={onOpenAi}
+        />
       </div>
       <div hidden={tab !== "Find a value"}>
         <FindValuePanel

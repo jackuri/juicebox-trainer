@@ -326,7 +326,17 @@ export function CheatBook({ packKey, onClose, onAskAi, onSaved }: Props) {
                             <button
                               className="btn-accent rounded-lg px-3 py-1.5 text-xs font-semibold disabled:opacity-40"
                               disabled={!asking.problem.trim()}
-                              onClick={() => onAskAi({ game: book.pack.game.name, exe: book.pack.game.exe, cheat: c.name, problem: asking.problem.trim(), describe: describeCheat(c) })}
+                              onClick={() =>
+                                onAskAi({
+                                  game: book.pack.game.name,
+                                  exe: book.pack.game.exe,
+                                  cheat: c.name,
+                                  problem: asking.problem.trim(),
+                                  describe: describeCheat(c),
+                                  key: book.key,
+                                  id: c.id,
+                                })
+                              }
                             >
                               Open the AI helper
                             </button>
