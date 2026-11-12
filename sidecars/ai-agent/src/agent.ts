@@ -6,7 +6,7 @@ import {
   tool,
 } from "@anthropic-ai/claude-agent-sdk";
 import { z } from "zod";
-import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LIVE_NOTE, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_PROMPT } from "./prompt.js";
+import { ANALYSIS_NOTE, EXPLAIN_SAVE_PROMPT, kickoff, LIVE_NOTE, LOCAL_PROMPT, SYSTEM_PROMPT, WEB_LIVE_NOTE, WEB_PROMPT } from "./prompt.js";
 import type { AskKind, Outbound, StartMessage } from "./protocol.js";
 
 /** The guarded tools jb-mcp offers (crates/jb-mcp/src/tools.rs). */
@@ -195,12 +195,23 @@ export function buildOptions(
     serverEnv.JB_LIVE_ON = live.on.map((c) => c.id).join(",");
   }
   const base = local ? LOCAL_PROMPT : analysis ? `${SYSTEM_PROMPT}\n\n${ANALYSIS_NOTE}` : SYSTEM_PROMPT;
+  // A web game's cheats to fix or change (v1.31.0): saving may replace the player's.
+  const webLive = web ? start.webLive : undefined;
+  if (webLive) serverEnv.JB_WEB_REPLACE = "1";
 
   return {
     model: start.model ?? DEFAULT_MODEL,
     // Local servers may not know the effort setting.
     effort: local ? undefined : "high",
-    systemPrompt: explain ? EXPLAIN_SAVE_PROMPT : web ? WEB_PROMPT : live ? `${base}\n\n${LIVE_NOTE}` : base,
+    systemPrompt: explain
+      ? EXPLAIN_SAVE_PROMPT
+      : web
+        ? webLive
+          ? `${WEB_PROMPT}\n\n${WEB_LIVE_NOTE}`
+          : WEB_PROMPT
+        : live
+          ? `${base}\n\n${LIVE_NOTE}`
+          : base,
     tools: [],
     mcpServers: {
       jb: { type: "stdio", command: mcp.command, args: mcp.args, env: serverEnv },

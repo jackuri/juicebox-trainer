@@ -37,6 +37,14 @@ export interface LiveFix {
   fixing?: { id: string; name: string; problem: string };
 }
 
+/**
+ * A web game, asked from its cheats (v1.31.0): fix one of the player's
+ * cheats, or change or add some; the helper may replace their cheats.
+ */
+export interface WebLive {
+  fixing?: { name: string; problem: string };
+}
+
 export interface StartMessage {
   type: "start";
   /** What to do; "trainer" by default. */
@@ -61,6 +69,8 @@ export interface StartMessage {
   pictures?: boolean;
   /** Fixing or adding cheats while the player plays (v1.30.0). */
   live?: LiveFix;
+  /** A web game's cheats to fix or change (v1.31.0). */
+  webLive?: WebLive;
 }
 
 export type Inbound =
@@ -121,6 +131,7 @@ export function parseInbound(line: string): Inbound | null {
         analysis: parseAnalysis(m.analysis),
         pictures: m.pictures === false ? false : undefined,
         live: task === "trainer" ? parseLive(m.live) : undefined,
+        webLive: task === "webTrainer" ? parseWebLive(m.webLive) : undefined,
       };
     }
     case "answer":
@@ -150,6 +161,13 @@ function parseLive(v: unknown): LiveFix | undefined {
   const problem = f && typeof f.problem === "string" ? f.problem.slice(0, MAX_NOTE) : "";
   const fixing = f && named(f) ? { id: f.id, name: f.name, problem } : undefined;
   return { pack: l.pack, on, fixing };
+}
+
+function parseWebLive(v: unknown): WebLive | undefined {
+  if (typeof v !== "object" || v === null) return undefined;
+  const f = (v as Record<string, unknown>).fixing as Record<string, unknown> | null | undefined;
+  if (!f || typeof f.name !== "string" || !f.name.trim()) return {};
+  return { fixing: { name: f.name.slice(0, 200), problem: typeof f.problem === "string" ? f.problem.slice(0, MAX_NOTE) : "" } };
 }
 
 function parseAnalysis(v: unknown): AnalysisServer | undefined {

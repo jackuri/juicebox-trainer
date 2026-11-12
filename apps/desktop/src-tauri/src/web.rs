@@ -346,7 +346,7 @@ fn install(dir: &std::path::Path, pack: &WebPack, today: &str) -> CmdResult<WebI
         Some(g) => g,
         None => add_game(dir, &pack.game, &url, today)?,
     };
-    let (added, skipped) = add_cheats_in(dir, &game.id, &pack.cheats)?;
+    let (added, skipped) = add_cheats_in(dir, &game.id, &pack.cheats, &[])?;
     Ok(WebInstalled {
         game,
         added,
@@ -496,8 +496,8 @@ pub fn web_close(app: AppHandle, state: State<'_, WebState>) {
 
 /// The helper calls JuiceBox Trainer may make.
 const CALLS: &[&str] = &[
-    "info", "find", "next", "results", "read", "set", "lock", "unlock", "keys", "state", "names",
-    "near",
+    "info", "find", "next", "results", "read", "places", "set", "lock", "unlock", "keys", "state",
+    "names", "near",
 ];
 
 /// The script that runs one call in the game page and returns its JSON.
@@ -586,14 +586,27 @@ pub fn open_game(app: &AppHandle) -> Option<WebGame> {
 
 /// Adds cheats to a web game's saved list (the AI helper's finds, v1.20.0):
 /// checked, cheats already there (same place) skipped, clashing names numbered.
-pub fn add_cheats(id: &str, new: &[WebCheat]) -> CmdResult<(usize, usize)> {
-    add_cheats_in(&app_dir()?, id, new)
+/// The player's cheats named in `replace` are removed first (v1.31.0: the
+/// player asked the helper to fix or combine them; the old list is kept as
+/// `<id>.json.bak`).
+pub fn add_cheats(id: &str, new: &[WebCheat], replace: &[String]) -> CmdResult<(usize, usize)> {
+    add_cheats_in(&app_dir()?, id, new, replace)
 }
 
-fn add_cheats_in(dir: &std::path::Path, id: &str, new: &[WebCheat]) -> CmdResult<(usize, usize)> {
+fn add_cheats_in(
+    dir: &std::path::Path,
+    id: &str,
+    new: &[WebCheat],
+    replace: &[String],
+) -> CmdResult<(usize, usize)> {
     known_game(dir, id)?;
     let new = new.iter().map(check_cheat).collect::<CmdResult<Vec<_>>>()?;
     let mut cheats = load_cheats(dir, id);
+    if cheats.iter().any(|c| replace.contains(&c.name)) {
+        let file = cheats_file(dir, id);
+        let _ = std::fs::copy(&file, file.with_extension("json.bak"));
+        cheats.retain(|c| !replace.contains(&c.name));
+    }
     let (mut added, mut skipped) = (0, 0);
     for c in new {
         if cheats.iter().any(|x| x.target == c.target) {
@@ -669,6 +682,46 @@ mod tests {
         assert!(load_games(&dir).is_empty());
         assert!(!cheats_file(&dir, &g.id).exists());
         assert_eq!(remove_game(&dir, &g.id).unwrap_err().kind, "notFound");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_helper_can_combine_cheats_the_player_asked_about() {
+        let dir = std::env::temp_dir().join(format!("ot-webcombine-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let g = add_game(&dir, "Outbreak", "https://outbreakweb.com/", "2026-11-12").unwrap();
+        let enemy = |n: u64| -> WebCheat {
+            serde_json::from_value(serde_json::json!({
+                "name": format!("Weak enemy {n}"),
+                "target": { "k": "m", "mem": 0, "label": "m", "size": 16777216, "off": 7124308 + 3472 * n, "t": "i16" },
+                "value": 1
+            }))
+            .unwrap()
+        };
+        let ammo: WebCheat = serde_json::from_str(
+            r#"{"name":"Infinite pistol ammo","target":{"k":"j","path":["game","ammo"]},"value":99}"#,
+        )
+        .unwrap();
+        add_cheats_in(&dir, &g.id, &[ammo, enemy(0), enemy(1), enemy(2)], &[]).unwrap();
+        let all: WebCheat = serde_json::from_str(
+            r#"{"name":"Weak enemies","target":{"k":"m","mem":0,"label":"m","size":16777216,"off":7124308,"t":"i16","every":3472,"count":40},"value":1,"keep":"atMost"}"#,
+        )
+        .unwrap();
+        let names: Vec<String> = (0..3).map(|n| format!("Weak enemy {n}")).collect();
+        assert_eq!(add_cheats_in(&dir, &g.id, &[all], &names).unwrap(), (1, 0));
+        let now = load_cheats(&dir, &g.id);
+        assert_eq!(
+            now.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
+            ["Infinite pistol ammo", "Weak enemies"]
+        );
+        assert_eq!(now[1].keep, Some(jb_packs::web::Keep::AtMost));
+        let bak = cheats_file(&dir, &g.id).with_extension("json.bak");
+        assert_eq!(
+            serde_json::from_str::<Vec<WebCheat>>(&std::fs::read_to_string(bak).unwrap())
+                .unwrap()
+                .len(),
+            4
+        );
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

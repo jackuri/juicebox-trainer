@@ -284,6 +284,23 @@ describe("web games", () => {
     expect(kickoff(webStart)).toContain("web_game");
   });
 
+  it("fixes or combines the player's web cheats when they asked from them (v1.31.0)", () => {
+    process.env.JB_WEB_LINK = "127.0.0.1:5000";
+    process.env.JB_WEB_TOKEN = "secret";
+    expect((buildOptions(webStart, mcp, io(), new AbortController(), "1.31.0").mcpServers?.jb as { env: Record<string, string> }).env.JB_WEB_REPLACE).toBeUndefined();
+    const fix: StartMessage = { ...webStart, webLive: { fixing: { name: "Infinite pistol ammo", problem: "not the shotgun" } } };
+    const o = buildOptions(fix, mcp, io(), new AbortController(), "1.31.0");
+    expect((o.mcpServers?.jb as { env: Record<string, string> }).env.JB_WEB_REPLACE).toBe("1");
+    expect(String(o.systemPrompt)).toContain('"replace"');
+    expect(String(o.systemPrompt)).toContain("atMost");
+    expect(kickoff(fix)).toContain('Fix their cheat "Infinite pistol ammo". What the player says: not the shotgun');
+    const combine = parseInbound(
+      JSON.stringify({ type: "start", task: "webTrainer", game: { pid: 0, name: "g", url: "https://g.example/", webId: "g-1" }, wishes: ["one cheat for all zombies at 1 HP"], webLive: {} }),
+    ) as StartMessage;
+    expect(combine.webLive).toEqual({});
+    expect(kickoff(combine)).toContain("- one cheat for all zombies at 1 HP");
+  });
+
   it("stops at once without the link", async () => {
     const x = io();
     await runSession(webStart, x, fakeQuery([]), mcp, new AbortController(), "1.20.0");

@@ -283,7 +283,9 @@
     return { k: "j", path: search.js[n - m].path.map(String) };
   }
   function where(target) {
-    return target.k === "m" ? `memory ${target.mem + 1} at 0x${target.off.toString(16).toUpperCase()} (${target.t})` : target.path.join(".");
+    if (target.k !== "m") return target.path.join(".");
+    const at = `memory ${target.mem + 1} at 0x${target.off.toString(16).toUpperCase()}`;
+    return target.count > 1 ? `${at}, ${target.count} places 0x${target.every.toString(16).toUpperCase()} apart (${target.t})` : `${at} (${target.t})`;
   }
 
   function summary(tooMany) {
@@ -311,8 +313,84 @@
     return { count, tooMany, results: list };
   }
 
+  // ----- groups (v1.31.0): one cheat for many places ------------------------------------------
+  const MAX_GROUP = 1024;
+  const isGroup = (t) => (t.k === "m" && t.count > 1) || (t.k === "j" && Array.isArray(t.path) && t.path.some((p) => p === "*"));
+  /** The single places a target stands for: itself, or each place of a group. */
+  function placesOf(target) {
+    if (!isGroup(target)) return [target];
+    if (target.k === "m") {
+      const out = [];
+      const every = Number(target.every);
+      if (!(every > 0)) throw new Error("a group needs every");
+      for (let i = 0; i < Math.min(target.count, MAX_GROUP); i++) {
+        out.push({ k: "m", mem: target.mem, label: target.label, size: target.size, off: target.off + i * every, t: target.t });
+      }
+      return out;
+    }
+    // A "*" stands for every item of the list or object there.
+    let paths = [[]];
+    for (const p of target.path.map(String)) {
+      if (p !== "*") {
+        paths = paths.map((x) => [...x, p]);
+        continue;
+      }
+      const next = [];
+      for (const x of paths) {
+        let o = window;
+        for (const s of x) o = o == null ? undefined : o[s];
+        if (o == null || typeof o !== "object") continue;
+        let keys;
+        try {
+          keys = Object.keys(o);
+        } catch {
+          continue;
+        }
+        for (const k of keys) {
+          if (next.length >= MAX_GROUP) break;
+          next.push([...x, k]);
+        }
+      }
+      paths = next;
+    }
+    return paths.map((p) => ({ k: "j", path: p }));
+  }
+  /** Whether a lock must write: keep it at the value, never above it, or never below it. */
+  const needs = (how, now, value) => (how === "atMost" ? now > value : how === "atLeast" ? now < value : now !== value);
+  /** Applies a value the way a lock keeps it, to every place; how many places took it. */
+  function apply(target, value, how) {
+    if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("not a number");
+    let done = 0;
+    for (const t of placesOf(target)) {
+      try {
+        if (needs(how, readOne(t), value)) writeOne(t, value);
+        done++;
+      } catch {
+        // Not there now (a gone enemy, a slot past the end): the others still count.
+      }
+    }
+    return done;
+  }
+
   // ----- reading, writing, locking ------------------------------------------------------------
+  /** A place's value; a group's first place that can be read. */
   function readTarget(target) {
+    if (!isGroup(target)) return readOne(target);
+    for (const t of placesOf(target)) {
+      try {
+        return readOne(t);
+      } catch {
+        // Try the next place.
+      }
+    }
+    throw new Error("none of its places are there now");
+  }
+  /** Sets a place, or every place of a group. */
+  function writeTarget(target, value) {
+    if (!isGroup(target)) return writeOne(target, value);
+    if (apply(target, value, "at") === 0) throw new Error("none of its places are there now");
+  }
+  function readOne(target) {
     if (target.k === "m") {
       const buf = bufferOf(target.mem);
       if (target.off + SIZE[target.t] > buf.byteLength) throw new Error("outside the memory");
@@ -323,7 +401,7 @@
     if (typeof v !== "number") throw new Error("that value isn't a number any more");
     return v;
   }
-  function writeTarget(target, value) {
+  function writeOne(target, value) {
     if (typeof value !== "number" || !Number.isFinite(value)) throw new Error("not a number");
     if (target.k === "m") {
       const buf = bufferOf(target.mem);
@@ -336,17 +414,18 @@
     obj[key] = value;
   }
 
-  /** id -> { target, value } */
+  /** id -> { target, value, how } */
   const locks = new Map();
   setInterval(() => {
-    for (const { target, value } of locks.values()) {
+    for (const { target, value, how } of locks.values()) {
       try {
-        if (readTarget(target) !== value) writeTarget(target, value);
+        apply(target, value, how);
       } catch {
         // Gone for now (a reload or a new level); tried again next time.
       }
     }
   }, 100);
+  const keepHow = (h) => (h === "atMost" || h === "atLeast" ? h : "at");
 
   // ----- keys (v1.19.0) ------------------------------------------------------------------------
   // The player's keys for their cheats work while the game window is in front. They're listened
@@ -441,8 +520,8 @@
           show(`${k.name} unlocked`);
         } else {
           const value = typeof k.value === "number" ? k.value : readTarget(k.target);
-          writeTarget(k.target, value);
-          locks.set(k.id, { target: k.target, value });
+          if (apply(k.target, value, k.how) === 0) throw new Error("it isn't there now");
+          locks.set(k.id, { target: k.target, value, how: k.how });
           show(`${k.name} locked`);
         }
       } catch (err) {
@@ -489,13 +568,26 @@
         }
       });
     },
+    /** Each single place of a target (a group's every place) with its value now, for undoing (v1.31.0). */
+    places({ target }) {
+      const out = [];
+      for (const t of placesOf(target)) {
+        try {
+          out.push({ target: t, value: readOne(t) });
+        } catch {
+          // Not there now: nothing to put back.
+        }
+      }
+      return out;
+    },
     set({ target, value }) {
       writeTarget(target, value);
       return { value: readTarget(target) };
     },
-    lock({ id, target, value }) {
-      writeTarget(target, value);
-      locks.set(String(id), { target, value });
+    lock({ id, target, value, how }) {
+      const keep = keepHow(how);
+      if (apply(target, value, keep) === 0) throw new Error("that value isn't there any more");
+      locks.set(String(id), { target, value, how: keep });
       return { locked: locks.size };
     },
     unlock({ id }) {
@@ -508,7 +600,7 @@
       const next = new Map();
       for (const k of Array.isArray(list) ? list : []) {
         if (!k || typeof k.key !== "string" || !k.target) continue;
-        const entry = { id: String(k.id), name: String(k.name), does: k.does === "set" ? "set" : "lock", target: k.target, value: k.value };
+        const entry = { id: String(k.id), name: String(k.name), does: k.does === "set" ? "set" : "lock", target: k.target, value: k.value, how: keepHow(k.how) };
         if (entry.does === "set" && typeof entry.value !== "number") continue;
         if (!next.has(k.key)) next.set(k.key, []);
         next.get(k.key).push(entry);
@@ -545,6 +637,8 @@
      * around it; for a JavaScript value, the other numbers in its object (and one level down). */
     near({ target }) {
       if (!target || (target.k !== "m" && target.k !== "j")) throw new Error("give a place");
+      // A group: around its first place.
+      if (isGroup(target)) target = placesOf(target)[0] ?? target;
       const plausibleInt = (v) => v !== 0 && Math.abs(v) <= 10000000;
       const plausibleFloat = (v) => Number.isFinite(v) && v !== 0 && Math.abs(v) >= 0.001 && Math.abs(v) <= 10000000;
       const round = (v) => Math.round(v * 1000) / 1000;

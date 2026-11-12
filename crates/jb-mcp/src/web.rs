@@ -72,6 +72,9 @@ pub struct WebSession {
     /// Every place set or locked in this session (kept after undoing), so
     /// only tried cheats are saved (v1.21.0).
     tried: Vec<Value>,
+    /// The player asked from their cheats to fix or change them (v1.31.0,
+    /// `JB_WEB_REPLACE`): saving may replace cheats they have.
+    replace: bool,
 }
 
 type Res = Result<Value, String>;
@@ -121,6 +124,7 @@ impl WebSession {
             locks: Vec::new(),
             next_lock: 1,
             tried: Vec::new(),
+            replace: std::env::var("JB_WEB_REPLACE").is_ok_and(|v| v == "1"),
         }
     }
 
@@ -188,6 +192,22 @@ impl WebSession {
             return Err(e.to_string());
         }
         Ok(v.get("ok").cloned().unwrap_or(Value::Null))
+    }
+
+    /// Each single place of a target with its value now (a group's every
+    /// place, v1.31.0), so undoing puts back each one's own value.
+    fn snapshot(&self, target: &Value) -> Result<Vec<(Value, f64)>, String> {
+        let list = self.ask("places", json!({ "target": target }))?;
+        let out: Vec<(Value, f64)> = list
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|p| Some((p.get("target")?.clone(), p.get("value")?.as_f64()?)))
+            .collect();
+        if out.is_empty() {
+            return Err("that value can't be read".into());
+        }
+        Ok(out)
     }
 
     fn read_one(&self, target: &Value) -> Result<f64, String> {
@@ -264,10 +284,11 @@ impl WebSession {
             "web_set" => {
                 let t = target(args)?;
                 let value = number(args, "value")?;
-                let before = self.read_one(&t)?;
+                let places = self.snapshot(&t)?;
+                let before = places[0].1;
                 let r = self.ask("set", json!({ "target": t, "value": value }))?;
                 self.tried(&t);
-                self.sets.push((t, before));
+                self.sets.extend(places);
                 Ok(json!({ "before": before, "now": r.get("value") }))
             }
             "web_lock" => {
@@ -276,12 +297,22 @@ impl WebSession {
                     Some(_) => number(args, "value")?,
                     None => self.read_one(&t)?,
                 };
-                let before = self.read_one(&t)?;
+                let places = self.snapshot(&t)?;
+                let before = places[0].1;
+                let how = match args.get("how").and_then(Value::as_str) {
+                    None | Some("at") => "at",
+                    Some("atMost") => "atMost",
+                    Some("atLeast") => "atLeast",
+                    Some(_) => return Err("'how' is at, atMost or atLeast".into()),
+                };
                 let id = format!("ai:{}", self.next_lock);
                 self.next_lock += 1;
-                self.ask("lock", json!({ "id": id, "target": t, "value": value }))?;
+                self.ask(
+                    "lock",
+                    json!({ "id": id, "target": t, "value": value, "how": how }),
+                )?;
                 self.tried(&t);
-                self.sets.push((t, before));
+                self.sets.extend(places);
                 self.locks.push(id.clone());
                 Ok(json!({ "lock": id, "value": value, "before": before }))
             }
@@ -323,7 +354,18 @@ impl WebSession {
                         untried.join(", ")
                     ));
                 }
-                self.ask("saveCheats", json!({ "cheats": cheats }))
+                let replace: Vec<String> = match args.get("replace").filter(|v| !v.is_null()) {
+                    None => Vec::new(),
+                    Some(v) => serde_json::from_value(v.clone())
+                        .map_err(|_| "'replace' is a list of the player's cheat names")?,
+                };
+                if !replace.is_empty() && !self.replace {
+                    return Err("only add cheats here: replacing the player's cheats needs them to ask from their cheats (Fix with AI)".into());
+                }
+                self.ask(
+                    "saveCheats",
+                    json!({ "cheats": cheats, "replace": replace }),
+                )
             }
             "web_near" => {
                 let t = target(args)?;
@@ -384,7 +426,7 @@ impl Drop for WebSession {
 pub fn definitions() -> Vec<Value> {
     let place = json!({
         "type": "object",
-        "description": "A place in the page, as the search results give it: {\"k\":\"j\",\"path\":[\"game\",\"player\",\"hp\"]} (a JavaScript value) or {\"k\":\"m\",\"mem\":0,\"label\":\"...\",\"size\":16777216,\"off\":4096,\"t\":\"i32\"} (a number in a memory; t is u8, i16, i32, f32 or f64)."
+        "description": "A place in the page, as the search results give it: {\"k\":\"j\",\"path\":[\"game\",\"player\",\"hp\"]} (a JavaScript value) or {\"k\":\"m\",\"mem\":0,\"label\":\"...\",\"size\":16777216,\"off\":4096,\"t\":\"i32\"} (a number in a memory; t is u8, i16, i32, f32 or f64). A group covers many of the same thing (all enemies) as one place: in a memory add \"every\" (bytes between them) and \"count\" (2 to 1024), e.g. {...,\"off\":7124308,\"t\":\"i16\",\"every\":3472,\"count\":40}; in JavaScript a \"*\" in the path stands for every item of a list, e.g. [\"game\",\"zombies\",\"*\",\"hp\"]. Reading a group gives its first place; setting or locking it changes every place."
     });
     let tool = |name: &str, description: &str, props: Value, required: &[&str]| {
         json!({
@@ -395,7 +437,7 @@ pub fn definitions() -> Vec<Value> {
     };
     let cheat = json!({
         "type": "object",
-        "description": "{\"name\":\"Infinite ammo\",\"target\":<place>,\"value\":99}. Optional \"key\" (e.g. \"F1\") and \"keyDoes\" (\"lock\", the default, or \"set\").",
+        "description": "{\"name\":\"Infinite ammo\",\"target\":<place>,\"value\":99}. Optional \"key\" (e.g. \"F1\"), \"keyDoes\" (\"lock\", the default, or \"set\") and \"keep\": how its lock keeps the number, \"at\" (the default), \"atMost\" (never above: lowers, never raises; right for enemies' health, so dead ones stay dead) or \"atLeast\" (never below).",
     });
     vec![
         tool(
@@ -442,8 +484,8 @@ pub fn definitions() -> Vec<Value> {
         ),
         tool(
             "web_lock",
-            "Test: keep a place at a number (its value now if no value is given) until web_unlock or revert_all.",
-            json!({ "target": place, "value": { "type": ["number", "string"] } }),
+            "Test: keep a place at a number (its value now if no value is given) until web_unlock or revert_all. how: at (default), atMost (never above it) or atLeast (never below it).",
+            json!({ "target": place, "value": { "type": ["number", "string"] }, "how": { "type": "string", "enum": ["at", "atMost", "atLeast"] } }),
             &["target"],
         ),
         tool(
@@ -466,8 +508,8 @@ pub fn definitions() -> Vec<Value> {
         ),
         tool(
             "web_cheats_save",
-            "Save tested cheats to the player's list for this web game (they show in the game's cheats right away). Cheats already in the list are skipped.",
-            json!({ "cheats": { "type": "array", "items": cheat } }),
+            "Save tested cheats to the player's list for this web game (they show in the game's cheats right away). Cheats already in the list are skipped. When the player asked you to fix or change their cheats, \"replace\" lists the names of their cheats these replace (they're removed; e.g. five \"Weak enemy\" cheats combined into one).",
+            json!({ "cheats": { "type": "array", "items": cheat }, "replace": { "type": "array", "items": { "type": "string" } } }),
             &["cheats"],
         ),
     ]
@@ -487,7 +529,10 @@ mod tests {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = listener.local_addr().unwrap().to_string();
         let calls = Arc::new(Mutex::new(Vec::new()));
-        let page = Arc::new(Mutex::new(json!({ "game.hp": 50.0, "game.gold": 10.0 })));
+        // "": every memory place (they have no path).
+        let page = Arc::new(Mutex::new(
+            json!({ "game.hp": 50.0, "game.gold": 10.0, "": 30.0 }),
+        ));
         let (c, p) = (Arc::clone(&calls), Arc::clone(&page));
         std::thread::spawn(move || {
             for stream in listener.incoming().flatten() {
@@ -527,6 +572,10 @@ mod tests {
                         "set" | "lock" => {
                             p.lock().unwrap()[key(&args["target"])] = args["value"].clone();
                             json!({ "ok": { "value": args["value"] } })
+                        }
+                        "places" => {
+                            let v = p.lock().unwrap()[key(&args["target"])].clone();
+                            json!({ "ok": [{ "target": args["target"], "value": v }] })
                         }
                         "find" => {
                             json!({ "ok": { "count": 30, "results": (0..30).map(|i| json!({ "id": i })).collect::<Vec<_>>() } })
@@ -656,6 +705,32 @@ mod tests {
         assert_eq!(
             saved["cheats"][0]["key"], "F1",
             "tidied like the app's cheats"
+        );
+
+        // Replacing the player's cheats needs them to ask from their cheats (v1.31.0).
+        let group = json!({ "k": "m", "mem": 0, "label": "m", "size": 65536, "off": 4096, "t": "i16", "every": 16, "count": 4 });
+        s.call(
+            "web_lock",
+            &json!({ "target": group, "value": 1, "how": "atMost" }),
+        )
+        .unwrap();
+        let lock = calls.lock().unwrap().last().unwrap().1.clone();
+        assert_eq!(lock["how"], "atMost");
+        assert_eq!(lock["target"]["count"], 4);
+        let combine = json!({ "cheats": [{ "name": "Weak enemies", "target": group, "value": 1, "keep": "atMost" }], "replace": ["Weak enemy 1", "Weak enemy 2"] });
+        assert!(
+            s.call("web_cheats_save", &combine)
+                .unwrap_err()
+                .contains("Fix with AI")
+        );
+        s.replace = true;
+        s.call("web_cheats_save", &combine).unwrap();
+        let saved = calls.lock().unwrap().last().unwrap().1.clone();
+        assert_eq!(saved["replace"], json!(["Weak enemy 1", "Weak enemy 2"]));
+        assert_eq!(saved["cheats"][0]["keep"], "atMost");
+        assert!(
+            s.call("web_lock", &json!({ "target": hp(), "how": "below" }))
+                .is_err()
         );
     }
 

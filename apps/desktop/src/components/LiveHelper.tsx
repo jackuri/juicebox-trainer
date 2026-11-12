@@ -9,9 +9,11 @@ const go = "btn-accent rounded-lg px-4 py-1.5 text-sm font-semibold disabled:opa
 const box = "rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm placeholder:text-zinc-500";
 
 interface Props {
-  pid: number;
-  /** The loaded pack. */
-  packKey: string;
+  /** A PC game: its process and loaded pack. */
+  pid?: number;
+  packKey?: string;
+  /** A web game instead (v1.31.0): its id, open in the game window. */
+  webGame?: string;
   /** The cheat to fix, or null to add a new cheat. */
   fix: { id: string; name: string } | null;
   /** What's wrong (from the cheat book), to start with. */
@@ -28,7 +30,7 @@ interface Props {
  * one, while the player keeps playing with their other cheats on. When it's
  * done, the pack is loaded again and their cheats go back on.
  */
-export function LiveHelper({ pid, packKey, fix, problem = "", resume = false, onClose, onOpenAi }: Props) {
+export function LiveHelper({ pid = 0, packKey = "", webGame, fix, problem = "", resume = false, onClose, onOpenAi }: Props) {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [events, setEvents] = useState<AiEvent[]>([]);
   const [started, setStarted] = useState(resume);
@@ -67,13 +69,26 @@ export function LiveHelper({ pid, packKey, fix, problem = "", resume = false, on
     listening.current = true;
     try {
       const said = text.trim();
-      await api.aiStart({
-        pid,
-        wishes: fix ? [] : [said],
-        notes: "",
-        live: { packKey, fix: fix?.id, problem: fix ? said : undefined },
-        ...fromSettings(settings),
-      });
+      await api.aiStart(
+        webGame
+          ? {
+              pid: 0,
+              task: "webTrainer",
+              webGame,
+              wishes: fix ? [] : [said],
+              notes: "",
+              webFix: { cheat: fix?.name, problem: fix ? said : undefined },
+              ...fromSettings(settings),
+              analysisCommand: undefined,
+            }
+          : {
+              pid,
+              wishes: fix ? [] : [said],
+              notes: "",
+              live: { packKey, fix: fix?.id, problem: fix ? said : undefined },
+              ...fromSettings(settings),
+            },
+      );
       setStarted(true);
     } catch (e) {
       listening.current = false;
@@ -111,7 +126,7 @@ export function LiveHelper({ pid, packKey, fix, problem = "", resume = false, on
     setText("");
   }
 
-  const title = fix ? `Fix “${fix.name}” with AI` : "Make a new cheat with AI";
+  const title = fix ? `Fix “${fix.name}” with AI` : webGame ? "Ask the AI about your cheats" : "Make a new cheat with AI";
   const notReady = status && (!status.available || !settingsReady(settings, status.signedIn));
 
   return (
@@ -156,14 +171,16 @@ export function LiveHelper({ pid, packKey, fix, problem = "", resume = false, on
       {!started && !notReady && (
         <div className="flex flex-col gap-2">
           <label className="flex flex-col gap-1 text-sm">
-            <span>{fix ? `What's wrong with ${fix.name}?` : "What cheat do you want?"}</span>
+            <span>{fix ? `What's wrong with ${fix.name}?` : webGame ? "What do you want, or what are you stuck on?" : "What cheat do you want?"}</span>
             <textarea
               className={`${box} min-h-16`}
               aria-label={fix ? "What's wrong" : "The cheat you want"}
               placeholder={
                 fix
                   ? "e.g. “It only works with the gun I start with, not guns I pick up”"
-                  : "e.g. “Infinite flashlight battery. It drains, but the game shows no number”"
+                  : webGame
+                    ? "e.g. “Put all my Weak enemy cheats together into one that keeps every zombie at 1 HP”"
+                    : "e.g. “Infinite flashlight battery. It drains, but the game shows no number”"
               }
               maxLength={2000}
               value={text}
@@ -171,11 +188,12 @@ export function LiveHelper({ pid, packKey, fix, problem = "", resume = false, on
             />
           </label>
           <p className="text-xs text-zinc-400">
-            Keep playing: your other cheats stay on. The AI may ask you to do small things in the game. It uses your
-            settings from Make a trainer (AI), up to ${fromSettings(settings).maxBudgetUsd}.
+            Keep playing: your {webGame ? "locks" : "other cheats"} stay on. The AI may ask you to do small things in the
+            game{webGame ? ", and it may change or put together the cheats you asked about" : ""}. It uses your settings from
+            Make a trainer (AI), up to ${fromSettings(settings).maxBudgetUsd}.
           </p>
           <button className={`${go} self-start`} disabled={starting || !text.trim()} onClick={() => void start()}>
-            {starting ? "Starting…" : fix ? "Fix it now" : "Make it now"}
+            {starting ? "Starting…" : fix ? "Fix it now" : webGame ? "Send to the AI" : "Make it now"}
           </button>
         </div>
       )}

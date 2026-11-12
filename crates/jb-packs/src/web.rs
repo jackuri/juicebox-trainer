@@ -39,10 +39,33 @@ pub enum WebTarget {
         size: u64,
         off: u64,
         t: NumType,
+        /// A group (v1.31.0): `count` places, `every` bytes apart from `off`
+        /// (all the enemies in a list, say). Both or neither.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        every: Option<u64>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        count: Option<u32>,
     },
-    /// A JavaScript value, by its path from `window`.
+    /// A JavaScript value, by its path from `window`. A `*` in the path
+    /// stands for every item of the list or object there (v1.31.0).
     #[serde(rename = "j")]
     Js { path: Vec<String> },
+}
+
+/// The most places one group cheat may cover.
+pub const MAX_GROUP: u32 = 1024;
+/// A path's stand-in for every item of a list (`game.zombies.*.hp`).
+pub const EVERY_ITEM: &str = "*";
+
+impl WebTarget {
+    /// How many places it covers (`None` for "every item", which depends on the game).
+    pub fn places(&self) -> Option<u32> {
+        match self {
+            WebTarget::Memory { count, .. } => Some(count.unwrap_or(1)),
+            WebTarget::Js { path } if path.iter().any(|p| p == EVERY_ITEM) => None,
+            WebTarget::Js { .. } => Some(1),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +89,19 @@ pub enum KeyDoes {
     Set,
 }
 
+/// How a lock keeps its number (v1.31.0).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Keep {
+    /// At the value.
+    #[default]
+    At,
+    /// Never above it (lowers it, never raises it: enemies' health).
+    AtMost,
+    /// Never below it (raises it, never lowers it).
+    AtLeast,
+}
+
 /// A cheat for a web game. Unknown fields are ignored, so files from newer
 /// versions still open.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -81,6 +117,9 @@ pub struct WebCheat {
     pub key: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub key_does: Option<KeyDoes>,
+    /// How its lock keeps the number (at it when absent).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub keep: Option<Keep>,
 }
 
 fn one_line(s: &str, max: usize) -> bool {
@@ -96,20 +135,43 @@ pub fn check_cheat(c: &WebCheat) -> Result<WebCheat, String> {
     }
     let bad_place = || format!("{}: that cheat's place isn't valid", c.name);
     match &c.target {
-        WebTarget::Memory { label, off, .. } => {
+        WebTarget::Memory {
+            label,
+            off,
+            every,
+            count,
+            ..
+        } => {
             if label.chars().count() > 200
                 || label.chars().any(char::is_control)
                 || *off > (1 << 40)
             {
                 return Err(bad_place());
             }
+            match (every, count) {
+                (None, None) => {}
+                (Some(e), Some(n))
+                    if (1..=(1 << 20)).contains(e)
+                        && (2..=MAX_GROUP).contains(n)
+                        && off + e * u64::from(*n) <= (1 << 40) => {}
+                _ => {
+                    return Err(format!(
+                        "{}: a group needs \"every\" (1 to 1048576 bytes) and \"count\" (2 to {MAX_GROUP} places)",
+                        c.name
+                    ));
+                }
+            }
         }
         WebTarget::Js { path } => {
+            let stars = path.iter().filter(|p| *p == EVERY_ITEM).count();
             if path.is_empty()
                 || path.len() > 16
                 || path.iter().any(|p| {
                     p.is_empty() || p.chars().count() > 120 || p.chars().any(char::is_control)
                 })
+                || stars > 2
+                || path.first().is_some_and(|p| p == EVERY_ITEM)
+                || path.last().is_some_and(|p| p == EVERY_ITEM)
             {
                 return Err(bad_place());
             }
@@ -309,6 +371,7 @@ mod tests {
             value: Some(999.0),
             key: None,
             key_does: None,
+            keep: None,
         }
     }
 
@@ -374,6 +437,53 @@ mod tests {
         assert!(check_cheat(&bad).is_err());
         bad.name = "a\nb".into();
         assert!(check_cheat(&bad).is_err());
+    }
+
+    #[test]
+    fn group_places_are_checked() {
+        let mut c = cheat("Weak enemies");
+        c.target = serde_json::from_str(
+            r#"{"k":"m","mem":0,"label":"memory","size":16777216,"off":7124308,"t":"i16","every":3472,"count":5}"#,
+        )
+        .unwrap();
+        assert_eq!(c.target.places(), Some(5));
+        let tidy = check_cheat(&c).unwrap();
+        let text = serde_json::to_string(&tidy.target).unwrap();
+        assert!(text.contains(r#""every":3472,"count":5"#), "{text}");
+        // A single place is written as before.
+        let one = serde_json::to_string(&cheat("Gold").target).unwrap();
+        assert!(!one.contains("every"));
+        let group = |every: Option<u64>, count: Option<u32>| {
+            let mut c = cheat("x");
+            c.target = WebTarget::Memory {
+                mem: 0,
+                label: "m".into(),
+                size: 1,
+                off: 0,
+                t: NumType::I16,
+                every,
+                count,
+            };
+            check_cheat(&c)
+        };
+        assert!(group(Some(2), Some(MAX_GROUP)).is_ok());
+        assert!(group(Some(2), None).is_err());
+        assert!(group(None, Some(3)).is_err());
+        assert!(group(Some(0), Some(3)).is_err());
+        assert!(group(Some(2), Some(1)).is_err());
+        assert!(group(Some(2), Some(MAX_GROUP + 1)).is_err());
+
+        let js = |path: &[&str]| {
+            let mut c = cheat("x");
+            c.target = WebTarget::Js {
+                path: path.iter().map(|s| (*s).to_string()).collect(),
+            };
+            check_cheat(&c).map(|c| c.target.places())
+        };
+        assert_eq!(js(&["game", "zombies", "*", "hp"]), Ok(None));
+        assert!(js(&["*", "hp"]).is_err());
+        assert!(js(&["game", "*"]).is_err());
+        assert!(js(&["a", "*", "*", "*", "hp"]).is_err());
     }
 
     #[test]

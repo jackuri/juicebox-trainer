@@ -420,6 +420,17 @@ pub async fn ai_sign_in() -> CmdResult<()> {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct WebFix {
+    /// The cheat to fix, by name; none for a new or changed cheat.
+    #[serde(default)]
+    pub cheat: Option<String>,
+    /// What's wrong or what they want, in their words.
+    #[serde(default)]
+    pub problem: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AiStartRequest {
     /// The running game (trainer task).
     #[serde(default)]
@@ -442,6 +453,10 @@ pub struct AiStartRequest {
     /// cheats on (v1.30.0); the app keeps the game.
     #[serde(default)]
     pub live: Option<crate::live_fix::LiveRequest>,
+    /// A web game: the player asked from its cheats, to fix one (by name) or
+    /// to change or add cheats (v1.31.0). The helper may replace their cheats.
+    #[serde(default)]
+    pub web_fix: Option<WebFix>,
     /// `subscription` (Claude login), `apiKey` (ANTHROPIC_API_KEY) or
     /// `local` (Ollama / LM Studio).
     pub backend: String,
@@ -650,6 +665,9 @@ pub async fn ai_start(
         "maxBudgetUsd": request.max_budget_usd.clamp(0.5, 50.0),
         "pictures": request.pictures != Some(false),
         "live": live_tell,
+        "webLive": request.web_fix.as_ref().filter(|_| web).map(|f| json!({
+            "fixing": f.cheat.as_ref().map(|c| json!({ "name": c, "problem": f.problem.clone().unwrap_or_default() })),
+        })),
     });
     state.send(&start)
 }

@@ -156,7 +156,7 @@ describe("WebGamesView", () => {
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("web_call", { method: "set", args: { target: memTarget, value: 999 } }));
     fireEvent.click(within(panel).getByRole("button", { name: "Lock" }));
     await waitFor(() =>
-      expect(invoke).toHaveBeenCalledWith("web_call", { method: "lock", args: { id: "Health|memory 1 at 0x1000 (i32)", target: memTarget, value: 999 } }),
+      expect(invoke).toHaveBeenCalledWith("web_call", { method: "lock", args: { id: "Health|memory 1 at 0x1000 (i32)", target: memTarget, value: 999, how: "at" } }),
     );
     expect(await within(panel).findByRole("button", { name: "Locked" })).toHaveAttribute("aria-pressed", "true");
   });
@@ -196,7 +196,7 @@ describe("WebGamesView", () => {
     await waitFor(
       () =>
         expect(pageKeys?.list).toEqual([
-          { id: "Health|memory 1 at 0x1000 (i32)", name: "Health", key: "F5", does: "lock", target: memTarget, value: 75 },
+          { id: "Health|memory 1 at 0x1000 (i32)", name: "Health", key: "F5", does: "lock", target: memTarget, value: 75, how: "at" },
         ]),
       { timeout: 4000 },
     );
@@ -259,6 +259,71 @@ describe("WebGamesView", () => {
     fireEvent.click(within(offer).getByRole("button", { name: "Add to my web games" }));
     expect(await screen.findByText(/Added 1 cheat to Zombie Run/)).toBeInTheDocument();
     expect(invoke).toHaveBeenCalledWith("web_install", { pack: shared });
+  });
+
+  it("puts the weak enemy cheats together into one that keeps them all at most at 1 HP (v1.31.0)", async () => {
+    const enemy = (n: number): WebCheat => ({ name: `Weak enemy ${n} (1 HP)`, target: { ...memTarget, off: 0x6cb554 + 0xd90 * (n - 1), t: "i32" }, value: 1 });
+    saved = [{ name: "Health", target: memTarget, value: 75 }, enemy(1), enemy(2), enemy(3)];
+    pageLocks = ["Weak enemy 2 (1 HP)|memory 1 at 0x6CC2E4 (i32)"];
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      const a = args as { method?: string; args?: { targets?: unknown[] } } | undefined;
+      if (cmd === "web_call" && a?.method === "read") return Promise.resolve((a.args?.targets ?? []).map(() => ({ value: 75 })));
+      return base(cmd, args);
+    });
+    render(<WebGamesView />);
+    fireEvent.click(await screen.findByRole("button", { name: "Play Web Testbed" }));
+    const panel = await screen.findByRole("region", { name: "Cheats for Web Testbed" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Combine…" }));
+    const box = within(panel).getByRole("group", { name: "Combine cheats" });
+    fireEvent.click(within(panel).getByLabelText("Combine Health"));
+    fireEvent.click(within(panel).getByLabelText("Combine Weak enemy 1 (1 HP)"));
+    expect(within(box).getByText(/aren't evenly spaced/)).toBeInTheDocument();
+    fireEvent.click(within(panel).getByLabelText("Combine Health"));
+    fireEvent.click(within(panel).getByLabelText("Combine Weak enemy 2 (1 HP)"));
+    fireEvent.click(within(panel).getByLabelText("Combine Weak enemy 3 (1 HP)"));
+    await waitFor(() => expect(within(panel).getByLabelText("Weak enemy 3 (1 HP) value")).toHaveTextContent("75"), { timeout: 3000 });
+    fireEvent.click(within(box).getByRole("button", { name: "Combine 3 into one" }));
+    expect(within(box).getByLabelText("Combined cheat name")).toHaveValue("Weak enemy (1 HP)");
+    // The game shows 75 for them now (more than 1): only lowering is picked, so dead ones stay dead.
+    expect(within(box).getByLabelText("How the lock keeps the number")).toHaveValue("atMost");
+    expect(within(box).getByText(/One cheat for 3 places/)).toBeInTheDocument();
+    fireEvent.change(within(box).getByLabelText("Combined cheat name"), { target: { value: "Weak enemies (1 HP)" } });
+    fireEvent.click(within(box).getByRole("button", { name: "Save the combined cheat" }));
+    await waitFor(() => expect(saved.map((c) => c.name)).toEqual(["Health", "Weak enemies (1 HP)"]));
+    expect(saved[1]).toEqual({ name: "Weak enemies (1 HP)", target: { ...memTarget, off: 0x6cb554, t: "i32", every: 0xd90, count: 3 }, value: 1, keep: "atMost" });
+    // The old cheat's lock was lifted.
+    expect(invoke).toHaveBeenCalledWith("web_call", { method: "unlock", args: { id: "Weak enemy 2 (1 HP)|memory 1 at 0x6CC2E4 (i32)" } });
+    expect(await within(panel).findByText(/3 places 0xD90 apart/)).toBeInTheDocument();
+    expect(within(panel).getByText(/never above 1/)).toBeInTheDocument();
+    // Locking it sends how it keeps the number.
+    fireEvent.click(within(panel).getAllByRole("button", { name: "Lock" })[1]!);
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("web_call", expect.objectContaining({ method: "lock", args: expect.objectContaining({ how: "atMost" }) })));
+  });
+
+  it("asks the AI about the cheats, or to fix one, while playing (v1.31.0)", async () => {
+    saved = [{ name: "Infinite pistol ammo", target: memTarget, value: 99 }];
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) =>
+      cmd === "ai_status"
+        ? Promise.resolve({ available: true, problem: null, running: false, transcript: [], signedIn: true, download: "notNeeded", installing: false })
+        : base(cmd, args),
+    );
+    render(<WebGamesView />);
+    fireEvent.click(await screen.findByRole("button", { name: "Play Web Testbed" }));
+    const panel = await screen.findByRole("region", { name: "Cheats for Web Testbed" });
+    fireEvent.click(await within(panel).findByRole("button", { name: "Fix Infinite pistol ammo with AI" }));
+    const helper = await within(panel).findByRole("region", { name: "AI helper" });
+    fireEvent.change(await within(helper).findByLabelText("What's wrong"), { target: { value: "not the shotgun" } });
+    fireEvent.click(within(helper).getByRole("button", { name: "Fix it now" }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("ai_start", {
+        request: expect.objectContaining({ pid: 0, task: "webTrainer", webGame: "testbed-1", wishes: [], webFix: { cheat: "Infinite pistol ammo", problem: "not the shotgun" } }),
+      }),
+    );
+    fireEvent.click(within(panel).getByRole("button", { name: "Ask the AI" }));
+    const ask = await within(panel).findByRole("region", { name: "AI helper" });
+    expect(await within(ask).findByText("What do you want, or what are you stuck on?")).toBeInTheDocument();
   });
 
   it("lists web cheats from the community and gets them", async () => {

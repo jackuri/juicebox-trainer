@@ -40,7 +40,7 @@ use crate::web::{WebCheat, WebGame};
 
 /// The page calls the AI helper may make.
 pub const AI_CALLS: &[&str] = &[
-    "info", "names", "find", "next", "results", "read", "set", "lock", "unlock", "near",
+    "info", "names", "find", "next", "results", "read", "places", "set", "lock", "unlock", "near",
 ];
 /// Longest request (a list of cheats is the biggest).
 const MAX_LINE: u64 = 1 << 20;
@@ -51,7 +51,13 @@ pub trait Game: Send + Sync + 'static {
     /// The address the game window shows now.
     fn page_url(&self) -> Option<String>;
     fn call(&self, method: &str, args: &Value) -> Result<Value, String>;
-    fn add_cheats(&self, id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String>;
+    /// Adds cheats; `replace` names the player's cheats they replace (v1.31.0).
+    fn add_cheats(
+        &self,
+        id: &str,
+        cheats: &[WebCheat],
+        replace: &[String],
+    ) -> Result<(usize, usize), String>;
     /// A picture of the game window: `{ png (base64), width, height }`.
     fn screenshot(&self) -> Result<Value, String>;
 }
@@ -164,7 +170,15 @@ impl Session {
                 if cheats.is_empty() {
                     return Err("no cheats to save".into());
                 }
-                let (added, skipped) = self.game.add_cheats(&open.id, &cheats)?;
+                let replace: Vec<String> = req
+                    .args
+                    .get("replace")
+                    .filter(|v| !v.is_null())
+                    .map(|v| serde_json::from_value(v.clone()))
+                    .transpose()
+                    .map_err(|e| format!("replace: {e}"))?
+                    .unwrap_or_default();
+                let (added, skipped) = self.game.add_cheats(&open.id, &cheats, &replace)?;
                 Ok(json!({ "added": added, "skipped": skipped }))
             }
             call if AI_CALLS.contains(&call) => {
@@ -180,15 +194,21 @@ impl Session {
         }
     }
 
-    /// Keeps a place's value before the helper first changes it.
+    /// Keeps a place's value before the helper first changes it: for a
+    /// group, each of its places with its own value (v1.31.0).
     fn remember(&self, target: Option<&Value>) {
         let Some(t) = target else { return };
-        if self.journal().iter().any(|(x, _)| x == t) {
+        let Ok(places) = self.game.call("places", &json!({ "target": t })) else {
             return;
-        }
-        let read = self.game.call("read", &json!({ "targets": [t] }));
-        if let Some(v) = read.ok().and_then(|r| r.get(0)?.get("value")?.as_f64()) {
-            self.journal().push((t.clone(), v));
+        };
+        for p in places.as_array().into_iter().flatten() {
+            let (Some(place), Some(v)) = (p.get("target"), p.get("value").and_then(Value::as_f64))
+            else {
+                continue;
+            };
+            if !self.journal().iter().any(|(x, _)| x == place) {
+                self.journal().push((place.clone(), v));
+            }
         }
     }
 
@@ -320,8 +340,13 @@ impl Game for AppGame {
     fn call(&self, method: &str, args: &Value) -> Result<Value, String> {
         crate::web::call_blocking(&self.0, method, args).map_err(|e| e.message)
     }
-    fn add_cheats(&self, id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String> {
-        let r = crate::web::add_cheats(id, cheats).map_err(|e| e.message)?;
+    fn add_cheats(
+        &self,
+        id: &str,
+        cheats: &[WebCheat],
+        replace: &[String],
+    ) -> Result<(usize, usize), String> {
+        let r = crate::web::add_cheats(id, cheats, replace).map_err(|e| e.message)?;
         // The cheats panel shows them right away.
         let _ = self.0.emit("web-cheats-changed", id);
         Ok(r)
@@ -388,6 +413,9 @@ mod tests {
             let mut page = self.page.lock().unwrap();
             Ok(match method {
                 "read" => json!([{ "value": page[key(&args["targets"][0])] }]),
+                "places" => {
+                    json!([{ "target": args["target"], "value": page[key(&args["target"])] }])
+                }
                 "set" | "lock" => {
                     page[key(&args["target"])] = args["value"].clone();
                     if method == "lock" {
@@ -407,7 +435,12 @@ mod tests {
                 _ => json!({ "did": method }),
             })
         }
-        fn add_cheats(&self, _id: &str, cheats: &[WebCheat]) -> Result<(usize, usize), String> {
+        fn add_cheats(
+            &self,
+            _id: &str,
+            cheats: &[WebCheat],
+            _replace: &[String],
+        ) -> Result<(usize, usize), String> {
             self.saved.lock().unwrap().extend_from_slice(cheats);
             Ok((cheats.len(), 0))
         }

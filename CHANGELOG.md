@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.31.0] - 2026-11-12
+
+### Added
+- **Ask the AI from your web game's cheats.** In a web game's cheats, **Ask the AI** lets you tell
+  the AI helper what you want or what you're stuck on (for example "put my Weak enemy cheats
+  together into one that keeps every zombie at 1 HP"), and every cheat has **Fix with AI**. Keep
+  playing while it works: your locks stay on. It may change or put together the cheats you asked
+  about; the old list is kept as a backup.
+- **One cheat for many of the same thing.** A web cheat can cover a whole list, like every
+  zombie's health. **Combine…** in your cheats puts several together (tick them, then **Combine
+  into one**) when they're evenly spaced in the game's memory, or differ in one part of their
+  JavaScript name. The AI helper can make them too, and find every slot of the list.
+- **Never above / never below.** A lock can keep a number at most or at least at its value
+  instead of exactly at it. For enemies' health, "never above 1" lowers them to 1 but leaves dead
+  ones dead. Combining picks it by itself when it lowers the number.
+
+### Changed
+- The practice web game has zombies (a list of 8 slots) for testing.
+- The guide's play-fair note for web games now matches the app (alone, with friends, or online
+  games without anti-cheat).
+
 ## [1.30.0] - 2026-11-12
 
 ### Added

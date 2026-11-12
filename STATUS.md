@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.30.0_
+_Last updated: 2026-11-12 — v1.31.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -352,6 +352,12 @@ _Last updated: 2026-11-12 — v1.30.0_
   tested 1.26's instant cheats on Species: Unknown (2026-11-12): made instantly; health kept but
   explosions still hurt; ammo only for the starting revolver; jump cheats useless (no jumping). Pushed and tagged
   2026-11-12 (CI and Release green, installer published).
+
+- v1.31.0 Web cheat groups + AI from the web cheats: one web cheat can cover a list (memory every /
+  count, or `*` in a JavaScript path), locks can keep a number never above / never below, Combine…
+  puts the player's cheats together, and Ask the AI / Fix with AI work from a web game's cheats
+  (the helper may replace the cheats the player asked about; backup kept). User's request after
+  Outbreak (five Weak enemy cheats 0xD90 apart).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

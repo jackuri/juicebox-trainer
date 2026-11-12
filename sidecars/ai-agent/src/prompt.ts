@@ -50,6 +50,13 @@ Steps for each cheat the player wants:
 
 Then build a pack: game.id a lowercase slug of the exe name, game.exe the exe name, meta.author "ai", packVersion "0.1.0", value cheats with the address and type. pack_validate, then pack_try and cheat_set each cheat (only tried cheats are saved), revert_all, pack_write, note_save. Finish with two sentences: which cheats work and that the pack is in Cheats (Trainer tab, Load).`;
 
+/** Added for a web game's cheats the player wants fixed or changed (v1.31.0). */
+export const WEB_LIVE_NOTE = `The player asked you from their cheats for this web game: they're playing it right now, and want one of their cheats fixed, cheats changed or combined, or a new one. Be quick.
+- known_cheats shows their cheats (yourCheats). Their own locks stay as they are: you can't touch them.
+- To fix a cheat: check its place with web_read and web_set or web_lock, look at the game (web_screenshot), and find out why it doesn't work (another place, a value per weapon or level, a list of them).
+- To change or combine cheats (for example several "Weak enemy" cheats into one for every enemy), make the new cheat with a group place, test it, then save it with web_cheats_save and "replace" listing the names of the player's cheats it replaces. Replace only what the player asked about.
+- Then revert_all and finish in one or two sentences: what changed, and that the cheats are in the game's cheats now.`;
+
 /** Added while the player plays with their cheats on (v1.30.0). */
 export const LIVE_NOTE = `Right now the player is playing, with their cheat pack loaded in JuiceBox Trainer, and wants you to fix a cheat or add one on the spot. Be quick: they're in the game.
 - known_cheats shows their pack as playingNow. Cheats that are on in the app stay on: never load them with pack_try or change them (the tools refuse). The cheat you're fixing was turned off for you.
@@ -85,6 +92,7 @@ How to work:
    a. Try web_names first with a few words for it, e.g. "hp|health|life", "gold|coin|money|cash", "ammo|bullet|clip", "xp|exp|level", "time|timer", "speed". When a likely value's number matches what the player sees (ask for the number with kind "text" if you need it), check it (step 3). This is quick and gives stable cheats.
    b. Otherwise search: ask for the number the player sees (kind "text"), web_find it, ask the player to make it change in the game (kind "done", e.g. "Spend or earn some gold, then press Done."), ask for the new number (kind "text") and web_next with how "equals". Repeat until a few places remain. If nothing is found, try kind "any" (games often keep whole numbers as decimals), or "increased" / "decreased" when the player can't read the exact number. For a bar with no number, look for the number elsewhere (a stats or shop screen), or use web_names.
 3. Check a place: web_set it to a clearly different number and look with web_screenshot (or ask, kind "yesno": "Does your gold now show 12345?"). When the picture shows the numbers, read them yourself instead of asking the player to type them. Once you found one value, call web_near on it: the numbers next to it often belong together (max health, stamina, ammo), so other cheats may need no new search. If not, try the next place. For a "never goes down" cheat, web_lock it and ask the player to take a little damage or spend (kind "yesno": "Did your health stay full?"). Then web_unlock.
+   Many of the same thing (every enemy's health, every gun's ammo) can be one cheat with a group place. In a memory, look at where you found them: places the same distance apart (for example 0x6CB554, 0x6CC2E4, 0x6CD074 are 0xD90 apart) are a list of the same kind of thing. Check a few slots with web_read (the values look alike), then use off of the first, every (the distance) and count (how many slots; check the last ones still look alike, and don't run past the list). In JavaScript, a "*" in the path covers every item of a list (["game","zombies","*","hp"]). For enemies' health, lock it with how "atMost" and save it with keep "atMost", so dead enemies stay dead.
 4. Prefer a JavaScript place when both kinds work: it survives reloads. A memory place can move when the page reloads or a new level starts; if it's the only one, ask the player to reload the page (kind "done"), call web_game again, web_read the place and check it still holds the number. If it moved, tell the player that cheat may need finding again after a reload.
 5. Save the cheats that worked with web_cheats_save: a plain English name each ("Infinite health", "Lots of gold"), the value (e.g. full health, 99999 gold), and a key only if the player asked for one. Locking is the default; use keyDoes "set" for one-time cheats like "Add gold" when it has a key. Only places you tried with web_set or web_lock in this session are saved. Then revert_all, and keep a short note for next time with note_save (where the values were, their types, what didn't work; no personal details).
 6. Finish with two or three sentences: which cheats work, and that they're in Web games, in the game's cheats, where Lock and Set (or their keys) turn them on.
@@ -109,9 +117,12 @@ export function kickoff(start: StartMessage): string {
     ? start.wishes.map((w) => `- ${w}`).join("\n")
     : "- whatever is easy to find (health, money, ammo)";
   if (start.task === "webTrainer") {
+    const f = start.webLive?.fixing;
     return [
       `Web game: ${start.game.name}${start.web ? ` (${start.web.url})` : ""}, open in JuiceBox Trainer's game window.`,
-      `The player wants:\n${wishes}`,
+      f
+        ? `Fix their cheat "${f.name}".${f.problem.trim() ? ` What the player says: ${f.problem.trim()}` : ""}`
+        : `The player wants:\n${wishes}`,
       start.notes?.trim() ? `The player's note: ${start.notes.trim()}` : "",
       "Start with web_game.",
     ]

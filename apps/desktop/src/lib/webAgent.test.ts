@@ -178,4 +178,47 @@ describe("web game helper", () => {
     call("unlock", {});
     window.removeEventListener("keydown", game);
   });
+
+  it("keeps every place of a group, only lowering it when asked (v1.31.0)", async () => {
+    // Five enemies in memory, 0x40 apart: health 30, 0 (dead), 30, 2, 30.
+    const hp = [30, 0, 30, 2, 30];
+    hp.forEach((v, i) => view().setInt16(0x3000 + i * 0x40, v, true));
+    const group = { k: "m", mem: 0, label: "m", size: 65536, off: 0x3000, t: "i16", every: 0x40, count: 5 };
+    expect(call("read", { targets: [group] }).ok).toEqual([{ value: 30 }]);
+    expect(call("lock", { id: "weak", target: group, value: 1, how: "atMost" }).ok).toEqual({ locked: 1 });
+    const now = () => hp.map((_, i) => view().getInt16(0x3000 + i * 0x40, true));
+    expect(now()).toEqual([1, 0, 1, 1, 1]);
+    // A new enemy in a slot: the lock lowers it too; the dead one stays dead.
+    view().setInt16(0x3000 + 2 * 0x40, 50, true);
+    await new Promise((r) => setTimeout(r, 250));
+    expect(now()).toEqual([1, 0, 1, 1, 1]);
+    call("unlock", { id: "weak" });
+    // Set changes every place.
+    call("set", { target: group, value: 7 });
+    expect(now()).toEqual([7, 7, 7, 7, 7]);
+    // Each place with its own value, for undoing one by one.
+    const each = call("places", { target: group }).ok as unknown as { target: { off: number }; value: number }[];
+    expect(each.map((p) => [p.target.off, p.value])).toEqual([0x3000, 0x3040, 0x3080, 0x30c0, 0x3100].map((o) => [o, 7]));
+    // Past the end of the memory: the places that are there still count.
+    const edge = { ...group, off: 65536 - 0x40, count: 3 };
+    expect(call("set", { target: edge, value: 3 }).ok).toEqual({ value: 3 });
+
+    // In JavaScript, a "*" is every item of a list.
+    const w = window as unknown as { zombies: { hp: number }[] };
+    w.zombies = [{ hp: 20 }, { hp: 0 }, { hp: 35 }];
+    const all = { k: "j", path: ["zombies", "*", "hp"] };
+    call("lock", { id: "z", target: all, value: 1, how: "atMost" });
+    expect(w.zombies.map((z) => z.hp)).toEqual([1, 0, 1]);
+    w.zombies.push({ hp: 40 });
+    await new Promise((r) => setTimeout(r, 250));
+    expect(w.zombies.map((z) => z.hp)).toEqual([1, 0, 1, 1]);
+    // Never below: raises only.
+    call("unlock", {});
+    call("lock", { id: "z2", target: all, value: 5, how: "atLeast" });
+    expect(w.zombies.map((z) => z.hp)).toEqual([5, 5, 5, 5]);
+    call("unlock", {});
+    expect(call("near", { target: all }).ok).toBeDefined();
+    w.zombies = [];
+    expect(call("lock", { id: "none", target: all, value: 1 }).error).toMatch(/isn't there/);
+  });
 });

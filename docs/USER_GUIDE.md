@@ -328,6 +328,18 @@ numbers.
 6. Or let the AI helper look: with the game open, click **Find cheats with AI**, tick what you'd
    like and click **Start**. It may ask you to read a number or do something in the game, then
    adds the cheats that work to the game's cheats. Keep the game window open while it works.
+7. **Ask the AI** (in the game's cheats) lets you tell the helper what you want or what you're
+   stuck on, in your own words, while you play. **Fix with AI** next to a cheat asks it to fix
+   that one. Your locks stay on while it works. It may change or put together the cheats you
+   asked about (the old list is kept as a backup), and you can type to it while it works.
+
+**One cheat for many of the same thing.** Found several cheats for the same kind of thing, like
+"Weak enemy 1", "Weak enemy 2"…? Click **Combine…**, tick them and click **Combine into one**. It
+works when they sit evenly spaced in the game's memory (a list of enemies) or differ in one part
+of their name. Name it, choose how its lock keeps the number, and save. **Never above** lowers a
+number but never raises it: right for enemies' health, so dead ones stay dead. A combined cheat
+covers the places you found and the ones between them; to cover every enemy in the game, ask the
+AI.
 
 ### Star ratings
 
@@ -360,8 +372,9 @@ on the list within the hour.
 Only add cheat files from people you trust. Web cheats aren't listed for competitive games
 (ranked, PvP, leaderboards) or games with items that can be traded for real money.
 
-**Play fair:** only use cheats alone or in a private game with friends you invited, never with
-strangers or in public matches. Other players can report you and sites can ban accounts.
+**Play fair:** cheats are fine alone, with friends, or in online games that have no anti-cheat.
+Please don't spoil other players' fun in public, competitive or ranked matches: other players can
+report you and sites can ban accounts.
 
 Games inside another site's frame, or running in a background worker, may not show their numbers
 yet. If a game is updated, find its values again.

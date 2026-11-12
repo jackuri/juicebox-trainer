@@ -267,8 +267,13 @@ export interface WebGame {
 export type NumType = "u8" | "i16" | "i32" | "f32" | "f64";
 /** Where a number lives in a web game: a page memory, or a JavaScript value by its path. */
 export type WebTarget =
-  | { k: "m"; mem: number; label: string; size: number; off: number; t: NumType }
+  /** `every` and `count`: a group of places the same distance apart (v1.31.0). */
+  | { k: "m"; mem: number; label: string; size: number; off: number; t: NumType; every?: number; count?: number }
+  /** A "*" in the path: every item of the list there (v1.31.0). */
   | { k: "j"; path: string[] };
+
+/** How a lock keeps its number (v1.31.0): at it, never above it, never below it. */
+export type Keep = "at" | "atMost" | "atLeast";
 
 export interface WebCheat {
   name: string;
@@ -278,6 +283,8 @@ export interface WebCheat {
   key?: string | null;
   /** What the key does: lock / unlock (the default), or set the value once. */
   keyDoes?: "lock" | "set" | null;
+  /** How its lock keeps the number (at it when absent, v1.31.0). */
+  keep?: Keep | null;
 }
 
 /** A web game's cheats as a file or on the community list (v1.19.0). */
@@ -312,6 +319,7 @@ export interface WebKey {
   does: "lock" | "set";
   target: WebTarget;
   value: number | null;
+  how?: Keep;
 }
 
 export interface WebHit {
@@ -1175,6 +1183,8 @@ export interface AiStartRequest {
   notes: string;
   /** Fix a cheat (or add new ones) while the player plays with this pack loaded (v1.30.0). */
   live?: LiveRequest;
+  /** A web game's cheats: fix one (by name) or change or add some; the helper may replace them (v1.31.0). */
+  webFix?: { cheat?: string; problem?: string };
   backend: "subscription" | "apiKey" | "local";
   maxBudgetUsd: number;
   /** For "local": Ollama (http://localhost:11434) or LM Studio (http://localhost:1234). */
@@ -1369,7 +1379,8 @@ export const api = {
   webResults: () => invoke<WebSearch>("web_call", { method: "results", args: null }),
   webRead: (targets: WebTarget[]) => invoke<{ value?: number; error?: string }[]>("web_call", { method: "read", args: { targets } }),
   webSet: (target: WebTarget, value: number) => invoke<{ value: number }>("web_call", { method: "set", args: { target, value } }),
-  webLock: (id: string, target: WebTarget, value: number) => invoke<unknown>("web_call", { method: "lock", args: { id, target, value } }),
+  webLock: (id: string, target: WebTarget, value: number, how?: Keep | null) =>
+    invoke<unknown>("web_call", { method: "lock", args: { id, target, value, how: how ?? "at" } }),
   webUnlock: (id?: string) => invoke<unknown>("web_call", { method: "unlock", args: { id: id ?? null } }),
   webKeys: (list: WebKey[], tag: string) => invoke<unknown>("web_call", { method: "keys", args: { list, tag } }),
   webState: () => invoke<WebState>("web_call", { method: "state", args: null }),

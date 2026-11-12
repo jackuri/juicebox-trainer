@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, onWebCheatsChanged, onWebGameProblem, type Problem, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { api, type Keep, onWebCheatsChanged, onWebGameProblem, type Problem, type WebCheat, type WebGame, type WebInfo, type WebSearch, type WebTarget } from "../lib/ipc";
+import { LiveHelper } from "./LiveHelper";
 import { friendlyError } from "../lib/explain";
 import { ProblemCard } from "./ProblemCard";
 import { keyFromEvent } from "../lib/keys";
-import { keysFor, lockId, where } from "../lib/webCheats";
+import { combine, combinedName, keepWords, keysFor, lockId, where } from "../lib/webCheats";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const field = "rounded-lg bg-zinc-950 px-2 py-1 text-sm outline-none ring-1 ring-zinc-800 focus:ring-emerald-600";
@@ -34,6 +35,11 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
   const [pageProblem, setPageProblem] = useState<Problem | null>(null);
   /** Bumped by Reload game, to wait for the page again. */
   const [reloads, setReloads] = useState(0);
+  /** The AI helper here (v1.31.0): fixing a cheat (by name), or anything the player asks. */
+  const [helper, setHelper] = useState<{ fix: string | null } | null>(null);
+  /** Putting cheats together (v1.31.0): the ticked rows, then the new cheat's name and how it keeps its number. */
+  const [combining, setCombining] = useState<Set<number> | null>(null);
+  const [merged, setMerged] = useState<{ name: string; keep: Keep } | null>(null);
   useEffect(() => onWebGameProblem(setPageProblem), []);
   async function reload() {
     try {
@@ -80,11 +86,23 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
       (c) => live && setCheats(Array.isArray(c) ? c : []),
       () => undefined,
     );
-    // The AI helper saved cheats for this game: show them.
+    // The AI helper saved cheats for this game: show them. Locks of cheats it replaced are lifted.
     const stop = onWebCheatsChanged((id) => {
       if (id !== game.id) return;
       api.webCheats(game.id).then(
-        (c) => live && setCheats(Array.isArray(c) ? c : []),
+        (c) => {
+          const list = Array.isArray(c) ? c : [];
+          if (live) setCheats(list);
+          const ids = new Set(list.map(lockId));
+          api.webState().then(
+            (st) => {
+              for (const l of Array.isArray(st?.locks) ? st.locks : []) {
+                if (!l.startsWith("ai:") && !ids.has(l)) api.webUnlock(l).catch(() => undefined);
+              }
+            },
+            () => undefined,
+          );
+        },
         () => undefined,
       );
     });
@@ -146,6 +164,30 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
     setCheats(list);
   }
 
+  const ticked = combining ? cheats.filter((_, i) => combining.has(i)) : [];
+  const together = combining ? combine(ticked) : null;
+  function startMerge() {
+    if (!together || "why" in together) return;
+    const first = ticked[0]!;
+    const now = [...combining!].map((i) => values[i]).filter((x): x is number => typeof x === "number");
+    // Lowering things (enemies' health): keep them at most at it, so dead ones stay dead.
+    const lowers = first.value != null && now.length > 0 && now.every((x) => x > first.value!);
+    setMerged({ name: combinedName(first.name), keep: lowers ? "atMost" : "at" });
+  }
+  async function saveMerged() {
+    if (!together || "why" in together || !merged || !combining) return;
+    const first = ticked[0]!;
+    for (const c of ticked) {
+      if (locked.has(lockId(c))) await api.webUnlock(lockId(c));
+    }
+    const at = Math.min(...combining);
+    const one: WebCheat = { name: merged.name.trim(), target: together.target, value: first.value ?? null, keep: merged.keep };
+    const rest = cheats.filter((_, i) => !combining.has(i));
+    await saveCheats([...rest.slice(0, at), one, ...rest.slice(at)]);
+    setCombining(null);
+    setMerged(null);
+  }
+
   const v = num(value);
   return (
     <section className="flex flex-col gap-4 rounded-2xl bg-zinc-900/70 p-4 ring-1 ring-emerald-800/60" aria-label={`Cheats for ${game.name}`}>
@@ -165,8 +207,15 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
             Look again
           </button>
         )}
+        <button
+          className={`${button} ml-auto bg-violet-900/60 text-violet-100 ring-1 ring-violet-700 hover:bg-violet-800/60`}
+          title="Tell the AI what you want, or what you're stuck on, while you play"
+          onClick={() => setHelper({ fix: null })}
+        >
+          Ask the AI
+        </button>
         {onOpenAi && (
-          <button className={`${button} ml-auto bg-emerald-800 hover:bg-emerald-700`} onClick={onOpenAi}>
+          <button className={`${button} bg-emerald-800 hover:bg-emerald-700`} onClick={onOpenAi}>
             Find cheats with AI
           </button>
         )}
@@ -275,8 +324,80 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
         )}
       </div>
 
+      {helper && (
+        <LiveHelper
+          key={helper.fix ?? "ask"}
+          webGame={game.id}
+          fix={helper.fix ? { id: helper.fix, name: helper.fix } : null}
+          onClose={() => setHelper(null)}
+          onOpenAi={onOpenAi}
+        />
+      )}
+
       <div className="flex flex-col gap-2" aria-label="My cheats">
-        <p className="text-sm font-medium">My cheats for this game</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-sm font-medium">My cheats for this game</p>
+          {cheats.length >= 2 && !combining && (
+            <button className={`${button} ml-auto`} title="Put several cheats for the same kind of thing into one" onClick={() => setCombining(new Set())}>
+              Combine…
+            </button>
+          )}
+        </div>
+        {combining && (
+          <div className="flex flex-col gap-2 rounded-lg bg-zinc-950/60 p-2 text-sm" role="group" aria-label="Combine cheats">
+            {!merged ? (
+              <>
+                <p className="text-xs text-zinc-300">
+                  Tick the cheats for the same kind of thing (like every &ldquo;Weak enemy&rdquo;), then put them together into one cheat
+                  that changes them all.
+                </p>
+                {together && "why" in together && ticked.length > 0 && <p className="text-xs text-amber-300">{together.why}</p>}
+                <div className="flex gap-2">
+                  <button
+                    className="btn-accent rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-40"
+                    disabled={!together || "why" in together}
+                    onClick={startMerge}
+                  >
+                    Combine {ticked.length || ""} into one
+                  </button>
+                  <button className={button} onClick={() => setCombining(null)}>
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <label className="flex flex-wrap items-center gap-2">
+                  Name:
+                  <input aria-label="Combined cheat name" className={field} maxLength={80} value={merged.name} onChange={(e) => setMerged({ ...merged, name: e.target.value })} />
+                </label>
+                <label className="flex flex-wrap items-center gap-2">
+                  Its lock:
+                  <select aria-label="How the lock keeps the number" className={field} value={merged.keep} onChange={(e) => setMerged({ ...merged, keep: e.target.value as Keep })}>
+                    <option value="at">keeps it at {ticked[0]?.value ?? "its value"}</option>
+                    <option value="atMost">never lets it go above {ticked[0]?.value ?? "its value"} (only lowers it)</option>
+                    <option value="atLeast">never lets it go below {ticked[0]?.value ?? "its value"} (only raises it)</option>
+                  </select>
+                </label>
+                {together && !("why" in together) && (
+                  <p className="text-xs text-zinc-400">
+                    One cheat for {together.places} places{together.places > ticked.length ? " (with the ones between yours)" : ""}.
+                    {merged.keep === "atMost" ? " Only lowering it means dead enemies stay dead." : ""} To cover every one in the game, not just
+                    these, use Ask the AI.
+                  </p>
+                )}
+                <div className="flex gap-2">
+                  <button className="btn-accent rounded-lg px-3 py-1 text-xs font-semibold disabled:opacity-40" disabled={busy || !merged.name.trim()} onClick={() => void run(saveMerged)}>
+                    Save the combined cheat
+                  </button>
+                  <button className={button} onClick={() => setMerged(null)}>
+                    Back
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
         {cheats.length === 0 ? (
           <p className="text-xs text-zinc-500">None yet. Find a value above and click “Add to my cheats”.</p>
         ) : (
@@ -287,9 +408,23 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
               const typed = num(inputs[i] ?? "");
               return (
                 <li key={id} className="flex flex-wrap items-center gap-2 rounded bg-zinc-950/60 px-2 py-1.5 text-sm">
+                  {combining && !merged && (
+                    <input
+                      type="checkbox"
+                      aria-label={`Combine ${c.name}`}
+                      checked={combining.has(i)}
+                      onChange={(e) => {
+                        const s = new Set(combining);
+                        if (e.target.checked) s.add(i);
+                        else s.delete(i);
+                        setCombining(s);
+                      }}
+                    />
+                  )}
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">{c.name}</span>{" "}
                     <span className="text-xs text-zinc-500">{where(c.target)}</span>
+                    {keepWords(c.keep, c.value) && <span className="ml-1 text-xs text-sky-300">· {keepWords(c.keep, c.value)}</span>}
                   </span>
                   <span className="w-20 text-right font-mono" aria-label={`${c.name} value`}>
                     {show(values[i])}
@@ -327,7 +462,7 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
                           await api.webUnlock(id);
                           s.delete(id);
                         } else {
-                          await api.webLock(id, c.target, (typed ?? c.value ?? values[i])!);
+                          await api.webLock(id, c.target, (typed ?? c.value ?? values[i])!, c.keep);
                           s.add(id);
                         }
                         setLocked(s);
@@ -369,6 +504,9 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
                       </option>
                     </select>
                   )}
+                  <button className="text-xs text-violet-300 hover:text-violet-200" aria-label={`Fix ${c.name} with AI`} onClick={() => setHelper({ fix: c.name })}>
+                    Fix with AI
+                  </button>
                   <button
                     className="text-xs text-zinc-500 hover:text-red-300"
                     aria-label={`Remove ${c.name}`}
