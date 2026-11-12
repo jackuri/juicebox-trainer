@@ -334,7 +334,7 @@ _Last updated: 2026-11-12 — v1.27.1_
 
 - v1.27.1 Fix: the window went blank while finding a value in a web game once a result's value was
   gone (user's report on Outbreak; reproduced with the testbed web game's weapon swap). Gone values
-  show "?"; every view is wrapped in an error boundary with Try again.
+  show "?"; every view is wrapped in an error boundary with Try again. Pushed and tagged 2026-11-12.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
