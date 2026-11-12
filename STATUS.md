@@ -313,7 +313,8 @@ _Last updated: 2026-11-11 — v1.25.0_
 
 - v1.25.0 Community growth (idea 2 of 3): Share with everyone after the AI helper succeeds; Ask the
   community for cheats on games without any (GitHub request form) and Most wanted in Packs
-  (community repo builds wanted.json from "request" issues hourly).
+  (community repo builds wanted.json from "request" issues hourly). Pushed and tagged 2026-11-11;
+  "request" label created on juicebox-packs, Most wanted workflow ran OK.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
