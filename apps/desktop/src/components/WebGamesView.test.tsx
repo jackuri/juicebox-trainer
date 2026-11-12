@@ -88,12 +88,45 @@ describe("WebGamesView", () => {
   it("warns to play fair, adds a game by its address and refuses nothing silently", async () => {
     invoke.mockImplementationOnce(() => Promise.resolve([]));
     render(<WebGamesView />);
-    expect(screen.getByRole("note")).toHaveTextContent("only use cheats when you play alone, or in a private game with friends you invited");
+    expect(screen.getByRole("note")).toHaveTextContent("cheats are fine when you play alone, with friends, or in online games that have no anti-cheat");
     expect(await screen.findByText(/None yet/)).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Game name"), { target: { value: "Web Testbed" } });
     fireEvent.change(screen.getByLabelText("Web address"), { target: { value: "http://127.0.0.1:8080/" } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
     await waitFor(() => expect(invoke).toHaveBeenCalledWith("web_game_add", { name: "Web Testbed", url: "http://127.0.0.1:8080/" }));
+  });
+
+  it("keeps working when a found value goes away (a swapped weapon): it shows ? (v1.27.1)", async () => {
+    const gone = (value: unknown) => ({
+      count: 2,
+      tooMany: false,
+      results: [
+        { id: 0, target: { k: "j", path: ["game", "player", "weapon", "rockets"] }, where: "game.player.weapon.rockets", value },
+        { id: 1, target: memTarget, where: "memory 1 at 0x1000 (i32)" },
+      ],
+    });
+    const base = invoke.getMockImplementation()!;
+    invoke.mockImplementation((cmd: string, args?: Record<string, unknown>) => {
+      const method = (args as { method?: string } | undefined)?.method;
+      // What 1.27.0's page helper sent for a gone value (NaN arrives as null), then nothing at all.
+      if (cmd === "web_call" && method === "next") return Promise.resolve(gone(null));
+      if (cmd === "web_call" && method === "results") return Promise.resolve(gone("empty"));
+      return base(cmd, args);
+    });
+    render(<WebGamesView />);
+    fireEvent.click(await screen.findByRole("button", { name: "Play Web Testbed" }));
+    const panel = await screen.findByRole("region", { name: "Cheats for Web Testbed" });
+    await within(panel).findByText("1 game memory found");
+    fireEvent.change(within(panel).getByLabelText("Value"), { target: { value: "7" } });
+    fireEvent.click(within(panel).getByRole("button", { name: "Find" }));
+    await within(panel).findByText(/2 found/);
+    fireEvent.click(within(panel).getByRole("button", { name: "Changed" }));
+    const results = await within(panel).findByRole("list", { name: "Results" });
+    await waitFor(() => expect(within(results).getAllByText("?")).toHaveLength(2));
+    expect(within(results).getByText("game.player.weapon.rockets")).toBeInTheDocument();
+    // The list refreshes every second; still no crash.
+    await new Promise((r) => setTimeout(r, 1200));
+    expect(screen.getByRole("region", { name: "Cheats for Web Testbed" })).toBeInTheDocument();
   });
 
   it("opens a game, finds a value, narrows it, saves it and sets it", async () => {

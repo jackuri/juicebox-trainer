@@ -10,6 +10,7 @@ import { ProblemCard } from "./components/ProblemCard";
 import { Icon, Logo } from "./components/Icon";
 import { useSeason } from "./lib/mascot";
 import { LibraryView } from "./components/LibraryView";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { type OpenFile, PacksView } from "./components/PacksView";
 import { ProcessList } from "./components/ProcessList";
 import { SavesView } from "./components/SavesView";
@@ -308,6 +309,7 @@ export default function App() {
           </div>
         )}
       </div>
+      <ErrorBoundary key={view}>
       {view === "games" ? (
         <LibraryView
           onOpenAi={() => setView("ai")}
@@ -452,6 +454,7 @@ export default function App() {
           </main>
         </div>
       )}
+      </ErrorBoundary>
       </div>
     </div>
   );

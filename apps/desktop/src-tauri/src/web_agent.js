@@ -290,8 +290,23 @@
     const count = hitCount();
     const list = [];
     for (let n = 0; n < Math.min(count, 100); n++) {
-      const target = targetOf(n);
-      list.push({ id: n, target, where: where(target), value: hitValue(n) });
+      // A value can be gone by now (a swapped weapon, a used-up item, a new level): it is shown
+      // as "?" (no value) instead of failing the whole list. NaN would arrive as null.
+      let target;
+      let value;
+      try {
+        target = targetOf(n);
+      } catch {
+        continue;
+      }
+      try {
+        value = hitValue(n);
+      } catch {
+        value = NaN;
+      }
+      const hit = { id: n, target, where: where(target) };
+      if (typeof value === "number" && Number.isFinite(value)) hit.value = value;
+      list.push(hit);
     }
     return { count, tooMany, results: list };
   }

@@ -318,7 +318,8 @@ export interface WebHit {
   id: number;
   target: WebTarget;
   where: string;
-  value: number;
+  /** Missing when the value is gone right now (a swapped weapon, a new level). */
+  value?: number;
 }
 
 export interface WebSearch {

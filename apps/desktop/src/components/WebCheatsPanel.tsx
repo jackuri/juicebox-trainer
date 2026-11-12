@@ -14,7 +14,8 @@ const num = (s: string): number | null => {
   const n = Number(t);
   return Number.isFinite(n) ? n : null;
 };
-const show = (v: number | undefined) => (v === undefined || Number.isNaN(v) ? "?" : Number.isInteger(v) ? String(v) : v.toFixed(3));
+/** A value for the screen. The game can hand back anything (a gone value comes back empty), so only real numbers are shown. */
+const show = (v: unknown) => (typeof v !== "number" || !Number.isFinite(v) ? "?" : Number.isInteger(v) ? String(v) : v.toFixed(3));
 /** Find, change and lock numbers in the open web game; the player's saved cheats for it. */
 export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onClose: () => void; onOpenAi?: () => void }) {
   const [info, setInfo] = useState<WebInfo | null>(null);
@@ -119,7 +120,11 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
         );
       }
       const s = searchRef.current;
-      if (s && s.count > 0 && s.count <= 100) api.webResults().then(setSearch, () => undefined);
+      // Only a well-formed answer replaces the list (a reloading page can answer with anything).
+      if (s && s.count > 0 && s.count <= 100)
+        api.webResults().then((r) => {
+          if (r && typeof r.count === "number" && Array.isArray(r.results)) setSearch(r);
+        }, () => undefined);
     }, 1000);
     return () => window.clearInterval(timer);
   }, [waiting]);
@@ -232,11 +237,15 @@ export function WebCheatsPanel({ game, onClose, onOpenAi }: { game: WebGame; onC
         )}
         {search && search.count > 0 && search.count <= 100 && (
           <ul className="flex max-h-64 flex-col gap-1 overflow-y-auto" aria-label="Results">
-            {search.results.map((h) => (
+            {(Array.isArray(search.results) ? search.results : []).map((h) => (
               <li key={h.id} className="flex items-center gap-2 rounded bg-zinc-950/60 px-2 py-1 text-xs">
                 <span className="w-20 shrink-0 font-mono text-sm text-zinc-100">{show(h.value)}</span>
                 <span className="min-w-0 flex-1 truncate text-zinc-400">{h.where}</span>
-                <button className={button} onClick={() => setNaming({ target: h.target, name: `Cheat ${cheats.length + 1}`, value: h.value })}>
+                <button
+                  className={button}
+                  disabled={!h.target}
+                  onClick={() => setNaming({ target: h.target, name: `Cheat ${cheats.length + 1}`, value: typeof h.value === "number" ? h.value : NaN })}
+                >
                   Add to my cheats
                 </button>
               </li>

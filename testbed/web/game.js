@@ -1,5 +1,8 @@
 // JuiceBox Trainer's web testbed: a tiny fake game (never a real one).
 // - gold: a number in a JavaScript object (window.game.player.gold), like most HTML5 games
+// - rockets: a weapon object (window.game.player.weapon.rockets) that swapping weapons empties, like
+//   a game that clears a weapon's ammo when it's put away (v1.27.1: a search result whose value is
+//   gone must show "?", not break JuiceBox Trainer's screen)
 // - health (32-bit integer at 0x1000) and ammo (32-bit float at 0x2000): in a WebAssembly memory
 //   exported by a module, like a game built with Emscripten or a console emulator
 "use strict";
@@ -12,7 +15,7 @@ const WASM = new Uint8Array([
 const HEALTH = 0x1000;
 const AMMO = 0x2000;
 
-window.game = { player: { name: "Tester", gold: 100, level: 3 }, world: { day: 1 } };
+window.game = { player: { name: "Tester", gold: 100, level: 3, weapon: { name: "Launcher", rockets: 7 } }, world: { day: 1 } };
 
 WebAssembly.instantiate(WASM).then(({ instance }) => {
   const memory = instance.exports.mem;
@@ -24,6 +27,15 @@ WebAssembly.instantiate(WASM).then(({ instance }) => {
     document.getElementById("gold").textContent = String(window.game.player.gold);
     document.getElementById("health").textContent = String(view().getInt32(HEALTH, true));
     document.getElementById("ammo").textContent = String(view().getFloat32(AMMO, true));
+    document.getElementById("rockets").textContent = String(window.game.player.weapon.rockets);
+  };
+  document.getElementById("fire").onclick = () => {
+    window.game.player.weapon.rockets -= 1;
+    show();
+  };
+  document.getElementById("swap").onclick = () => {
+    window.game.player.weapon.rockets = null;
+    show();
   };
   document.getElementById("earn").onclick = () => {
     window.game.player.gold += 25;

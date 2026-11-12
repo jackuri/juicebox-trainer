@@ -74,9 +74,9 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
       </section>
 
       <p className="rounded-xl bg-amber-950/40 px-4 py-3 text-amber-200 ring-1 ring-amber-800/60" role="note">
-        <strong>Play fair:</strong> only use cheats when you play alone, or in a private game with friends you invited. Never in games
-        with strangers or in public matches: other players can report you, and sites can ban accounts. You agreed to this when you signed
-        JuiceBox Trainer&apos;s agreement.
+        <strong>Play fair:</strong> cheats are fine when you play alone, with friends, or in online games that have no anti-cheat.
+        Please don&apos;t spoil other players&apos; fun in public, competitive or ranked matches: other players can report you, and
+        sites can ban accounts.
       </p>
 
       {error && (

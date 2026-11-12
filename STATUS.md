@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.27.0_
+_Last updated: 2026-11-12 — v1.27.1_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -331,6 +331,10 @@ _Last updated: 2026-11-12 — v1.27.0_
   online games without anti-cheat are allowed (CLAUDE.md, agreement, About, AI prompt, docs,
   community rules); games are still refused while their anti-cheat runs. Agreement version not
   raised (the change only allows more). Pushed and tagged 2026-11-12 (both repos).
+
+- v1.27.1 Fix: the window went blank while finding a value in a web game once a result's value was
+  gone (user's report on Outbreak; reproduced with the testbed web game's weapon swap). Gone values
+  show "?"; every view is wrapped in an error boundary with Try again.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.27.1] - 2026-11-12
+
+### Fixed
+- **JuiceBox Trainer no longer goes blank while finding a value in a web game.** When only a few
+  results were left and one of them stopped being a number in the game (a swapped weapon, a used-up
+  item), the window went blank until JuiceBox Trainer was closed and opened again (reported on
+  Outbreak). Such a value now shows as "?" and searching goes on.
+- If a screen ever runs into a problem again, only that screen shows it, with **Try again**: the
+  rest of JuiceBox Trainer, your game and cheats that are on keep working.
+
+### Changed
+- The Web games tab's play-fair note follows 1.27's rule: online games without anti-cheat are fine.
+
 ## [1.27.0] - 2026-11-12
 
 ### Added
