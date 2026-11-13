@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-13 — v1.36.1_
+_Last updated: 2026-11-13 — v1.37.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -401,6 +401,11 @@ _Last updated: 2026-11-13 — v1.36.1_
   cert SHA-256 d086c409…6323) was built locally, checked on BlueStacks and uploaded with its line in
   SHA256SUMS.txt. The website shows the Android download and "1 cheat pack".
 
+- v1.37.0 Instant cheats for Unity IL2CPP games (jb-core `pe` + `unity`). Tested live on the user's Jump
+  Space (solo, Unity 6000.3.9): found game speed (UnityPlayer.dll+0x2106708 → 0x1AC), infinite health
+  (the host's `m_ServerHealth`, kept at 100) and credits in 2 s; the real app (sandboxed, e2e137.mjs)
+  made and loaded the pack, 7/7. The user confirmed game speed works; health not tried yet.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
@@ -413,8 +418,9 @@ _Last updated: 2026-11-13 — v1.36.1_
 ## Next
 - Android app, next step B (mobile cheats via the PC over ADB, BlueStacks root mode first), then C
   (AI) and D (phone alone): PLAN §10.2. Rooting steps once the user names the old phone's model.
-- Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
-  PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
+- Unity instant cheats: the user still to try Infinite health on Jump Space. Unity Mono (Come Closer is
+  Mono, but it's an adult game with no health or weapons, so not a test game) not supported yet;
+  generic singletons (`Singleton<T>.Instance`) and values only reachable through lists aren't followed.
 - 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and
   a helper that stops at once).
 - AI helpers: live Unity Mono objects by class (like `unreal_find`) need a real Unity game to test

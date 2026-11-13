@@ -1,7 +1,8 @@
 //! Instant engine cheats (v1.26.0): for an attached Unreal Engine 4.23+ / 5
-//! game, read the engine's own names and save the cheats found as the
-//! game's "instant cheats" pack (`%APPDATA%\JuiceBox Trainer\packs\engine-<exe>`),
-//! then load it. Reading only; the pack is ordinary declarative data.
+//! game (and Unity IL2CPP games, v1.37.0), read the engine's own names and save the
+//! cheats found as the game's "instant cheats" pack
+//! (`%APPDATA%\JuiceBox Trainer\packs\engine-<exe>`), then load it. Reading only; the
+//! pack is ordinary declarative data.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -81,9 +82,18 @@ fn support_for(exe: &str, arch: Arch) -> EngineSupport {
             )),
         ),
         Engine::Unreal => (true, None),
-        Engine::UnityMono | Engine::UnityIl2cpp => (
+        Engine::UnityIl2cpp if arch != Arch::X64 => (
             false,
-            Some("Instant cheats for Unity games are coming in a later version.".to_string()),
+            Some("Instant cheats need the 64-bit version of the game.".to_string()),
+        ),
+        Engine::UnityIl2cpp => (true, None),
+        Engine::UnityMono => (
+            false,
+            Some(
+                "Instant cheats work with Unity games built the newer way (IL2CPP) for now; this one \
+                 is built the older way (Mono). The AI helper and Find a value work here."
+                    .to_string(),
+            ),
         ),
         _ => (false, None),
     };
@@ -156,20 +166,32 @@ pub async fn engine_cheats_make(
     let support = support_for(&exe, p.arch());
     if !support.supported {
         return Err(fail(support.why.unwrap_or_else(|| {
-            "instant cheats work with Unreal Engine games for now".into()
+            "instant cheats work with Unreal Engine and Unity (IL2CPP) games for now".into()
         })));
     }
     let main = p.main_module()?;
     let reader_process = Arc::clone(&p);
+    let unity = detect(Path::new(&exe)).engine == Engine::UnityIl2cpp;
+    let exe_path = std::path::PathBuf::from(&exe);
     let found = tauri::async_runtime::spawn_blocking(move || {
-        let reader = jb_core::unreal::Reader::connect(reader_process)?;
-        engine_cheats::find_unreal(&reader)
+        if unity {
+            jb_core::unity::find_in_process(&reader_process, &exe_path)
+        } else {
+            let reader = jb_core::unreal::Reader::connect(reader_process)?;
+            engine_cheats::find_unreal(&reader)
+        }
     })
     .await
     .map_err(|e| fail(format!("the search stopped: {e}")))??;
-    if found.global < main.base || found.global >= main.end() {
-        return Err(fail("the engine's start point isn't inside the game's exe"));
-    }
+    let global = if unity {
+        // Unity cheats start in GameAssembly.dll / UnityPlayer.dll (each cheat says where).
+        main.base
+    } else {
+        if found.global < main.base || found.global >= main.end() {
+            return Err(fail("the engine's start point isn't inside the game's exe"));
+        }
+        found.global
+    };
     if found.cheats.is_empty() {
         return Err(fail("no instant cheats were found in this game"));
     }
@@ -183,7 +205,7 @@ pub async fn engine_cheats_make(
         engine: engine_label(info.name, info.version.as_deref()),
         created: jb_packs::share::today(),
     };
-    let pack = engine_pack(&game, found.global - main.base, &found);
+    let pack = engine_pack(&game, global - main.base, &found);
     if let Some(issue) = jb_packs::validate(&pack)
         .into_iter()
         .find(|i| i.severity == Severity::Error)

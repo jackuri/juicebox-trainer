@@ -78,6 +78,9 @@ pub struct EngineCheat {
     pub ty: ValueType,
     /// From the global ([`Found::global`]): read a pointer, add the offset, for each.
     pub offsets: Vec<i64>,
+    /// Where the path starts instead, when not at [`Found::global`] in the exe: a module
+    /// name and an offset in it (Unity: `GameAssembly.dll`, `UnityPlayer.dll`).
+    pub base: Option<(String, u64)>,
     /// Where it was found (`BP_Hero_C.Health`), for the pack's notes.
     pub found_in: String,
     /// Its value when found.
@@ -96,7 +99,7 @@ pub struct Found {
 }
 
 /// Player values looked for by name: (id, cheat name, names, names of its maximum).
-const PLAYER_VALUES: &[(&str, &str, &[&str], &[&str])] = &[
+pub(crate) const PLAYER_VALUES: &[(&str, &str, &[&str], &[&str])] = &[
     (
         "health",
         "Infinite health",
@@ -160,7 +163,7 @@ const PLAYER_VALUES: &[(&str, &str, &[&str], &[&str])] = &[
 ];
 
 /// Money looked for by name (set once, not kept).
-const MONEY: &[&str] = &[
+pub(crate) const MONEY: &[&str] = &[
     "money",
     "gold",
     "coins",
@@ -266,7 +269,7 @@ fn round_to(v: f64, step: f64) -> f64 {
 }
 
 /// A slider around the value the game uses now (`low`..`high` times it).
-fn around(now: f64, low: f64, high: f64) -> Option<Control> {
+pub(crate) fn around(now: f64, low: f64, high: f64) -> Option<Control> {
     if now.is_nan() || now <= 0.0 || now > 1e7 {
         return None;
     }
@@ -343,6 +346,7 @@ pub fn find_unreal<G: Graph>(g: &G) -> Result<Found> {
             ),
             ty,
             offsets: ws.field(p.offset),
+            base: None,
             found_in: format!("{}.TimeDilation", g.class_name_of(ws.object)),
             now,
             control: Control::Slider {
@@ -403,6 +407,7 @@ pub fn find_unreal<G: Graph>(g: &G) -> Result<Found> {
                 description: format!("{what} {NOTE}"),
                 ty,
                 offsets: m.field(p.offset),
+                base: None,
                 found_in: format!("{}.{field}", g.class_name_of(m.object)),
                 now,
                 control,
@@ -423,6 +428,7 @@ pub fn find_unreal<G: Graph>(g: &G) -> Result<Found> {
             description: format!("How many times you can jump before landing. {NOTE}"),
             ty,
             offsets: pawn.field(p.offset),
+            base: None,
             found_in: format!("{who}.JumpMaxCount"),
             now,
             control: Control::Slider {
@@ -459,6 +465,7 @@ pub fn find_unreal<G: Graph>(g: &G) -> Result<Found> {
                     ),
                     ty,
                     offsets: at.field(p.offset),
+                    base: None,
                     found_in: format!("{}.{}", g.class_name_of(at.object), p.name),
                     now,
                     control: Control::Keep { at: keep_at },
@@ -481,6 +488,7 @@ pub fn find_unreal<G: Graph>(g: &G) -> Result<Found> {
             description: format!("Type how much {} you want. {NOTE}", p.name),
             ty,
             offsets: at.field(p.offset),
+            base: None,
             found_in: format!("{}.{}", g.class_name_of(at.object), p.name),
             now,
             control: Control::Set,

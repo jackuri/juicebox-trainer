@@ -57,13 +57,13 @@ Tell the AI what's wrong, in your own words, without stopping the game. (about 2
 
 **Tip:** It uses the AI account from **Make a trainer (AI)**, so set that up first (the lesson before this one).
 
-### 5. Instant cheats for Unreal games
+### 5. Instant cheats for Unreal and Unity games
 
-One click makes cheats for many games made with Unreal Engine. (about 2 minutes)
+One click makes cheats for many games made with Unreal Engine or Unity. (about 2 minutes)
 
 1. Start the game and load your save, so your character is in the world.
-2. Attach to it in **Cheats**. For an Unreal Engine game with no pack yet, you see **Make instant cheats**: click it.
-3. It can take a few minutes the first time on a big game. Then you get cheats like game speed, move speed, jump height and infinite health or ammo.
+2. Attach to it in **Cheats**. For an Unreal Engine or Unity game with no pack yet, you see **Make instant cheats**: click it.
+3. It can take a few minutes the first time on a big game. Then you get cheats like game speed, move speed, jump height and infinite health or ammo (Unity games: game speed, and the player's health, ammo or money when the game uses the usual names).
 
 **Tip:** Not every one works in every game. If one does nothing, use **Not working? Fix with AI** on it. After a game update, click **Make them again**.
 

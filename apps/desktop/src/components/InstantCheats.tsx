@@ -4,8 +4,9 @@ import { exeName } from "../lib/instant";
 import { api, type EngineCheatsMade, type EngineSupport } from "../lib/ipc";
 
 /**
- * Instant engine cheats (v1.26.0): for an Unreal game, make cheats from the engine itself, with
- * no pack, no AI and no value search. Shows nothing for games on other engines.
+ * Instant engine cheats (v1.26.0): for an Unreal game (and a Unity IL2CPP game, v1.37.0), make
+ * cheats from the engine itself, with no pack, no AI and no value search. Shows nothing for games
+ * on other engines.
  */
 export function InstantCheats({
   processName,
@@ -61,9 +62,9 @@ export function InstantCheats({
     >
       <h3 className="text-sm font-semibold text-emerald-100">Instant cheats for {support.engine} games</h3>
       <p className="text-xs text-zinc-300">
-        JuiceBox can make cheats for this game right now from the game engine itself: game speed, move speed, jump
-        height, gravity, and health, stamina, ammo or money when the game uses the usual names. Load your save
-        first, so your character is in the world.
+        {support.engine?.startsWith("Unity")
+          ? "JuiceBox can make cheats for this game right now from the game engine itself: game speed, and health, stamina, ammo or money when the game uses the usual names. Start playing first, so your character is in the world."
+          : "JuiceBox can make cheats for this game right now from the game engine itself: game speed, move speed, jump height, gravity, and health, stamina, ammo or money when the game uses the usual names. Load your save first, so your character is in the world."}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <button

@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.37.0] - 2026-11-13
+
+### Added
+- **Instant cheats for Unity games.** For Unity games built the newer way (IL2CPP), **Cheats** now
+  shows **Make instant cheats**, like for Unreal games. It makes **Game speed** in almost every one,
+  and infinite health, stamina or ammo and setting your money when the game keeps them under the
+  usual names. It works out where each Unity version keeps things by itself, follows paths that
+  belong to your own character only (never an enemy's or another player's), and prefers the host's
+  copy of a value in co-op games. Tried on Jump Space: game speed, infinite health and credits found
+  in 2 seconds.
+
+### Changed
+- Unity games built the older way (Mono) now say that instant cheats aren't there for them yet, and
+  what works instead.
+- The tutorial lesson is now **Instant cheats for Unreal and Unity games**.
+
 ## [1.36.1] - 2026-11-13
 
 ### Fixed

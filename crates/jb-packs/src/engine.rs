@@ -83,7 +83,10 @@ pub fn engine_pack(game: &EngineGame, exe_offset: u64, found: &Found) -> Pack {
                 implementation: Impl::Value(ValueImpl {
                     ty: c.ty,
                     address: Address {
-                        base: Some(base.clone()),
+                        base: Some(match &c.base {
+                            Some((module, offset)) => format!("{module}+0x{offset:X}"),
+                            None => base.clone(),
+                        }),
                         aob: None,
                         module: None,
                         offset: None,
@@ -183,6 +186,7 @@ mod tests {
             description: "d".into(),
             ty,
             offsets: vec![0xD28, 0x38, 0, 0x30, 0x250, -0x8],
+            base: None,
             found_in: "BP_Hero_C.Health".into(),
             now: 37.0,
             control,
@@ -254,6 +258,50 @@ mod tests {
         assert!(c[2].slider.as_ref().is_some_and(|s| s.hold));
         assert_eq!(c[3].slider.as_ref().unwrap().step, Number::from(1));
         assert_eq!(c[4].ui, Ui::Number);
+    }
+
+    #[test]
+    fn unity_cheats_start_in_their_own_modules() {
+        let mut health = cheat("health", ValueType::F32, Control::Keep { at: Some(100.0) });
+        health.base = Some(("GameAssembly.dll".into(), 0x1636_4730));
+        health.offsets = vec![0x1C668, 0xB8, 0x10, 0x58, 0x2C];
+        let mut speed = cheat(
+            "game_speed",
+            ValueType::F32,
+            Control::Slider {
+                min: 0.1,
+                max: 5.0,
+                step: 0.1,
+                default: 1.0,
+            },
+        );
+        speed.base = Some(("UnityPlayer.dll".into(), 0x1E3_4560));
+        speed.offsets = vec![0xC8];
+        let found = Found {
+            global: 0,
+            cheats: vec![speed, health],
+            not_found: vec![],
+        };
+        let game = EngineGame {
+            name: "Jump Space".into(),
+            exe: "Jump Space.exe".into(),
+            sha256: None,
+            engine: "Unity 6000.3.9f1".into(),
+            created: "2026-11-13".into(),
+        };
+        let pack = engine_pack(&game, 0, &found);
+        let issues: Vec<_> = crate::validate(&pack)
+            .into_iter()
+            .filter(|i| i.severity == Severity::Error)
+            .collect();
+        assert!(issues.is_empty(), "{issues:#?}");
+        let base = |i: usize| match &pack.cheats[i].implementation {
+            Impl::Value(v) => v.address.base.clone(),
+            _ => None,
+        };
+        assert_eq!(base(0).as_deref(), Some("UnityPlayer.dll+0x1E34560"));
+        assert_eq!(base(1).as_deref(), Some("GameAssembly.dll+0x16364730"));
+        assert_eq!(pack.game.id, "engine-jump-space");
     }
 
     #[test]

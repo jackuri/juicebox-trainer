@@ -154,8 +154,24 @@ fn calibrate(b: &[u8], types: Section, total_fields: usize, sizes: &[usize]) -> 
     None
 }
 
+/// How many classes (type definitions) the metadata lists: the length of IL2CPP's table of
+/// loaded classes in the running game.
+pub fn type_count(b: &[u8]) -> Result<usize> {
+    let (_, secs) = sections(b)?;
+    if let Some(c) = secs[TYPE_DEFS].count.filter(|c| *c > 0) {
+        return Ok(c);
+    }
+    // Older formats don't say: the number of class records read.
+    Ok(read_classes_raw(b)?.1)
+}
+
 /// Reads class and field names from metadata bytes.
 pub fn read_classes(b: &[u8]) -> Result<Vec<ClassInfo>> {
+    Ok(read_classes_raw(b)?.0)
+}
+
+/// The classes, and how many records there are (some are skipped, like `<Module>`).
+fn read_classes_raw(b: &[u8]) -> Result<(Vec<ClassInfo>, usize)> {
     let (version, secs) = sections(b)?;
     let strings = secs[STRINGS];
     let fields = secs[FIELDS];
@@ -220,7 +236,7 @@ pub fn read_classes(b: &[u8]) -> Result<Vec<ClassInfo>> {
             fields: list,
         });
     }
-    Ok(out)
+    Ok((out, n))
 }
 
 /// The game's metadata file, next to its exe.
@@ -377,6 +393,10 @@ mod tests {
         let inv = classes.iter().find(|c| c.name == "Inventory").unwrap();
         assert_eq!(inv.fields[1].name, "coins");
         assert!(classes.iter().all(|c| c.name != "<Module>"));
+        // Every record counts, <Module> too (the running game's table has a slot for each).
+        assert_eq!(type_count(&b).unwrap(), sample().len());
+        let old = build(29, false, 88, 64, 32, &sample());
+        assert_eq!(type_count(&old).unwrap(), sample().len());
     }
 
     #[test]

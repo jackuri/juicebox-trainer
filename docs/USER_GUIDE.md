@@ -93,7 +93,7 @@ Or do it yourself:
 When you close the game, unload the pack, detach or close JuiceBox Trainer, every change goes back to how
 the game had it. If JuiceBox Trainer ever crashes, it undoes leftover changes the next time it starts.
 
-### Instant cheats for Unreal games
+### Instant cheats for Unreal and Unity games
 
 For a game made with Unreal Engine (4.23 or newer), **Cheats** shows **Make instant cheats** when
 there's no pack yet. Load your save first, so your character is in the world, then click it.
@@ -104,6 +104,12 @@ usual names. They're saved as a normal pack, so you can turn them on with their 
 and share them. They work in many Unreal games, not every one: if one does nothing, the game keeps
 that value its own way, and the AI helper can look for it. After a game update, click **Make them
 again**.
+
+Unity games built the newer way (IL2CPP, most new Unity games) get them too: **game speed** in
+almost every one, plus your health, stamina, ammo or money when the game keeps them in the usual
+places and names. Start playing first, so your character is in the world. In an online co-op game,
+health cheats work best when you're the host (in a solo game you are). Unity games built the older
+way (Mono) don't have instant cheats yet; **Find a value** and the AI helper work there.
 
 ### No pack for your game? Find a value
 
