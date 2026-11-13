@@ -395,6 +395,11 @@ _Last updated: 2026-11-13 — v1.36.1_
   v1.36.0 tag (protected, can't be moved) has no release. Phone app signing key made (keytool) in
   %USERPROFILE%\.juicebox-release-keys (juicebox-remote.jks + password file, outside the repo) and
   stored as ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets with the user's OK.
+  Pushed and tagged 2026-11-13: CI (Windows + Android build), Release (Windows installer) and Website
+  green. The release's phone job failed decoding the first keystore secret (fixed: secrets re-stored
+  from a clean base64 file, workflow strips line breaks); the signed APK (28 MB, arm64/arm/x86_64,
+  cert SHA-256 d086c409…6323) was built locally, checked on BlueStacks and uploaded with its line in
+  SHA256SUMS.txt. The website shows the Android download and "1 cheat pack".
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

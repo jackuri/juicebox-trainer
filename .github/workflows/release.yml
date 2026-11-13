@@ -152,7 +152,9 @@ jobs:
           KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
           PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
         run: |
-          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/remote.jks"
+          # Line breaks or spaces pasted with a secret don't matter.
+          printf %s "$KEYSTORE" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/remote.jks"
+          PASSWORD="$(printf %s "$PASSWORD" | tr -d '\r\n')"
           {
             echo "storeFile=$RUNNER_TEMP/remote.jks"
             echo "storePassword=$PASSWORD"
