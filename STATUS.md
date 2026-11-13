@@ -405,6 +405,8 @@ _Last updated: 2026-11-13 — v1.37.0_
   Space (solo, Unity 6000.3.9): found game speed (UnityPlayer.dll+0x2106708 → 0x1AC), infinite health
   (the host's `m_ServerHealth`, kept at 100) and credits in 2 s; the real app (sandboxed, e2e137.mjs)
   made and loaded the pack, 7/7. The user confirmed game speed works; health not tried yet.
+  Pushed and tagged 2026-11-13: CI (Windows + Android), Release (installer + signed APK, built by
+  GitHub with the stored key for the first time) and Website green.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
