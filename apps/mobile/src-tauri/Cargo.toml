@@ -1,0 +1,29 @@
+[package]
+name = "juicebox-remote"
+description = "JuiceBox Remote: the Android app (Tauri shell)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[lib]
+name = "juicebox_remote_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+jb-remote.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2.12.5", features = [] }
+
+# The camera, to scan the PC's QR code (phones only).
+[target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]
+tauri-plugin-barcode-scanner = "2.4.6"
+
+[lints]
+workspace = true

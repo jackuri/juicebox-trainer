@@ -9,6 +9,7 @@ dist/
 
 # Tauri generated
 apps/desktop/src-tauri/gen/schemas/
+apps/mobile/src-tauri/gen/schemas/
 
 # Editors / OS
 .vscode/*
@@ -30,3 +31,5 @@ Thumbs.db
 /release.conf.json
 *.key
 *.pfx
+*.jks
+*.keystore

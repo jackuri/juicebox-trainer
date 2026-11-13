@@ -172,8 +172,14 @@ there first).
   Games tab.
 - **Show overlay:** a see-through list of cheats on top of the game. It works in windowed and
   borderless games, not exclusive fullscreen.
-- **Phone remote:** click **Turn on** and scan the QR code with your phone on the same Wi-Fi. Each
-  code works once. **Turn off** ends it. It's off every time JuiceBox Trainer starts.
+- **Phone remote:** click **Turn on** and scan the QR code with your phone on the same Wi-Fi:
+  - With the free **JuiceBox Remote** app for Android (from the releases page), the phone stays
+    paired, even after a restart. It shows the cheats in their groups, your presets, and when the
+    game closed. No camera? **Copy the link** on the PC and paste it in the app.
+  - Or scan it with any phone's camera to open the remote in the phone's browser for a day.
+  Each code works once. Paired phones are listed with an **Unpair** button. The remote stays on
+  the next time JuiceBox Trainer starts; **Turn off** ends it. Windows may ask to let JuiceBox
+  Trainer through the firewall the first time: allow it on private networks.
 
 ## Packs
 

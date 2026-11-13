@@ -17,6 +17,7 @@ const on: RemoteStatus = {
   qrSvg: "<svg></svg>",
   address: "http://192.168.1.20:47110/",
   devices: 0,
+  phones: [],
 };
 
 let running: RemoteStatus | null;
@@ -49,12 +50,32 @@ describe("RemotePanel", () => {
     expect(screen.getByText(/same Wi-Fi/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Turn on" }));
     expect(await screen.findByAltText("QR code to pair your phone")).toBeInTheDocument();
-    expect(screen.getByText("http://192.168.1.20:47110/")).toBeInTheDocument();
+    expect(screen.getByText(/even after a restart/)).toBeInTheDocument();
+    expect(screen.queryByText(/Phone browsers paired/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Unpair phones" }));
     await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("remote_forget", undefined));
     await vi.waitFor(() => expect(screen.getByRole("button", { name: "Turn off" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Turn off" }));
     expect(await screen.findByRole("button", { name: "Turn on" })).toBeInTheDocument();
+  });
+
+  it("lists phones with the app and unpairs one", async () => {
+    const phone = { id: "a1b2c3d4", name: "Pixel", added: 1_700_000_000, lastSeen: Math.floor(Date.now() / 1000) };
+    running = { ...on, devices: 2, phones: [phone] };
+    invoke.mockImplementation((cmd: string) =>
+      cmd === "remote_unpair"
+        ? Promise.resolve((running = { ...on, devices: 1, phones: [] }))
+        : Promise.resolve(running),
+    );
+    render(<RemotePanel />);
+    const list = await screen.findByRole("list", { name: "Paired phones" });
+    expect(list).toHaveTextContent("Pixel");
+    expect(list).toHaveTextContent("used today");
+    expect(screen.getByText(/Phone browsers paired today/)).toHaveTextContent("1");
+    expect(screen.getByText(/stays on when JuiceBox Trainer starts again/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Unpair Pixel" }));
+    await vi.waitFor(() => expect(invoke).toHaveBeenCalledWith("remote_unpair", { id: "a1b2c3d4" }));
+    await vi.waitFor(() => expect(screen.queryByRole("list", { name: "Paired phones" })).not.toBeInTheDocument());
   });
 
   it("explains a failure to start", async () => {

@@ -4,6 +4,27 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.36.0] - 2026-11-13
+
+### Added
+- **JuiceBox Remote, a phone app for Android.** Turn your PC's cheats on and off from your phone:
+  switches, sliders, buttons and number boxes in the pack's groups, and your presets. It says when
+  the game closes and when the PC can't be reached, and picks up again by itself.
+- **Pair once.** Scan the QR code under **Phone remote** with the app, and it stays paired, even
+  after the PC or the phone restarts. If the PC's address on the Wi-Fi changes, the app finds it again.
+  No camera? **Copy the link** on the PC and paste it in the app.
+- **Phone remote** on the PC lists the phones with the app, when each was last used, and an
+  **Unpair** button for each.
+
+### Changed
+- The phone remote **stays on** the next time JuiceBox Trainer starts, until you turn it off.
+- The app talks to the PC over an encrypted connection that only trusts your own PC (its certificate
+  is in the QR code). Nobody else on the Wi-Fi can read it, change it, or pretend to be your PC. The
+  PC keeps only a fingerprint of each phone's key.
+- The phone browser remote (for any phone without the app) still works as before, and now also says
+  when the game closed.
+- The website says "1 cheat pack" instead of "1 cheat packs".
+
 ## [1.35.0] - 2026-11-12
 
 ### Added

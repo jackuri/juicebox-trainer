@@ -133,6 +133,8 @@ fn main() {
                 sharing::open_from_shell(app.handle(), path);
             }
             updates::check_in_background(app.handle().clone());
+            // The phone remote, if the player left it on (v1.36.0).
+            app.state::<remote::RemoteState>().start_if_on(app.handle());
             saves::start_watcher(app.handle().clone());
             if let Some(dir) = journal_dir.clone() {
                 // Undo code changes a crashed or killed earlier run left behind.
@@ -300,6 +302,7 @@ fn main() {
             remote::remote_stop,
             remote::remote_status,
             remote::remote_forget,
+            remote::remote_unpair,
             commands::pointer_scan,
             commands::pointer_filter,
             commands::pointer_results,

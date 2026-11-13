@@ -819,11 +819,23 @@ export function onLibraryProgress(cb: (message: string) => void): () => void {
 
 // ----- phone remote (src-tauri/src/remote.rs) -----
 
+/** A phone with the JuiceBox Remote app, paired with this PC. */
+export interface PairedPhone {
+  id: string;
+  name: string;
+  /** Seconds since 1970. */
+  added: number;
+  lastSeen: number;
+}
+
 export interface RemoteStatus {
   pairUrl: string;
   qrSvg: string;
   address: string;
+  /** Phones that can use the remote now (web pages and apps). */
   devices: number;
+  /** Phones with the app (stay paired). */
+  phones: PairedPhone[];
 }
 
 export interface RepairFix {
@@ -1495,6 +1507,7 @@ export const api = {
   remoteStop: () => invoke<void>("remote_stop"),
   remoteStatus: () => invoke<RemoteStatus | null>("remote_status"),
   remoteForget: () => invoke<RemoteStatus | null>("remote_forget"),
+  remoteUnpair: (id: string) => invoke<RemoteStatus | null>("remote_unpair", { id }),
 
   pointerScan: (target: string, options: PointerScanOptions) =>
     invoke<PointerResults>("pointer_scan", { target, options }),

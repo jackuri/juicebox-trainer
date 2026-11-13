@@ -78,7 +78,15 @@ function update(view) {
     shape = "";
     title.textContent = "JuiceBox Trainer";
     statusLine.textContent = "Connected";
-    main.replaceChildren(el("p", "empty", "Load a pack in JuiceBox Trainer on your PC, then its cheats show here."));
+    main.replaceChildren(
+      el(
+        "p",
+        "empty",
+        view.closed
+          ? view.closed + " closed. Start it again and attach to it in JuiceBox Trainer: its cheats come back here."
+          : "Load a pack in JuiceBox Trainer on your PC, then its cheats show here.",
+      ),
+    );
     return;
   }
   title.textContent = view.pack.game;

@@ -6,6 +6,10 @@ name: Release
 #   WINDOWS_CERTIFICATE_PASSWORD  its password
 #   TAURI_SIGNING_PRIVATE_KEY     the updater key (signs update files)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+#   ANDROID_KEYSTORE              base64 of the phone app's signing keystore (.jks)
+#   ANDROID_KEYSTORE_PASSWORD     its password (store and key)
+# Without the Android keystore the phone app isn't added to the release (an unsigned APK can't
+# be installed).
 # In-app updates are switched on only when the repository is public and the
 # updater key is set. See docs/RELEASING.md.
 
@@ -103,3 +107,76 @@ jobs:
             try { if ([version]$t.TrimStart('v') -gt $mine) { $newest = $false } } catch { }
           }
           gh release create $env:TAG $files --title "JuiceBox Trainer $env:TAG" --notes-file release-out/notes.md "--latest=$($newest.ToString().ToLower())"
+
+  android:
+    name: Phone app (signed APK)
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Is there a signing key?
+        id: key
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+        run: |
+          if [ -z "$KEYSTORE" ]; then echo "No Android keystore: the phone app isn't added."; echo "have=false" >> "$GITHUB_OUTPUT"; else echo "have=true" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/setup-node@v7
+        if: steps.key.outputs.have == 'true'
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        if: steps.key.outputs.have == 'true'
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Rust toolchain and the phone's targets
+        if: steps.key.outputs.have == 'true'
+        run: |
+          rustup show
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - name: Install JS dependencies
+        if: steps.key.outputs.have == 'true'
+        run: npm ci
+
+      - name: Signing settings
+        if: steps.key.outputs.have == 'true'
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE }}
+          PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/remote.jks"
+          {
+            echo "storeFile=$RUNNER_TEMP/remote.jks"
+            echo "storePassword=$PASSWORD"
+            echo "keyAlias=juicebox-remote"
+            echo "keyPassword=$PASSWORD"
+          } > apps/mobile/src-tauri/gen/android/keystore.properties
+
+      - name: Build the APK (phones: arm64, arm; emulators: x86_64)
+        if: steps.key.outputs.have == 'true'
+        working-directory: apps/mobile
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: npx tauri android build --apk --target aarch64 --target armv7 --target x86_64 --ci
+
+      - name: Add it to the release
+        if: steps.key.outputs.have == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          rm -f apps/mobile/src-tauri/gen/android/keystore.properties "$RUNNER_TEMP/remote.jks"
+          version="${TAG#v}"
+          apk="JuiceBoxRemote_${version}.apk"
+          cp apps/mobile/src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk "$apk"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS.txt
+          sha256sum "$apk" >> SHA256SUMS.txt
+          gh release upload "$TAG" "$apk" SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber

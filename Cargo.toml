@@ -5,13 +5,15 @@ members = [
     "crates/jb-packs",
     "crates/jb-saves",
     "crates/jb-mcp",
+    "crates/jb-remote",
     "testbed/native",
     "testbed/harness",
     "apps/desktop/src-tauri",
+    "apps/mobile/src-tauri",
 ]
 
 [workspace.package]
-version = "1.35.0"
+version = "1.36.0"
 edition = "2024"
 rust-version = "1.89"
 license = "MIT"
@@ -23,6 +25,7 @@ jb-core = { path = "crates/jb-core" }
 jb-packs = { path = "crates/jb-packs" }
 jb-saves = { path = "crates/jb-saves" }
 jb-mcp = { path = "crates/jb-mcp" }
+jb-remote = { path = "crates/jb-remote" }
 testbed-harness = { path = "testbed/harness" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

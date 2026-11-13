@@ -32,6 +32,8 @@ for (const rel of [
   "apps/desktop/package.json",
   "sidecars/ai-agent/package.json",
   "apps/desktop/src-tauri/tauri.conf.json",
+  "apps/mobile/package.json",
+  "apps/mobile/src-tauri/tauri.conf.json",
 ]) {
   edit(rel, (s) => s.replace(/("version":\s*")[^"]+(")/, `$1${version}$2`));
 }

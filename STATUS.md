@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.35.0_
+_Last updated: 2026-11-13 — v1.36.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -384,6 +384,13 @@ _Last updated: 2026-11-12 — v1.35.0_
   Pushed and tagged 2026-11-12 (CI, Release and Website green); Pages turned on (Source: GitHub
   Actions), live at https://jackuri.github.io/juicebox-trainer/. To fix next time: "1 cheat packs"
   on Home (singular counts).
+- v1.36.0 Phone app step A (PLAN §10.2 A): JuiceBox Remote for Android (apps/mobile), pinned-TLS
+  pairing that's remembered (crates/jb-remote), the PC's remote stays on, paired phones listed with
+  Unpair, presets and "game closed" on the phone, UDP rediscovery. Android tools (Java 17, SDK, NDK
+  28.2) in %USERPROFILE%\.android-dev; `npm run android` builds the debug APK. Real test on BlueStacks
+  (Manlyman, Android 9, ADB turned on with the user's OK) against the sandboxed release app and the
+  testbed: 30/30 (e2e136.mjs). Website: singular counts fixed, Android download shown when a release
+  has the APK.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
@@ -395,8 +402,10 @@ _Last updated: 2026-11-12 — v1.35.0_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
-- Android app (remote → mobile cheats via the PC → AI → phone alone): PLAN §10.2 with the user's
-  decisions of 2026-11-12. Test on BlueStacks first, then the user's old phone once rooted.
+- Android app, next step B (mobile cheats via the PC over ADB, BlueStacks root mode first), then C
+  (AI) and D (phone alone): PLAN §10.2. Rooting steps once the user names the old phone's model.
+- Publishing the phone app needs a signing key: make it (keytool, kept outside the repo like the
+  updater key) and add ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets, with the user's OK.
 - Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
   PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
 - 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and
@@ -412,6 +421,10 @@ _Last updated: 2026-11-12 — v1.35.0_
   structural readers (PLAN §2.3), LZ4 wrappers.
 
 ## Known issues
+- JuiceBox Remote (1.36.0): not tried yet on a real phone or with a real camera (BlueStacks has none;
+  pairing was tested with a pasted link). Finding a PC whose address changed was tested on this PC
+  only (BlueStacks' network can't see broadcasts). It targets Android 16 (API 36).
+- The debug APK is large (about 270 MB, debug symbols); the release APK is much smaller.
 - v1.0.0 – v1.2.1 haven't been installed and clicked through by hand yet (the user saw v1.2.0's
   Games tab and asked for real covers): the installer,
   double-clicking an `.otpack`, dropping a pack on the window, the Packs and About tabs, the AI
@@ -428,8 +441,9 @@ _Last updated: 2026-11-12 — v1.35.0_
 - The overlay doesn't show over exclusive-fullscreen games (by design, PLAN §8); switch the game to
   borderless or windowed.
 - The phone remote needs the PC and phone on the same network; Windows asks once to allow it
-  through the firewall. It uses plain HTTP on the local network (pairing keeps other devices out,
-  but someone on the same Wi-Fi could watch the traffic). Port 47110, or a free one if taken.
+  through the firewall. The app's connection is encrypted (pinned TLS); the browser page still uses
+  plain HTTP on the local network (pairing keeps other devices out, but someone on the same Wi-Fi
+  could watch that page's traffic). Port 47110 (TCP, and UDP for being found), or a free one if taken.
 - "Play with cheats" picks the game's process as the pack's exe or the biggest exe running from the
   install folder; a game that starts from outside its folder isn't found (attach from Cheats).
 - Library: Epic and GOG are read from their own listing files and registry keys; Xbox games are

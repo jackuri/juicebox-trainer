@@ -50,7 +50,14 @@
     fetch(API)
       .then((r) => (r.ok ? r.json() : null))
       .then((rel) => {
-        const exe = rel && (rel.assets || []).find((a) => /_x64-setup\.exe$/.test(a.name));
+        const assets = (rel && rel.assets) || [];
+        const apk = assets.find((a) => /^JuiceBoxRemote_.*\.apk$/.test(a.name));
+        const androidNote = $("#android-note");
+        if (apk && androidNote) {
+          $("#android-link").href = apk.browser_download_url;
+          androidNote.hidden = false;
+        }
+        const exe = assets.find((a) => /_x64-setup\.exe$/.test(a.name));
         if (!exe) return;
         btn.href = exe.browser_download_url;
         btn.textContent = `Download ${rel.tag_name} for Windows`;
@@ -71,7 +78,14 @@
       .then(([index, xp]) => {
         const set = (k, v) => {
           const b = document.querySelector(`[data-stat="${k}"]`);
-          if (b) b.textContent = String(v);
+          if (!b) return;
+          b.textContent = String(v);
+          // "1 cheat pack", "2 cheat packs".
+          const label = b.nextElementSibling;
+          if (label && label.dataset.one) {
+            label.dataset.many = label.dataset.many || label.textContent;
+            label.textContent = v === 1 ? label.dataset.one : label.dataset.many;
+          }
         };
         set("packs", (index.packs || []).filter((p) => p.id !== "testbed-demo").length + (index.tables || []).length);
         set("web", (index.web || []).length);

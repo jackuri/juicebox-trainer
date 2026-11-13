@@ -1,24 +1,26 @@
 {
   "name": "juicebox-trainer",
-  "version": "1.35.0",
+  "version": "1.36.0",
   "private": true,
   "description": "Free, open-source trainer + save editor for PC games without anti-cheat.",
   "license": "MIT",
   "workspaces": [
     "apps/desktop",
+    "apps/mobile",
     "sidecars/ai-agent"
   ],
   "scripts": {
     "dev": "npm run tauri --workspace @juicebox-trainer/desktop -- dev",
-    "build:web": "npm run build --workspace @juicebox-trainer/desktop",
-    "lint": "npm run lint --workspace @juicebox-trainer/desktop",
+    "build:web": "npm run build --workspace @juicebox-trainer/desktop && npm run build --workspace @juicebox-trainer/mobile",
+    "lint": "npm run lint --workspace @juicebox-trainer/desktop && npm run lint --workspace @juicebox-trainer/mobile",
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm run test --workspaces",
     "check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1",
     "bump": "node scripts/bump-version.mjs",
     "guide": "node scripts/build-guide.mjs",
     "site": "node scripts/build-site.mjs",
-    "build:agent": "npm run build --workspace @juicebox-trainer/ai-agent"
+    "build:agent": "npm run build --workspace @juicebox-trainer/ai-agent",
+    "android": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-android.ps1"
   },
   "engines": {
     "node": ">=22"

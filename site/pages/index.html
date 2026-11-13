@@ -12,6 +12,7 @@
             <a class="btn btn-ghost" href="start.html">See how it works</a>
           </div>
           <p class="muted small" id="download-note">The newest version is on the releases page. Free, no account needed.</p>
+          <p class="muted small" id="android-note" hidden>Phone remote for Android: <a id="android-link" href="{{REPO}}/releases/latest">JuiceBox Remote</a>.</p>
         </div>
         <div class="hero-art" aria-hidden="true">
           <div class="glow"></div>
@@ -31,7 +32,8 @@
       <div class="grid">
         <article class="card feature"><span class="icon" aria-hidden="true">🎮</span><h3>Cheats while you play</h3>
           <p>Switches, sliders and buttons for each cheat, your own keys, controller combos, presets, a see-through
-          overlay and a phone remote. <b>Play with cheats</b> starts the game and turns them on for you.</p></article>
+          overlay, and a phone remote: the free <b>JuiceBox Remote</b> app for Android (or any phone's browser).
+          <b>Play with cheats</b> starts the game and turns them on for you.</p></article>
         <article class="card feature"><span class="icon" aria-hidden="true">🔎</span><h3>Make a cheat yourself</h3>
           <p><b>Find a value</b> asks what you see in the game ("you have 1,250 gold") and finds it for you.
           No number on screen, like a health bar? It works with "it went down" too.</p></article>
@@ -75,9 +77,9 @@
         was listed. Share yours and get <b>{{PACK_XP}} XP</b>, rate one for <b>{{RATING_XP}} XP</b>, and check in
         every day for <b>{{DAY_XP}} XP</b> more. It's early days: the first packers set the pace.</p>
         <div class="stats" id="stats" aria-live="polite">
-          <div><b data-stat="packs">–</b><span>cheat packs</span></div>
-          <div><b data-stat="web">–</b><span>web game cheats</span></div>
-          <div><b data-stat="players">–</b><span>packers</span></div>
+          <div><b data-stat="packs">–</b><span data-one="cheat pack">cheat packs</span></div>
+          <div><b data-stat="web">–</b><span data-one="web game's cheats">web game cheats</span></div>
+          <div><b data-stat="players">–</b><span data-one="packer">packers</span></div>
         </div>
         <p><a class="btn" href="community.html">See the community</a></p>
       </div>

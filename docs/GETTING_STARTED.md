@@ -175,7 +175,7 @@ Open **Keys & note** under the cheat in **Cheats** and press the key you want. Y
 
 **Can I see my cheats on top of the game, or use my phone?**
 
-**Show overlay** puts a see-through list over the game (windowed or borderless games, not exclusive fullscreen). **Phone remote** shows a QR code: scan it with your phone on the same Wi-Fi to turn cheats on from there.
+**Show overlay** puts a see-through list over the game (windowed or borderless games, not exclusive fullscreen). **Phone remote** shows a QR code: scan it with the free **JuiceBox Remote** app for Android (it stays paired, even after a restart) or with any phone's camera to open the remote in its browser. The phone must be on the same Wi-Fi.
 
 **What's the difference between "Keep it at" and "Set it once to"?**
 

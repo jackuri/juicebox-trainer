@@ -1,0 +1,27 @@
+[package]
+name = "jb-remote"
+description = "JuiceBox Remote: the phone <-> PC link (pinned TLS, pairing, discovery)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[features]
+# The PC side: makes the PC's own certificate.
+server = ["dep:rcgen"]
+
+[dependencies]
+rcgen = { version = "0.14.10", default-features = false, features = ["ring"], optional = true }
+ring = "0.17.14"
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+jb-remote = { path = ".", features = ["server"] }
+
+[lints]
+workspace = true

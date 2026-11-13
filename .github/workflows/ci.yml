@@ -39,7 +39,7 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
-      # The Tauri crate embeds apps/desktop/dist, so build the web UI first.
+      # The Tauri crates embed apps/desktop/dist and apps/mobile/dist, so build the web UIs first.
       - name: Build web UI
         run: npm run build:web
 
@@ -69,3 +69,38 @@ jobs:
 
       - name: Website (build and link check)
         run: npm run site
+
+  android:
+    name: Phone app (Android build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Rust toolchain and the phone's targets
+        run: |
+          rustup show
+          rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      # Unsigned here (no key in CI checks); the release workflow signs it.
+      - name: Build the APK
+        working-directory: apps/mobile
+        env:
+          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
+        run: npx tauri android build --apk --target aarch64 --ci

@@ -45,6 +45,8 @@ pub struct AppState {
     /// Pointer scan results. Kept across sessions: after restarting the game
     /// they are checked against the value's new address.
     pointers: Mutex<Option<PointerResults>>,
+    /// The game that closed last, until the next attach (for the phone remote's notice).
+    last_closed: Mutex<Option<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -233,7 +235,9 @@ impl AppState {
             if e.kind == "processExited"
                 && let Some(l) = &live
             {
-                e.closed = Some(Box::new(l.report_closed()));
+                let report = l.report_closed();
+                *self.last_closed.lock().unwrap_or_else(|e| e.into_inner()) = report.game.clone();
+                e.closed = Some(Box::new(report));
             }
             drop(live);
         }
@@ -412,6 +416,7 @@ pub(crate) fn attach_pid(
 ) -> CmdResult<SessionInfo> {
     // Detach first so a failed attach never leaves the old session half-alive.
     state.live().take();
+    *state.last_closed.lock().unwrap_or_else(|e| e.into_inner()) = None;
     let process = AttachedProcess::attach(pid)?;
     let info = session_info(&process);
     *state.live() = Some(Live::new(process, state.journal_dir.get()));
@@ -1834,7 +1839,12 @@ impl AppState {
             None => Ok(None),
         });
         let Ok(Some(v)) = view else {
-            return serde_json::json!({ "pack": null });
+            let closed = self
+                .last_closed
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .clone();
+            return serde_json::json!({ "pack": null, "closed": closed });
         };
         let cheats: Vec<serde_json::Value> = v
             .pack
@@ -1873,7 +1883,13 @@ impl AppState {
                 }))
             })
             .collect();
-        serde_json::json!({ "pack": { "game": v.pack.game.name }, "cheats": cheats })
+        let presets: Vec<&str> = v.settings.presets.iter().map(|p| p.name.as_str()).collect();
+        serde_json::json!({
+            "pack": { "game": v.pack.game.name },
+            "cheats": cheats,
+            "presets": presets,
+            "pending": v.pending,
+        })
     }
 
     /// Does what a phone asked, like the trainer's own buttons.
