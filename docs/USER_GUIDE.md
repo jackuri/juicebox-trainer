@@ -58,8 +58,16 @@ attached to, if any.
 | **Make a trainer (AI)** | Let the AI helper find cheats for a game with you |
 | **Web games** | Games that run in a web page: find and lock values |
 | **Themes** | Change how JuiceBox Trainer looks |
-| **Help** | What went wrong lately and what to try, and common questions |
+| **Help** | A tutorial for new players, common questions, and what went wrong lately and what to try |
 | **About** | Version, updates, this guide |
+
+## New here? Start with the tutorial
+
+Open **Help** (or click **Start the tutorial** on the **New to JuiceBox Trainer?** note at the top).
+The **Tutorial** has nine short lessons, from your first cheats to making your own by hand or with
+AI. Each has a **Show me** button that opens the right screen; click **Done: next lesson** as you go.
+**Common questions** has answers in plain words, with a search box. The same lessons and questions
+are in [Getting started](GETTING_STARTED.md).
 
 ## Use cheats
 
@@ -437,8 +445,8 @@ new versions are on the releases page.
 
 ## Something isn't working
 
-When something goes wrong, JuiceBox Trainer says what happened and what to try, and keeps it on the
-**Help** page (a red dot shows on **Help** when there's something new):
+When something goes wrong, JuiceBox Trainer says what happened and what to try, and keeps it under
+**Recent problems** on the **Help** page (a red dot shows on **Help** when there's something new):
 
 - **A game closed:** the Cheats screen says whether it closed normally or crashed, where it crashed
   (the game itself, or the graphics driver), which cheats were on and what you changed just before.

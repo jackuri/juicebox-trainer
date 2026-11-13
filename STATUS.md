@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.33.0_
+_Last updated: 2026-11-12 — v1.34.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -371,6 +371,10 @@ _Last updated: 2026-11-12 — v1.33.0_
   would act on the user's GitHub account); the check-in itself is covered by the fake-GitHub test.
   Pushed and tagged 2026-11-12 (CI and Release green); "check-in" label made, the robot opened
   the first check-in issue (#6, Check-in: 2026-11-12).
+
+- v1.34.0 Tutorial and FAQ: Help has Tutorial (9 lessons with Show me, done ticks), Common questions
+  (~40, search and topics) and Recent problems tabs; a one-time welcome note. Text lives in
+  lib/guide.ts; docs/GETTING_STARTED.md is made from it (`npm run guide`), a test keeps them equal.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed

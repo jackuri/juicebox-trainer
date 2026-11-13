@@ -4,7 +4,7 @@ import { ThemeView } from "./components/ThemeView";
 import { WebGamesView } from "./components/WebGamesView";
 import { AiView } from "./components/AiView";
 import { GuardVerdict } from "./components/GuardVerdict";
-import { HelpView } from "./components/HelpView";
+import { type HelpTab, HelpView } from "./components/HelpView";
 import { friendlyError } from "./lib/explain";
 import { ProblemCard } from "./components/ProblemCard";
 import { Icon, Logo } from "./components/Icon";
@@ -40,6 +40,8 @@ import {
 
 type View = "games" | "web" | "cheats" | "packs" | "saves" | "ai" | "themes" | "help" | "about";
 
+const WELCOMED_KEY = "juicebox.welcomed";
+
 export default function App() {
   const [info, setInfo] = useState<AppInfo | null>(null);
   const [processes, setProcesses] = useState<ProcessInfo[]>([]);
@@ -52,6 +54,24 @@ export default function App() {
   const [error, setError] = useState<CommandError | null>(null);
   const [recovered, setRecovered] = useState<Recovery[]>([]);
   const [view, setView] = useState<View>("cheats");
+  /** The part of Help to open (v1.34.0): the tutorial, or the problems when there are new ones. */
+  const [helpTab, setHelpTab] = useState<HelpTab>("tutorial");
+  /** The "New here?" note, until the player starts the tutorial or hides it (v1.34.0). */
+  const [welcome, setWelcome] = useState(() => {
+    try {
+      return localStorage.getItem(WELCOMED_KEY) === null;
+    } catch {
+      return false;
+    }
+  });
+  const welcomed = useCallback(() => {
+    setWelcome(false);
+    try {
+      localStorage.setItem(WELCOMED_KEY, "1");
+    } catch {
+      // Shown again next time; harmless.
+    }
+  }, []);
   /** The AI helper opens on "a web game" (from a web game's cheats). */
   const [aiWeb, setAiWeb] = useState(false);
   /** A pack file to show in Packs (opened from Explorer, dropped, or a downloaded table). */
@@ -253,6 +273,7 @@ export default function App() {
               key={v}
               aria-pressed={view === v}
               onClick={() => {
+                if (v === "help") setHelpTab(unseen ? "problems" : "tutorial");
                 setView(v);
                 setAiWeb(false);
                 setAiFix(null);
@@ -307,6 +328,26 @@ export default function App() {
             </button>
           </div>
         )}
+        {welcome && view !== "help" && (
+          <section className="flex items-center gap-3 bg-emerald-950/60 px-4 py-1.5 text-xs text-emerald-100" aria-label="Welcome">
+            <span className="flex-1">
+              New to JuiceBox Trainer? A short tutorial shows how to use cheats and make your own, by hand or with AI.
+            </span>
+            <button
+              className="rounded bg-emerald-800/80 px-2 py-0.5 font-medium hover:bg-emerald-700"
+              onClick={() => {
+                welcomed();
+                setHelpTab("tutorial");
+                setView("help");
+              }}
+            >
+              Start the tutorial
+            </button>
+            <button className="text-emerald-300 hover:text-emerald-100" aria-label="Hide the welcome note" onClick={welcomed}>
+              ✕
+            </button>
+          </section>
+        )}
         {update && view !== "about" && (
           <div className="flex items-center gap-3 bg-sky-950/60 px-4 py-1.5 text-xs text-sky-100" role="status">
             <span className="flex-1">JuiceBox Trainer {update.version} is available.</span>
@@ -321,7 +362,13 @@ export default function App() {
         {notice && view !== "help" && !(notice.kind === "gameClosed" && view === "cheats") && (
           <div className="flex items-center gap-3 bg-red-950/60 px-4 py-1.5 text-xs text-red-100" role="alert">
             <span className="flex-1">{notice.title}.</span>
-            <button className="rounded bg-red-900/70 px-2 py-0.5 hover:bg-red-800" onClick={() => setView("help")}>
+            <button
+              className="rounded bg-red-900/70 px-2 py-0.5 hover:bg-red-800"
+              onClick={() => {
+                setHelpTab("problems");
+                setView("help");
+              }}
+            >
               See what happened
             </button>
             <button className="text-red-300 hover:text-red-100" aria-label="Hide" onClick={() => setNotice(null)}>
@@ -369,7 +416,7 @@ export default function App() {
       ) : view === "themes" ? (
         <ThemeView />
       ) : view === "help" ? (
-        <HelpView onSeen={problemsSeen} />
+        <HelpView key={helpTab} start={helpTab} onSeen={problemsSeen} onGo={setView} />
       ) : view === "web" ? (
         <WebGamesView
           onOpenAi={() => {

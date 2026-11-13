@@ -15,7 +15,8 @@ friends, and online games that have no anti-cheat):
 - **cheat packs** you can share as `.juice` files (`.otpack` from OpenTrainer also open) or get from the community list.
 
 **Get it:** download the installer from the [releases page](https://github.com/jackuri/juicebox-trainer/releases)
-and read the [user guide](docs/USER_GUIDE.md).
+and start with [Getting started](docs/GETTING_STARTED.md) (a short tutorial and common questions,
+also in the app under **Help**), then the [user guide](docs/USER_GUIDE.md).
 
 ## Rules this project never relaxes
 

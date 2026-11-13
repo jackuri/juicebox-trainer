@@ -4,6 +4,24 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.34.0] - 2026-11-12
+
+### Added
+- **A tutorial for new players.** **Help** now opens on nine short lessons: your first cheats,
+  making a cheat yourself, making cheats with AI, fixing a cheat while you play, instant cheats for
+  Unreal games, editing and keeping your cheats, web games, save backups, and sharing and levels.
+  Each one has numbered steps, a tip and a **Show me** button that opens the screen it's about.
+  Tick them off as you go; a bar shows how many are done.
+- **Common questions:** about 40 answers in plain words (is it free, why is my game refused, my
+  antivirus warns, a cheat does nothing, no number on screen, what the AI costs…), with a search box
+  and topics.
+- A **New to JuiceBox Trainer?** note at the top offers the tutorial once; **✕** hides it for good.
+- The same tutorial and questions for reading on GitHub: [Getting started](docs/GETTING_STARTED.md).
+
+### Changed
+- **Help** has three tabs: **Tutorial**, **Common questions** and **Recent problems**. It opens on the
+  problems when there's a new one (the red dot).
+
 ## [1.33.0] - 2026-11-12
 
 ### Added

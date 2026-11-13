@@ -196,6 +196,33 @@ describe("App", () => {
     await vi.waitFor(() => expect(screen.queryByLabelText("New problems")).not.toBeInTheDocument());
   });
 
+  it("welcomes new players and opens the tutorial, whose Show me opens the screen (v1.34.0)", async () => {
+    localStorage.removeItem("juicebox.welcomed");
+    localStorage.removeItem("juicebox.tutorial");
+    const { unmount } = render(<App />);
+    const note = await screen.findByRole("region", { name: "Welcome" });
+    expect(note).toHaveTextContent("New to JuiceBox Trainer?");
+    fireEvent.click(screen.getByRole("button", { name: "Start the tutorial" }));
+    expect(await screen.findByRole("heading", { name: "Help" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Tutorial" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByRole("region", { name: "Welcome" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show me: Open Games" }));
+    expect(screen.getByRole("button", { name: "Games" })).toHaveAttribute("aria-pressed", "true");
+    unmount();
+    render(<App />);
+    await screen.findByTestId("version");
+    expect(screen.queryByRole("region", { name: "Welcome" })).not.toBeInTheDocument();
+    localStorage.removeItem("juicebox.tutorial");
+  });
+
+  it("hides the welcome note for good with its ✕ (v1.34.0)", async () => {
+    localStorage.removeItem("juicebox.welcomed");
+    render(<App />);
+    fireEvent.click(await screen.findByRole("button", { name: "Hide the welcome note" }));
+    expect(screen.queryByRole("region", { name: "Welcome" })).not.toBeInTheDocument();
+    expect(localStorage.getItem("juicebox.welcomed")).toBe("1");
+  });
+
   it("blocks attaching when the guard finds anti-cheat or an online-only game", async () => {
     render(<App />);
     fireEvent.click(await screen.findByRole("option", { name: /cs2\.exe/ }));

@@ -1,6 +1,6 @@
 {
   "name": "@juicebox-trainer/ai-agent",
-  "version": "1.33.0",
+  "version": "1.34.0",
   "private": true,
   "type": "module",
   "description": "JuiceBox Trainer AI helper: drives the guarded jb-mcp tools with the Claude Agent SDK.",
