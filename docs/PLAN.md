@@ -324,6 +324,14 @@ Proposed to the user after 1.20, in the order recommended:
    with `.juice` import/export (v1.0 or earlier).
 4. Exclusive-fullscreen overlay: **accept the limitation** (windowed/borderless only; no in-process overlay).
 
+## 9. Notes on the two source repos
+- **universal-modder** (MIT): skills + `um` CLI (Python). Most useful parts: `um scan` (engine, anti-cheat,
+  save hints, JSON), `um backup`, `um kb`, the engine playbooks and `safety.md`. Its scope rules match ours.
+- **REA** (MIT): MCP server for static reverse engineering (Ghidra/Hopper/IDA bridges, PE, IL2CPP metadata,
+  .NET). Its maintainers' DISCLAIMER says they don't support game-cheat development, so: use it as an optional
+  analysis backend, keep it swappable, don't ask its community for trainer help, and include its license
+  notice.
+
 ## 10. Website and Android app (planned 2026-11-12, user's ideas)
 
 Order (user's choice 2026-11-12): **the website first**, then the Android app in steps A → D.
@@ -362,11 +370,3 @@ rules still apply: packs stay declarative, the AI only acts through guarded, log
 | B. Mobile cheats via the PC | The PC app drives an Android device over ADB with root (BlueStacks' root mode, or a rooted phone by USB/Wi-Fi): app list, Android anti-cheat guard, Find a value, packs for Android games, undo on exit | Packs get an Android target (package name + version code instead of exe + hash) |
 | C. AI for mobile games | jb-mcp tools over the Android backend; the AI runs on the PC (Claude sign-in works there), driving the device through B. Later, on the phone itself with an API key | |
 | D. On the phone alone | The cheat maker in the phone app on a rooted phone; without root, save backups and editing where Android allows it (Shizuku for `Android/data` on Android 11+) | |
-
-## 9. Notes on the two source repos
-- **universal-modder** (MIT): skills + `um` CLI (Python). Most useful parts: `um scan` (engine, anti-cheat,
-  save hints, JSON), `um backup`, `um kb`, the engine playbooks and `safety.md`. Its scope rules match ours.
-- **REA** (MIT): MCP server for static reverse engineering (Ghidra/Hopper/IDA bridges, PE, IL2CPP metadata,
-  .NET). Its maintainers' DISCLAIMER says they don't support game-cheat development, so: use it as an optional
-  analysis backend, keep it swappable, don't ask its community for trainer help, and include its license
-  notice.
