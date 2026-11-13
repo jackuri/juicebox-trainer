@@ -381,6 +381,9 @@ _Last updated: 2026-11-12 — v1.35.0_
   CI) into site/dist, deployed by .github/workflows/site.yml to GitHub Pages. Pages has to be turned on
   for the repository (Source: GitHub Actions) when pushing. Screenshots taken from the sandboxed app
   with the testbed (shots135.mjs). Checked in the browser at desktop and phone width.
+  Pushed and tagged 2026-11-12 (CI, Release and Website green); Pages turned on (Source: GitHub
+  Actions), live at https://jackuri.github.io/juicebox-trainer/. To fix next time: "1 cheat packs"
+  on Home (singular counts).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
