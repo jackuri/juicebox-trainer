@@ -160,7 +160,7 @@ jobs:
             echo "keyPassword=$PASSWORD"
           } > apps/mobile/src-tauri/gen/android/keystore.properties
 
-      - name: Build the APK (phones: arm64, arm; emulators: x86_64)
+      - name: "Build the APK (phones: arm64, arm; emulators: x86_64)"
         if: steps.key.outputs.have == 'true'
         working-directory: apps/mobile
         env:
