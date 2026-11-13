@@ -14,6 +14,8 @@ friends, and online games that have no anti-cheat):
 - an **AI helper** that finds new cheats for a game with you and saves them as a cheat pack;
 - **cheat packs** you can share as `.juice` files (`.otpack` from OpenTrainer also open) or get from the community list.
 
+**Website:** <https://jackuri.github.io/juicebox-trainer/>
+
 **Get it:** download the installer from the [releases page](https://github.com/jackuri/juicebox-trainer/releases)
 and start with [Getting started](docs/GETTING_STARTED.md) (a short tutorial and common questions,
 also in the app under **Help**), then the [user guide](docs/USER_GUIDE.md).

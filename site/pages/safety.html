@@ -1,0 +1,63 @@
+<!-- title: Play fair & safety · JuiceBox Trainer | description: Which games JuiceBox Trainer works with, why it refuses games with anti-cheat, what it changes on your PC, antivirus warnings, and what it sends where. -->
+    <section class="hero hero-small">
+      <div class="wrap">
+        <h1>Play fair &amp; safety</h1>
+        <p class="lead">What JuiceBox Trainer works with, what it never does, and how to check that your download is the
+        real one.</p>
+      </div>
+    </section>
+
+    <section class="wrap stack prose">
+      <h2 id="games">Which games</h2>
+      <p>PC games <b>without anti-cheat</b>: single-player games, co-op with friends, and online games that have no
+      anti-cheat. Games that run in a web page work too.</p>
+      <p>JuiceBox Trainer checks every game before it attaches, and again every few seconds. If a game's anti-cheat is
+      running, it <b>refuses</b>, and that can't be switched off. It never switches anti-cheat off or gets around
+      it. Some games have an official way to play without their anti-cheat; started that way, they're fine.</p>
+      <p class="callout">Cheats are fine alone, with friends, or in games without anti-cheat. Please don't use them to
+      spoil other players' fun in public, competitive or ranked matches: other players can report you, and games
+      can ban accounts. Web cheats aren't listed for competitive games or games with items you can trade for real
+      money.</p>
+
+      <h2 id="changes">What it changes on your PC</h2>
+      <ul>
+        <li><b>Only the running game.</b> Cheats change numbers in the game while it runs, and a few checked bytes of
+        its code. Turning a cheat off, closing the game or closing JuiceBox Trainer puts everything back. If
+        JuiceBox Trainer ever crashes, it undoes leftover changes the next time it starts.</li>
+        <li><b>Your saves are backed up</b> when you attach to a game, when it starts and when it closes, so a save that
+        goes wrong can be put back.</li>
+        <li><b>Packs have no programs inside.</b> A pack is a list of cheats. JuiceBox Trainer checks every pack before
+        using it, and shows you what's inside before you install one.</li>
+        <li><b>Cheat Engine table scripts are never run.</b> They're only read, and the common kinds are redone
+        JuiceBox Trainer's own, checked way.</li>
+        <li><b>The AI helper can only use JuiceBox Trainer's guarded tools.</b> It can't run programs or read your files.
+        It refuses games with anti-cheat, its test changes are undone when it stops, and every step is written to a log
+        on your PC. You set the most it may spend.</li>
+        <li>It never changes your network settings.</li>
+      </ul>
+
+      <h2 id="antivirus">"Windows protected your PC" and antivirus warnings</h2>
+      <p>Trainers change other programs' memory, so some antivirus programs flag them. JuiceBox Trainer doesn't hide
+      what it does: its source code is <a href="{{REPO}}">public</a>, and it never packs or scrambles itself to slip past
+      antivirus.</p>
+      <p>It isn't code-signed yet (that costs money and is planned), so Windows may say <b>"Windows protected your
+      PC"</b> the first time. Click <b>More info</b>, then <b>Run anyway</b>, but only for the file from the
+      <a href="{{REPO}}/releases">releases page</a>.</p>
+      <p>To check your download is the real one: every release has a <code>SHA256SUMS.txt</code> file. Open PowerShell
+      in your Downloads folder and type:</p>
+      <pre><code>Get-FileHash .\JuiceBoxTrainer_{{VERSION}}_x64-setup.exe</code></pre>
+      <p>The long number it shows must match the one in <code>SHA256SUMS.txt</code> for that file.</p>
+
+      <h2 id="privacy">What it sends, and where</h2>
+      <ul>
+        <li><b>Nothing about you, and no analytics.</b> Problems it notes for the Help page stay on your PC.</li>
+        <li>It downloads the community list and checks for updates from GitHub.</li>
+        <li>Sharing, rating and the daily check-in go to GitHub with your GitHub name, and only after you sign in and
+        choose to.</li>
+        <li>The AI helper talks to the AI you picked (Claude, or a free AI on your own PC). With <b>Let the helper look
+        at the game window</b> on, pictures of that window go to that AI too, and aren't saved.</li>
+        <li>Searching for a cheat table opens your browser with only the game's name.</li>
+      </ul>
+      <p>This website has no cookies and no analytics. The community pages read the community list from GitHub in your
+      browser.</p>
+    </section>

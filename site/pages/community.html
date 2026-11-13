@@ -1,0 +1,59 @@
+<!-- title: Community · JuiceBox Trainer | description: Cheat packs and web game cheats shared by JuiceBox Trainer players, the games players want, and the packer leaderboard. -->
+    <section class="hero hero-small">
+      <div class="wrap">
+        <h1>The community</h1>
+        <p class="lead">Packs shared by players, star ratings, the games people are asking for, and the packers
+        leaderboard. All of it comes straight from the <a href="{{PACKS_REPO}}">community list</a>, so it's always
+        up to date.</p>
+        <nav class="chips" aria-label="On this page">
+          <a href="#packs">Cheat packs</a><a href="#web">Web game cheats</a><a href="#wanted">Most wanted</a><a href="#leaderboard">Leaderboard</a><a href="#how-to-join">How to join</a>
+        </nav>
+      </div>
+    </section>
+
+    <section class="wrap stack" aria-labelledby="packs">
+      <h2 id="packs">Cheat packs</h2>
+      <p class="muted">Get them in the app: <b>Packs</b> → <b>Community packs</b> → <b>See what's inside</b> → <b>Install</b>.</p>
+      <div class="list" id="pack-list"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="wrap stack" aria-labelledby="web">
+      <h2 id="web">Web game cheats</h2>
+      <p class="muted">Get them in the app: <b>Web games</b> → <b>Web cheats from the community</b> → <b>Get these cheats</b>.</p>
+      <div class="list" id="web-list"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="wrap stack" aria-labelledby="wanted">
+      <h2 id="wanted">Most wanted</h2>
+      <p class="muted">Games players asked cheats for. Have one? Make cheats for it with the AI helper and share them.
+      Asking is one click in the app: <b>Games</b> → <b>Ask the community for cheats</b>.</p>
+      <div class="list" id="wanted-list"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section class="wrap stack" aria-labelledby="leaderboard">
+      <h2 id="leaderboard">Leaderboard</h2>
+      <p class="muted"><b>{{PACK_XP}} XP</b> for each pack or web cheats accepted, <b>{{RATING_XP}} XP</b> for each pack you rate,
+      and with the daily check-in on, <b>{{DAY_XP}} XP</b> a day plus <b>{{STREAK_XP}} XP</b> for every {{STREAK_DAYS}} days in a row.
+      Level 2 takes 10 XP, and each level after takes 10 XP more than the one before, up to level 99.</p>
+      <div class="table-wrap">
+        <table class="board-table">
+          <thead><tr><th>#</th><th>Packer</th><th>Level</th><th>Title</th><th>XP</th><th>Packs</th><th>Ratings</th><th>Days</th></tr></thead>
+          <tbody id="board-body"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
+        </table>
+      </div>
+      <h3>Titles</h3>
+      <ul class="titles" id="titles"></ul>
+    </section>
+
+    <section class="band" aria-labelledby="how-to-join">
+      <div class="wrap">
+        <h2 id="how-to-join">How to join</h2>
+        <ol class="steps">
+          <li><span class="num">1</span><h3>Get JuiceBox Trainer</h3><p><a href="index.html#download">Download it</a> for free.</p></li>
+          <li><span class="num">2</span><h3>Make a free GitHub account</h3><p>The community list lives on GitHub. In the app, click <b>Sign in with GitHub</b> the first time you share or rate.</p></li>
+          <li><span class="num">3</span><h3>Share, rate, check in</h3><p><b>Share with everyone</b> next to your pack, <b>Tried it? Rate it</b> under a community pack, and the daily check-in in your level panel.</p></li>
+        </ol>
+        <p class="center muted">A person checks every pack before it's listed. Packs are lists of cheats with no programs inside.</p>
+      </div>
+    </section>
+    <script src="assets/levels.js" defer></script>

@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.35.0] - 2026-11-12
+
+### Added
+- **JuiceBox Trainer has a website:** <https://jackuri.github.io/juicebox-trainer/>. It shows what the
+  app does with screenshots and has a download button for the newest version. It also has the
+  Getting started tutorial and questions, and a **Play fair & safety** page (which games, what the app
+  changes, antivirus warnings, what it sends where).
+- The website's **Community** page shows the community list as it is now: packs with their star
+  ratings, web game cheats, the most wanted games, the packer leaderboard and the titles, plus how
+  to join. No cookies, no analytics.
+- **Website** button in **About**.
+
 ## [1.34.0] - 2026-11-12
 
 ### Added

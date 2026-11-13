@@ -80,6 +80,9 @@ export function AboutView() {
           Free and open-source (MIT licence) trainer, save manager and AI cheat-pack maker for PC games without anti-cheat.
         </p>
         <div className="mt-2 flex gap-2">
+          <button className={button} onClick={() => void api.openLink("website").catch(() => undefined)}>
+            Website
+          </button>
           <button className={button} onClick={() => void api.openLink("guide").catch(() => undefined)}>
             User guide
           </button>

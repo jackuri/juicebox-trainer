@@ -59,7 +59,7 @@ attached to, if any.
 | **Web games** | Games that run in a web page: find and lock values |
 | **Themes** | Change how JuiceBox Trainer looks |
 | **Help** | A tutorial for new players, common questions, and what went wrong lately and what to try |
-| **About** | Version, updates, this guide |
+| **About** | Version, updates, the website, this guide |
 
 ## New here? Start with the tutorial
 

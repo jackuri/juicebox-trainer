@@ -19,5 +19,6 @@ Invoke-Step 'cargo test'              { cargo test --workspace }
 Invoke-Step 'Frontend lint'           { npm run lint }
 Invoke-Step 'Frontend typecheck'      { npm run typecheck }
 Invoke-Step 'Frontend tests'          { npm test }
+Invoke-Step 'Website'                 { npm run site }
 
 Write-Host 'All checks passed.' -ForegroundColor Green

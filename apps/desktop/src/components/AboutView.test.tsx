@@ -36,6 +36,8 @@ describe("AboutView", () => {
     expect(invoke).not.toHaveBeenCalledWith("update_check", undefined);
     fireEvent.click(screen.getByRole("button", { name: "Releases page" }));
     expect(invoke).toHaveBeenCalledWith("open_link", { which: "releases" });
+    fireEvent.click(screen.getByRole("button", { name: "Website" }));
+    expect(invoke).toHaveBeenCalledWith("open_link", { which: "website" });
     expect(screen.queryByRole("button", { name: "Delete the AI engine" })).not.toBeInTheDocument();
   });
 

@@ -66,3 +66,6 @@ jobs:
 
       - name: Frontend tests
         run: npm test
+
+      - name: Website (build and link check)
+        run: npm run site

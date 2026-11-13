@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-12 — v1.34.0_
+_Last updated: 2026-11-12 — v1.35.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -377,6 +377,11 @@ _Last updated: 2026-11-12 — v1.34.0_
   lib/guide.ts; docs/GETTING_STARTED.md is made from it (`npm run guide`), a test keeps them equal.
   Real-app test (sandboxed) 11/11. Pushed and tagged 2026-11-12 (CI and Release green).
 
+- v1.35.0 Website (PLAN §10.1): site/ built by scripts/build-site.mjs (npm run site, in check and
+  CI) into site/dist, deployed by .github/workflows/site.yml to GitHub Pages. Pages has to be turned on
+  for the repository (Source: GitHub Actions) when pushing. Screenshots taken from the sandboxed app
+  with the testbed (shots135.mjs). Checked in the browser at desktop and phone width.
+
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,
@@ -387,8 +392,8 @@ _Last updated: 2026-11-12 — v1.34.0_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
-- Website, then an Android app (remote → mobile cheats via the PC → AI → phone alone): planned in
-  PLAN §10 with the user's decisions of 2026-11-12. Website first, on the free GitHub Pages address.
+- Android app (remote → mobile cheats via the PC → AI → phone alone): PLAN §10.2 with the user's
+  decisions of 2026-11-12. Test on BlueStacks first, then the user's old phone once rooted.
 - Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
   PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
 - 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and

@@ -19,6 +19,8 @@ use crate::commands::{CmdResult, CommandError};
 pub const RELEASES_URL: &str = "https://github.com/jackuri/juicebox-trainer/releases";
 /// The newest release, with its installer.
 const LATEST_RELEASE_URL: &str = "https://github.com/jackuri/juicebox-trainer/releases/latest";
+/// JuiceBox Trainer's website (v1.35.0, GitHub Pages).
+pub const WEBSITE_URL: &str = "https://jackuri.github.io/juicebox-trainer/";
 const LATEST_JSON: &str =
     "https://github.com/jackuri/juicebox-trainer/releases/latest/download/latest.json";
 
@@ -85,6 +87,7 @@ pub async fn open_link(which: String) -> CmdResult<()> {
         "releases" => RELEASES_URL,
         "latest" => LATEST_RELEASE_URL,
         "guide" => "https://github.com/jackuri/juicebox-trainer/blob/main/docs/USER_GUIDE.md",
+        "website" => WEBSITE_URL,
         "contribute" => jb_packs::community::CONTRIBUTE_URL,
         "node" => "https://nodejs.org/",
         _ => {
