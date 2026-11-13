@@ -375,6 +375,7 @@ _Last updated: 2026-11-12 — v1.34.0_
 - v1.34.0 Tutorial and FAQ: Help has Tutorial (9 lessons with Show me, done ticks), Common questions
   (~40, search and topics) and Recent problems tabs; a one-time welcome note. Text lives in
   lib/guide.ts; docs/GETTING_STARTED.md is made from it (`npm run guide`), a test keeps them equal.
+  Real-app test (sandboxed) 11/11. Pushed and tagged 2026-11-12 (CI and Release green).
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
@@ -386,6 +387,8 @@ _Last updated: 2026-11-12 — v1.34.0_
   pack were downloaded, the SHA-256 matched and `juicepack validate` passed.
 
 ## Next
+- Website, then an Android app (remote → mobile cheats via the PC → AI → phone alone): planned in
+  PLAN §10 with the user's decisions of 2026-11-12. Website first, on the free GitHub Pages address.
 - Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
   PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
 - 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and

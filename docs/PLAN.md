@@ -324,6 +324,45 @@ Proposed to the user after 1.20, in the order recommended:
    with `.juice` import/export (v1.0 or earlier).
 4. Exclusive-fullscreen overlay: **accept the limitation** (windowed/borderless only; no in-process overlay).
 
+## 10. Website and Android app (planned 2026-11-12, user's ideas)
+
+Order (user's choice 2026-11-12): **the website first**, then the Android app in steps A → D.
+
+### 10.1 Website (next version)
+- Goal: get people interested and bring them into the community (share packs, rate, level up).
+- Hosting: **GitHub Pages at the free address** (`jackuri.github.io/juicebox-trainer`), user's choice; a
+  custom domain can be added later without changing the site. `site/` in this repo, deployed by a Pages
+  workflow; static, no server, no tracking or analytics cookies.
+- Pages: **Home** (what it is, the app's own screenshots and a short clip, a download button for the
+  newest release); **Community**, filled in the visitor's browser from the community list's own files
+  (`index.json` packs with `ratings.json` stars, web cheats, `wanted.json` most wanted, `xp.json`
+  leaderboard with titles); **Getting started** and **FAQ** from `lib/guide.ts` at build time; **Play
+  fair & safety** (the anti-cheat rule, antivirus warnings, checking `SHA256SUMS.txt`); **Join** (free
+  GitHub account, share a pack, XP and the daily check-in).
+- Never: other trainers' names, look or branding; game cover art or other game assets.
+- Checks: built and link-checked in `npm run check`; works at phone width.
+
+### 10.2 Android app (after the website)
+Decisions (user, 2026-11-12):
+- Android first (the user has an Android phone).
+- **Same scope rule as the PC:** any game without anti-cheat, online included; refused while its
+  anti-cheat runs; no items that can be traded or bought for real money (as for web cheats).
+- Testing: **BlueStacks on the user's PC first**, then an old phone the user will root (Claude writes
+  step-by-step rooting instructions for that exact model when we get there).
+
+Stack: a Tauri 2 Android build of the same React screens (phone layout); `jb-packs` and `jb-saves`
+shared as they are; `jb-core` gets a Linux/Android memory backend (`/proc/<pid>/maps`,
+`process_vm_readv` or `/proc/<pid>/mem`) that needs root. Android doesn't let an app read another app's
+memory without root. Shipped as a signed APK on the releases page (the Play Store won't allow it). The hard
+rules still apply: packs stay declarative, the AI only acts through guarded, logged, revertible tools.
+
+| Step | What | Notes |
+|---|---|---|
+| A. Remote | Phone app controlling the PC's cheats: pair once by QR (a saved pairing instead of one-time codes), cheats by group, switches, sliders, presets, "game closed" notice | Same Wi-Fi first. From anywhere later needs a relay or a VPN like Tailscale: design review first |
+| B. Mobile cheats via the PC | The PC app drives an Android device over ADB with root (BlueStacks' root mode, or a rooted phone by USB/Wi-Fi): app list, Android anti-cheat guard, Find a value, packs for Android games, undo on exit | Packs get an Android target (package name + version code instead of exe + hash) |
+| C. AI for mobile games | jb-mcp tools over the Android backend; the AI runs on the PC (Claude sign-in works there), driving the device through B. Later, on the phone itself with an API key | |
+| D. On the phone alone | The cheat maker in the phone app on a rooted phone; without root, save backups and editing where Android allows it (Shizuku for `Android/data` on Android 11+) | |
+
 ## 9. Notes on the two source repos
 - **universal-modder** (MIT): skills + `um` CLI (Python). Most useful parts: `um scan` (engine, anti-cheat,
   save hints, JSON), `um backup`, `um kb`, the engine playbooks and `safety.md`. Its scope rules match ours.
