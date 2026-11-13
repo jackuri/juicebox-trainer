@@ -101,6 +101,5 @@ jobs:
       # Unsigned here (no key in CI checks); the release workflow signs it.
       - name: Build the APK
         working-directory: apps/mobile
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
-        run: npx tauri android build --apk --target aarch64 --ci
+        # The runner's newest NDK (a variable of the machine, not of the workflow).
+        run: NDK_HOME="$ANDROID_NDK_LATEST_HOME" npx tauri android build --apk --target aarch64 --ci

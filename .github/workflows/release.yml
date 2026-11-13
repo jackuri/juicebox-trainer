@@ -163,9 +163,8 @@ jobs:
       - name: "Build the APK (phones: arm64, arm; emulators: x86_64)"
         if: steps.key.outputs.have == 'true'
         working-directory: apps/mobile
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }}
-        run: npx tauri android build --apk --target aarch64 --target armv7 --target x86_64 --ci
+        # The runner's newest NDK (a variable of the machine, not of the workflow).
+        run: NDK_HOME="$ANDROID_NDK_LATEST_HOME" npx tauri android build --apk --target aarch64 --target armv7 --target x86_64 --ci
 
       - name: Add it to the release
         if: steps.key.outputs.have == 'true'
