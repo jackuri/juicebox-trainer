@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-13 — v1.36.0_
+_Last updated: 2026-11-13 — v1.36.1_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -391,6 +391,10 @@ _Last updated: 2026-11-13 — v1.36.0_
   (Manlyman, Android 9, ADB turned on with the user's OK) against the sandboxed release app and the
   testbed: 30/30 (e2e136.mjs). Website: singular counts fixed, Android download shown when a release
   has the APK.
+- v1.36.1: same app; the release workflow file had a YAML error (colon in a step name), so the
+  v1.36.0 tag (protected, can't be moved) has no release. Phone app signing key made (keytool) in
+  %USERPROFILE%\.juicebox-release-keys (juicebox-remote.jks + password file, outside the repo) and
+  stored as ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets with the user's OK.
 
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
@@ -404,8 +408,6 @@ _Last updated: 2026-11-13 — v1.36.0_
 ## Next
 - Android app, next step B (mobile cheats via the PC over ADB, BlueStacks root mode first), then C
   (AI) and D (phone alone): PLAN §10.2. Rooting steps once the user names the old phone's model.
-- Publishing the phone app needs a signing key: make it (keytool, kept outside the repo like the
-  updater key) and add ANDROID_KEYSTORE / ANDROID_KEYSTORE_PASSWORD secrets, with the user's OK.
 - Next (user's order 2026-11-11): instant cheats for Unity (ComeCloser is a Unity Mono game on this
   PC), with the user there. Instant Unreal cheats were tried on Species: Unknown on 2026-11-12.
 - 1.30.0's live AI fixes haven't run with a real AI yet (the plumbing is tested with the testbed and

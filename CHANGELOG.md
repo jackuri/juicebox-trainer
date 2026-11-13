@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.36.1] - 2026-11-13
+
+### Fixed
+- The release now builds the JuiceBox Remote phone app too. 1.36.0's release stopped before it
+  started (a mistake in the release settings), so 1.36.1 is the first release with the phone app.
+  Nothing else changed.
+
 ## [1.36.0] - 2026-11-13
 
 ### Added
