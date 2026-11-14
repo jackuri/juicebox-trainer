@@ -252,6 +252,10 @@ In the **Packs** tab:
   tested, and click **Share**. A maintainer checks each pack before it shows up in the list. A pack
   made from someone's Cheat Engine table can only be shared if you made the table or its author
   allows it. **Sign out** (in the same window) removes the sign-in from this PC.
+- **Update a pack you shared:** fixed or added cheats? Click **Share with everyone** on it again.
+  The window says it's already on the list, shows what's new, changed or removed, and **Send the
+  update** replaces it once a maintainer checks it. If your last update is still waiting, it gets
+  this version instead of a second request.
 - **Community packs:** packs other players shared. Click **See what's inside**, then **Install**.
   To add yours to the list, click **Share your pack**.
 - **Remove** moves a pack out of the way. A copy is kept in `%APPDATA%\JuiceBox Trainer\packs-removed`.
@@ -410,6 +414,10 @@ check-in can take a few minutes to open.
   **Add to my web games**.
 - **With everyone:** click **Share**, then **Share with everyone…** (you sign in to GitHub once). A
   maintainer checks the cheats before they're listed.
+- **Updating them:** a game whose cheats are on the list shows **On the community list**, or
+  **Changed since you shared** after you fix or add cheats; its button then says **Update shared**.
+  The window lists what's new, changed, renamed or removed, keeps your name and notes, and **Send
+  the update** replaces the old cheats once a maintainer checks them.
 - **Getting cheats:** under **Web cheats from the community**, click **Get these cheats**.
 
 Only add cheat files from people you trust. Web cheats aren't listed for competitive games

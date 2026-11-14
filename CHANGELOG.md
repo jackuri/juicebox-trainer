@@ -4,6 +4,22 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.38.0] - 2026-11-13
+
+### Fixed
+- **Sharing web cheats while the game was open:** each click on **Share** added another copy of the
+  share window, and its buttons (like **Share with everyone…**) did nothing. Now there's one window,
+  and it works. The AI helper's share window had the same problem.
+
+### Added
+- **Update cheats you already shared.** Web games on the community list say **On the community
+  list**, or **Changed since you shared** with an **Update shared** button. The share window shows
+  what's on the list and what's new, changed, renamed or removed in yours, keeps your name and
+  notes, and **Send the update** replaces them. Packs too: sharing a pack that's on the list says
+  **Update … on the community list** and shows the same list.
+- If your last update is still waiting to be checked, a new one goes into it instead of opening a
+  second request. Nothing is sent when the list already has your cheats as they are.
+
 ## [1.37.0] - 2026-11-13
 
 ### Added

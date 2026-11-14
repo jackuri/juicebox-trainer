@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
-import { api, type DeviceCode, type GithubStatus, type SharedPack, toCommandError, type WebGame } from "../lib/ipc";
+import {
+  api,
+  type DeviceCode,
+  type GithubStatus,
+  noChanges,
+  type SharedPack,
+  toCommandError,
+  type WebGame,
+  type WebShareStatus,
+} from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
+import { ChangeList } from "./ChangeList";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
 const primary = "btn-accent rounded-lg px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-40";
@@ -16,7 +26,8 @@ const onThisPc = (url: string) => {
 
 /**
  * Shares the cheats saved for a web game (v1.19.0): as a file to give to friends, or on the community
- * list (JuiceBox Trainer does the GitHub part, like for packs).
+ * list (JuiceBox Trainer does the GitHub part, like for packs). Cheats already on the list are
+ * updated the same way, with what changed shown first (v1.38.0).
  */
 export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () => void }) {
   const [by, setBy] = useState("");
@@ -28,15 +39,31 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
   const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState<SharedPack | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [listed, setListed] = useState<WebShareStatus | null>(null);
   const local = onThisPc(game.url);
 
   useEffect(() => {
+    // Already on the community list: start from what's there (who found them, the notes).
+    api.communityWebStatus(game.id).then(
+      (st) => {
+        if (!st?.listed) return;
+        setListed(st);
+        if (st.by) setBy((b) => b || st.by || "");
+        if (st.notes) setNotes((n) => n || st.notes || "");
+      },
+      () => undefined,
+    );
     // The name the player signed the agreement with is a good guess for who found the cheats.
     api.agreementStatus().then(
       (s) => setBy((b) => b || s?.signed?.name || ""),
       () => undefined,
     );
-  }, []);
+  }, [game.id]);
+
+  const update = listed !== null;
+  const notesChanged = update && (notes.trim() || null) !== (listed.notes ?? null);
+  const byChanged = update && by.trim() !== (listed.by ?? "");
+  const upToDate = update && noChanges(listed.changes) && !notesChanged && !byChanged;
 
   const note = notes.trim() || null;
 
@@ -102,7 +129,9 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
   return (
     <div className="flex flex-col gap-3 rounded-2xl bg-zinc-900/90 p-5 ring-1 ring-emerald-800/70" role="dialog" aria-label={`Share the cheats for ${game.name}`}>
       <div>
-        <p className="text-lg font-semibold tracking-tight">Share your cheats for {game.name}</p>
+        <p className="text-lg font-semibold tracking-tight">
+          {update ? `Update your shared cheats for ${game.name}` : `Share your cheats for ${game.name}`}
+        </p>
         <p className="text-xs text-zinc-400">
           Only the cheats are shared (where each number is and its value), never the game or your account. Remind friends: cheats are for
           playing alone or in private games with friends you invited.
@@ -153,15 +182,33 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
         </div>
       </section>
 
+      {listed && (
+        <section className="flex flex-col gap-2 rounded-xl bg-emerald-950/30 p-3 ring-1 ring-emerald-900" aria-label="On the community list">
+          <p className="font-medium">
+            On the community list: {listed.listedCheats} cheat{listed.listedCheats === 1 ? "" : "s"}
+            {listed.by ? ` found by ${listed.by}` : ""}
+            {listed.added ? `, added ${listed.added}` : ""}. Yours now: {listed.myCheats}.
+          </p>
+          {upToDate ? (
+            <p className="text-xs text-zinc-400">The list already has your cheats as they are now: nothing to update.</p>
+          ) : (
+            <ChangeList changes={{ ...listed.changes, details: listed.changes.details || notesChanged || byChanged }} />
+          )}
+        </section>
+      )}
+
       <section className="flex flex-col gap-2 rounded-xl bg-zinc-950/50 p-3" aria-label="Share with everyone">
-        <p className="font-medium">Share with everyone</p>
+        <p className="font-medium">{update ? "Update the community list" : "Share with everyone"}</p>
         {local ? (
           <p className="text-xs text-zinc-400">This game runs on your own PC, so it can&apos;t go on the community list. Save it to a file instead.</p>
         ) : shared ? (
           <div className="flex flex-col gap-2 text-sm" role="status">
             <p className="text-emerald-300">
-              Sent! A maintainer will check it and add it to the list, usually within a few days.
-              {shared.update && " The list already had cheats for this game: this replaces them."}
+              {shared.refreshed
+                ? "Your earlier update was still waiting to be checked: it now has these cheats instead. No second request was made."
+                : shared.update
+                  ? "Sent! A maintainer will check it, usually within a few days. Then your new cheats replace the ones on the list."
+                  : "Sent! A maintainer will check it and add it to the list, usually within a few days."}
             </p>
             <button className={`${button} self-start`} onClick={() => void api.githubOpenPr(shared.url).catch(() => undefined)}>
               See it on GitHub
@@ -169,9 +216,13 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
           </div>
         ) : !status ? (
           <>
-            <p className="text-xs text-zinc-400">Puts them on JuiceBox Trainer&apos;s community list, where other players of this game find them.</p>
-            <button className={`${button} self-start`} disabled={!by.trim()} onClick={() => void startSharing()}>
-              Share with everyone…
+            <p className="text-xs text-zinc-400">
+              {update
+                ? "Sends your cheats as they are now, so everyone gets the new and fixed ones."
+                : "Puts them on JuiceBox Trainer's community list, where other players of this game find them."}
+            </p>
+            <button className={`${button} self-start`} disabled={!by.trim() || upToDate} onClick={() => void startSharing()}>
+              {update ? "Update the community list…" : "Share with everyone…"}
             </button>
           </>
         ) : !status.configured ? (
@@ -202,8 +253,9 @@ export function WebShareDialog({ game, onClose }: { game: WebGame; onClose: () =
             </label>
             <div className="flex flex-wrap items-center gap-2">
               <button className={primary} disabled={sharing || !tested || !by.trim()} onClick={() => void share()}>
-                {sharing ? "Sharing…" : "Share"}
+                {sharing ? "Sending…" : update ? "Send the update" : "Share"}
               </button>
+              {!tested && <span className="text-xs text-amber-300">Tick the box first.</span>}
               <span className="text-xs text-zinc-500">Signed in to GitHub{status.login ? ` as ${status.login}` : ""}</span>
             </div>
           </>

@@ -336,6 +336,11 @@ export const QUESTIONS: Question[] = [
   },
   {
     topic: "Packs and sharing",
+    q: "I fixed or added cheats after sharing them. How do I update the community list?",
+    a: "Click **Share** again (for web games it says **Update shared** once your cheats changed). The window shows what's on the list and what's new, changed or removed in yours, keeps your name and notes, and **Send the update** replaces the old cheats once a maintainer checks them. If your last update is still waiting to be checked, it gets the newest cheats instead of a second request. Updates don't give XP again.",
+  },
+  {
+    topic: "Packs and sharing",
     q: "Can I use Cheat Engine tables?",
     a: "Yes. In **Games**, click **Find a cheat table** on the game, download the `.CT` file, then click **Turn into cheats** under **Cheat tables in your Downloads**. Scripts in tables are never run: the common kinds are redone JuiceBox Trainer's safe way, and the rest are left out.",
   },

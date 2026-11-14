@@ -450,6 +450,10 @@ pub struct Shared {
     pub number: u64,
     /// The list already had a pack for this game; this replaces it.
     pub update: bool,
+    /// The player's earlier request for this was still waiting: it now has this version
+    /// instead of a second request being opened (v1.38.0).
+    #[serde(default)]
+    pub refreshed: bool,
 }
 
 /// What the player said when sharing.
@@ -747,15 +751,49 @@ async fn send_files(
         .await?;
     let update = listed == 200;
 
-    let branch = format!("{branch_prefix}-{stamp}");
-    hub.ok(
-        token,
-        Method::POST,
-        &format!("/repos/{head_repo}/git/refs"),
-        Some(&json!({ "ref": format!("refs/heads/{branch}"), "sha": sha })),
-        "to start your change",
-    )
-    .await?;
+    // The player's own request for this file that's still waiting: send the new version to it.
+    let waiting = match hub
+        .call(
+            token,
+            Method::GET,
+            &format!("/repos/{COMMUNITY_REPO}/pulls?state=open&per_page=100"),
+            None,
+        )
+        .await
+    {
+        Ok((200, list)) => list.as_array().and_then(|prs| {
+            prs.iter()
+                .find(|pr| {
+                    pr["user"]["login"]
+                        .as_str()
+                        .is_some_and(|l| l.eq_ignore_ascii_case(&login))
+                        && pr["head"]["ref"]
+                            .as_str()
+                            .is_some_and(|r| r.starts_with(&format!("{branch_prefix}-")))
+                        && pr["head"]["repo"]["full_name"]
+                            .as_str()
+                            .is_some_and(|r| r.eq_ignore_ascii_case(&head_repo))
+                })
+                .cloned()
+        }),
+        _ => None,
+    };
+
+    let branch = match &waiting {
+        Some(pr) => pr["head"]["ref"].as_str().unwrap_or_default().to_string(),
+        None => {
+            let branch = format!("{branch_prefix}-{stamp}");
+            hub.ok(
+                token,
+                Method::POST,
+                &format!("/repos/{head_repo}/git/refs"),
+                Some(&json!({ "ref": format!("refs/heads/{branch}"), "sha": sha })),
+                "to start your change",
+            )
+            .await?;
+            branch
+        }
+    };
     let message = commit_message(update);
     for (file, text) in files {
         let (status, existing) = hub
@@ -786,6 +824,15 @@ async fn send_files(
         .await?;
     }
 
+    if let Some(pr) = waiting {
+        return Ok(Shared {
+            url: pr["html_url"].as_str().unwrap_or_default().to_string(),
+            number: pr["number"].as_u64().unwrap_or(0),
+            update,
+            refreshed: true,
+        });
+    }
+
     let (title, body) = pr_text(update, &login);
     let head = if head_repo == COMMUNITY_REPO {
         branch.clone()
@@ -805,6 +852,7 @@ async fn send_files(
         url: pr["html_url"].as_str().unwrap_or_default().to_string(),
         number: pr["number"].as_u64().unwrap_or(0),
         update,
+        refreshed: false,
     })
 }
 
@@ -1615,7 +1663,8 @@ mod tests {
             Shared {
                 url: "https://github.com/jackuri/juicebox-packs/pull/7".into(),
                 number: 7,
-                update: false
+                update: false,
+                refreshed: false,
             }
         );
         let seen = lock(&seen).clone();
@@ -2117,6 +2166,56 @@ mod tests {
         let pr: Value = serde_json::from_str(&pr.2).unwrap();
         assert_eq!(pr["head"], "pack-coin-quest-1");
         assert_eq!(pr["title"], "Update pack: Coin Quest");
+    }
+
+    #[test]
+    fn an_update_goes_into_the_players_request_that_is_still_waiting() {
+        let base = github_like("sam", true);
+        let (hub, seen) = fake(move |m: &str, p: &str, b: &str| {
+            if m == "GET" && p.starts_with("/repos/jackuri/juicebox-packs/pulls?state=open") {
+                return (
+                    200,
+                    json!([
+                        // Someone else's request for the same pack: not touched.
+                        { "user": { "login": "ann" }, "head": { "ref": "pack-coin-quest-3", "repo": { "full_name": "ann/juicebox-packs" } }, "html_url": "https://github.com/jackuri/juicebox-packs/pull/3", "number": 3 },
+                        { "user": { "login": "Sam" }, "head": { "ref": "pack-coin-quest-5", "repo": { "full_name": "sam/juicebox-packs" } }, "html_url": "https://github.com/jackuri/juicebox-packs/pull/5", "number": 5 }
+                    ])
+                    .to_string(),
+                );
+            }
+            base(m, p, b)
+        });
+        let done = run(share(&hub, "tok", &pack_text("sam"), &req(false), 9)).unwrap();
+        assert_eq!(
+            done,
+            Shared {
+                url: "https://github.com/jackuri/juicebox-packs/pull/5".into(),
+                number: 5,
+                update: true,
+                refreshed: true,
+            }
+        );
+        let seen = lock(&seen).clone();
+        assert!(
+            !seen
+                .iter()
+                .any(|(m, p, _)| m == "POST" && p.ends_with("/git/refs")),
+            "no new branch"
+        );
+        assert!(
+            !seen
+                .iter()
+                .any(|(m, p, _)| m == "POST" && p.ends_with("/pulls")),
+            "no second request"
+        );
+        let put = seen
+            .iter()
+            .find(|(m, p, _)| {
+                m == "PUT" && p == "/repos/sam/juicebox-packs/contents/packs/coin-quest/pack.json"
+            })
+            .expect("the new version goes to the waiting branch");
+        let put: Value = serde_json::from_str(&put.2).unwrap();
+        assert_eq!(put["branch"], "pack-coin-quest-5");
     }
 
     #[test]

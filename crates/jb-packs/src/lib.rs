@@ -6,6 +6,7 @@
 //! at an AOB-located site with instructions from a safe allowlist). Everything
 //! goes through `jb-core`, so the anti-cheat guard applies.
 
+pub mod changes;
 pub mod community;
 pub mod ct;
 pub(crate) mod ct_script;

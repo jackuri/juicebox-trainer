@@ -80,6 +80,54 @@ describe("ShareDialog", () => {
     expect(invoke).toHaveBeenCalledWith("github_open_pr", { url: "https://github.com/jackuri/juicebox-packs/pull/7" });
   });
 
+  it("updates a pack already on the community list, showing what changed (v1.38.0)", async () => {
+    mock(
+      { configured: true, signedIn: true, login: "jackuri" },
+      {
+        community_pack_status: () =>
+          Promise.resolve({
+            listed: true,
+            author: "ai",
+            version: "1.0.0",
+            listedCheats: 2,
+            myCheats: 3,
+            changes: { added: ["Infinite gold"], changed: [], renamed: [], removed: [], details: false },
+          }),
+        community_share: () =>
+          Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/8", number: 8, update: true, refreshed: false }),
+      },
+    );
+    render(<ShareDialog pack={pack} onClose={vi.fn()} />);
+    expect(await screen.findByText("Update “Coin Quest” on the community list")).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "What changed" })).toHaveTextContent("New: Infinite gold");
+    fireEvent.change(screen.getByLabelText("Tested on"), { target: { value: "Steam" } });
+    fireEvent.click(screen.getByLabelText(/I tried every cheat/));
+    fireEvent.click(screen.getByRole("button", { name: "Send the update" }));
+    expect(await screen.findByText(/replaces the pack the list already has/)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("community_pack_status", { key: pack.key });
+  });
+
+  it("doesn't send a pack the list already has as it is (v1.38.0)", async () => {
+    mock(
+      { configured: true, signedIn: true, login: "jackuri" },
+      {
+        community_pack_status: () =>
+          Promise.resolve({
+            listed: true,
+            author: "ai",
+            version: "1.0.0",
+            listedCheats: 3,
+            myCheats: 3,
+            changes: { added: [], changed: [], renamed: [], removed: [], details: false },
+          }),
+      },
+    );
+    render(<ShareDialog pack={pack} onClose={vi.fn()} />);
+    expect(await screen.findByText(/nothing to update/)).toBeInTheDocument();
+    fireEvent.click(screen.getByLabelText(/I tried every cheat/));
+    expect(screen.getByRole("button", { name: "Send the update" })).toBeDisabled();
+  });
+
   it("a table's maker shares it with their own terms and support page", async () => {
     mock({ configured: true, signedIn: true, login: "sam" });
     render(<ShareDialog pack={{ ...pack, author: "Cheat Engine table (imported)", ai: false }} onClose={vi.fn()} />);

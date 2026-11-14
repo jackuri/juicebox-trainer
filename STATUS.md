@@ -1,6 +1,6 @@
 # Status
 
-_Last updated: 2026-11-13 — v1.37.0_
+_Last updated: 2026-11-13 — v1.38.0_
 
 ## Done
 - CI green on GitHub (repo jackuri/juicebox-trainer, public since 2026-11-08) through v0.10.0; v1.0.0 pushed and tagged
@@ -408,6 +408,9 @@ _Last updated: 2026-11-13 — v1.37.0_
   Pushed and tagged 2026-11-13: CI (Windows + Android), Release (installer + signed APK, built by
   GitHub with the stored key for the first time) and Website green.
 
+- v1.38.0 Update shared cheats (web games and packs: status badge, change list, update mode, waiting
+  request refreshed) and the fix for the duplicated share window (same React key as the open game's
+  panel). Screen tests cover the user's case; not run in the real app yet (the user had JuiceBox open).
 ## In progress
 - Pushed through v1.17.0; v1.17.0 is tagged and Latest (in-app updates on). Community repo pushed
   through 98efc39 (web cheats). v1.18.0 – v1.24.1 are pushed and tagged (from 1.23.0 the repositories are jackuri/juicebox-trainer and jackuri/juicebox-packs) (CI and Release green,

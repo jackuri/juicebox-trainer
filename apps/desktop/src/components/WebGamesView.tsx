@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type WebGame, type WebPack } from "../lib/ipc";
+import { api, noChanges, type WebGame, type WebPack, type WebShareStatus } from "../lib/ipc";
 import { friendlyError } from "../lib/explain";
 import { WebCheatsPanel } from "./WebCheatsPanel";
 import { WebShareDialog } from "./WebShareDialog";
@@ -23,6 +23,8 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
   const [url, setUrl] = useState("");
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [sharing, setSharing] = useState<WebGame | null>(null);
+  /** Each game's cheats on the community list, compared with the player's (v1.38.0). */
+  const [onList, setOnList] = useState<Record<string, WebShareStatus>>({});
   /** Cheats from a file or the community list, shown before they're added. */
   const [offered, setOffered] = useState<{ pack: WebPack; from: "file" | "community" } | null>(null);
   const [community, setCommunity] = useState<WebPack[] | null>(null);
@@ -32,7 +34,19 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    api.webGames().then((g) => setGames(Array.isArray(g) ? g : []), (e: unknown) => setError(friendlyError(e)));
+    api.webGames().then(
+      (g) => {
+        const list = Array.isArray(g) ? g : [];
+        setGames(list);
+        for (const game of list) {
+          api.communityWebStatus(game.id).then(
+            (st) => st?.listed && setOnList((m) => ({ ...m, [game.id]: st })),
+            () => undefined,
+          );
+        }
+      },
+      (e: unknown) => setError(friendlyError(e)),
+    );
   }, []);
 
   useEffect(() => {
@@ -111,11 +125,20 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
         />
       )}
 
-      {sharing && <WebShareDialog key={sharing.id} game={sharing} onClose={() => setSharing(null)} />}
+      {sharing && (
+        <WebShareDialog
+          key={`share-${sharing.id}`}
+          game={sharing}
+          onClose={() => {
+            setSharing(null);
+            load();
+          }}
+        />
+      )}
 
       {current && (
         <WebCheatsPanel
-          key={current.id}
+          key={`panel-${current.id}`}
           game={current}
           onOpenAi={onOpenAi}
           onClose={() =>
@@ -140,6 +163,12 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
                 <span className="min-w-0 flex-1">
                   <span className="font-medium">{g.name}</span> <span className="text-xs text-zinc-500">{host(g.url)}</span>
                   {current?.id === g.id && <span className="ml-2 text-xs text-emerald-300">Open</span>}
+                  {onList[g.id] &&
+                    (noChanges(onList[g.id]!.changes) ? (
+                      <span className="ml-2 rounded bg-emerald-950 px-1.5 py-0.5 text-[11px] text-emerald-300">On the community list</span>
+                    ) : (
+                      <span className="ml-2 rounded bg-amber-950 px-1.5 py-0.5 text-[11px] text-amber-300">Changed since you shared</span>
+                    ))}
                 </span>
                 <button
                   className="btn-accent rounded-lg px-4 py-1.5 text-xs font-semibold disabled:opacity-40"
@@ -149,8 +178,16 @@ export function WebGamesView({ onOpenAi }: { onOpenAi?: () => void } = {}) {
                 >
                   {current?.id === g.id ? "Open again" : "Play"}
                 </button>
-                <button className={button} aria-label={`Share the cheats for ${g.name}`} onClick={() => setSharing(g)}>
-                  Share
+                <button
+                  className={button}
+                  aria-label={`Share the cheats for ${g.name}`}
+                  onClick={() => {
+                    setSharing(g);
+                    window.scrollTo?.({ top: 0 });
+                    document.querySelector('main[aria-label="Web games"]')?.scrollTo?.({ top: 0, behavior: "smooth" });
+                  }}
+                >
+                  {onList[g.id] && !noChanges(onList[g.id]!.changes) ? "Update shared" : "Share"}
                 </button>
                 {confirmRemove === g.id ? (
                   <>

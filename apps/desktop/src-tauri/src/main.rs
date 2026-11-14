@@ -265,6 +265,8 @@ fn main() {
             sharing::community_open_credit,
             sharing::packs_remove,
             sharing::community_list,
+            sharing::community_web_status,
+            sharing::community_pack_status,
             sharing::community_preview,
             sharing::community_install,
             updates::update_status,

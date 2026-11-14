@@ -9,7 +9,10 @@ import {
   type SharedPack,
   TABLE_AUTHOR,
   toCommandError,
+  noChanges,
+  type PackShareStatus,
 } from "../lib/ipc";
+import { ChangeList } from "./ChangeList";
 import { friendlyError } from "../lib/explain";
 
 const button = "rounded-lg bg-zinc-800 px-3 py-1.5 text-xs hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-40";
@@ -47,6 +50,8 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
   const [allowed, setAllowed] = useState(false);
   const [shared, setShared] = useState<SharedPack | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The same game's pack on the community list, compared with this one (v1.38.0). */
+  const [listed, setListed] = useState<PackShareStatus | null>(null);
   const name = pack.name ?? pack.id ?? "this pack";
   /** Converted from a Cheat Engine table (the author is the maker's name once credited). */
   const fromTable = pack.author === TABLE_AUTHOR || /\.ct$/i.test(pack.credit?.file ?? "");
@@ -56,6 +61,15 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
   useEffect(() => {
     api.githubStatus().then(setStatus, (e: unknown) => setError(friendlyError(e)));
   }, []);
+
+  useEffect(() => {
+    if (link) return;
+    api.communityPackStatus(pack.key).then(
+      (st) => st?.listed && setListed(st),
+      () => undefined,
+    );
+  }, [pack.key, link]);
+  const upToDate = listed !== null && noChanges(listed.changes);
 
   async function signIn() {
     setError(null);
@@ -148,11 +162,30 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
         </div>
       ) : (
         <div>
-          <p className="text-lg font-semibold tracking-tight">Share “{name}” with everyone</p>
+          <p className="text-lg font-semibold tracking-tight">
+            {listed ? `Update “${name}” on the community list` : `Share “${name}” with everyone`}
+          </p>
           <p className="text-xs text-zinc-400">
-            JuiceBox Trainer puts your pack on the community list for you. A maintainer checks every pack before it shows up.
+            {listed
+              ? "Sends your pack as it is now, so everyone gets the new and fixed cheats. A maintainer checks it first."
+              : "JuiceBox Trainer puts your pack on the community list for you. A maintainer checks every pack before it shows up."}
           </p>
         </div>
+      )}
+
+      {listed && !shared && (
+        <section className="flex flex-col gap-2 rounded-xl bg-emerald-950/30 p-3 text-sm ring-1 ring-emerald-900" aria-label="On the community list">
+          <p className="font-medium">
+            On the community list: {listed.listedCheats} cheat{listed.listedCheats === 1 ? "" : "s"}
+            {listed.author ? ` by ${listed.author}` : ""}
+            {listed.version ? ` (version ${listed.version})` : ""}. Yours now: {listed.myCheats}.
+          </p>
+          {upToDate ? (
+            <p className="text-xs text-zinc-400">The list already has this pack as it is now: nothing to update.</p>
+          ) : (
+            <ChangeList changes={listed.changes} />
+          )}
+        </section>
       )}
 
       {error && (
@@ -331,10 +364,10 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
           <div className="flex flex-wrap items-center gap-2">
             <button
               className={primary}
-              disabled={sharing || !tested || (fromSomeoneElse && madeBy === null) || (terms === "other" && !otherTerms.trim())}
+              disabled={sharing || upToDate || !tested || (fromSomeoneElse && madeBy === null) || (terms === "other" && !otherTerms.trim())}
               onClick={() => void share()}
             >
-              {sharing ? "Sharing…" : "Share"}
+              {sharing ? "Sending…" : listed ? "Send the update" : "Share"}
             </button>
             <button className={button} onClick={close} disabled={sharing}>
               Cancel
@@ -355,9 +388,13 @@ export function ShareDialog({ pack, onClose, mode = "pack" }: Props) {
       {shared && (
         <div className="flex flex-col gap-2 text-sm" role="status">
           <p className="text-emerald-300">
-            Sent! A maintainer will check it and add it to the list, usually within a few days.
-            {shared.update &&
-              (link ? " The list already had this link: this updates it." : " It replaces the pack the list already has for this game.")}
+            {shared.refreshed
+              ? "Your earlier update was still waiting to be checked: it now has this version instead. No second request was made."
+              : <>
+                  Sent! A maintainer will check it and add it to the list, usually within a few days.
+                  {shared.update &&
+                    (link ? " The list already had this link: this updates it." : " It replaces the pack the list already has for this game.")}
+                </>}
           </p>
           <div className="flex gap-2">
             <button className={button} onClick={() => void api.githubOpenPr(shared.url).catch(() => undefined)}>

@@ -247,6 +247,108 @@ describe("WebGamesView", () => {
     expect(invoke).toHaveBeenCalledWith("community_share_web", { id: "testbed-1", by: "Sam", notes: null });
   });
 
+  it("shows one share window while the game is open, however often Share is pressed (v1.38.0)", async () => {
+    const online = { ...game, url: "https://games.example/play" };
+    open = online;
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "web_games") return Promise.resolve([online]);
+      if (cmd === "web_current") return Promise.resolve(online);
+      if (cmd === "web_cheats") return Promise.resolve([]);
+      if (cmd === "agreement_status") return Promise.resolve({ accepted: true, version: 1, signed: { version: 1, name: "Jack", date: "2026-11-09" } });
+      if (cmd === "github_status") return Promise.resolve({ configured: true, signedIn: true, login: "jackuri" });
+      if (cmd === "community_list") return Promise.resolve({ web: [] });
+      if (cmd === "community_web_status") return Promise.reject({ kind: "offline", message: "offline" });
+      return Promise.resolve(null);
+    });
+    render(<WebGamesView />);
+    // The game's cheats panel is open (same game id as the share window).
+    expect(await screen.findByText(/Cheats for Web Testbed/)).toBeInTheDocument();
+    const share = screen.getByRole("button", { name: "Share the cheats for Web Testbed" });
+    fireEvent.click(share);
+    fireEvent.click(share);
+    fireEvent.click(share);
+    await waitFor(() => expect(screen.getAllByRole("dialog", { name: "Share the cheats for Web Testbed" })).toHaveLength(1));
+    const dialog = screen.getByRole("dialog", { name: "Share the cheats for Web Testbed" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Share with everyone…" }));
+    expect(await within(dialog).findByRole("checkbox")).toBeInTheDocument();
+    expect(within(dialog).getByText("Tick the box first.")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Share the cheats for Web Testbed" })).not.toBeInTheDocument());
+    expect(screen.getByText(/Cheats for Web Testbed/)).toBeInTheDocument();
+  });
+
+  it("updates cheats already on the community list, showing what changed (v1.38.0)", async () => {
+    const online = { ...game, name: "Outbreak", url: "https://www.outbreakweb.com/" };
+    const status = {
+      listed: true,
+      by: "Jack",
+      notes: "lock to 99",
+      added: "2026-11-11",
+      listedCheats: 7,
+      myCheats: 7,
+      changes: {
+        added: ["No virus (whole team)"],
+        changed: ["Infinite health (my character, any)"],
+        renamed: [["Infinite health (Kevin)", "Infinite health (my character, any)"]],
+        removed: ["Weak enemy 2"],
+        details: false,
+      },
+    };
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "web_games") return Promise.resolve([online]);
+      if (cmd === "agreement_status") return Promise.resolve({ accepted: true, version: 1, signed: { version: 1, name: "Someone", date: "2026-11-09" } });
+      if (cmd === "github_status") return Promise.resolve({ configured: true, signedIn: true, login: "jackuri" });
+      if (cmd === "community_list") return Promise.resolve({ web: [] });
+      if (cmd === "community_web_status") return Promise.resolve(status);
+      if (cmd === "community_share_web")
+        return Promise.resolve({ url: "https://github.com/jackuri/juicebox-packs/pull/12", number: 12, update: true, refreshed: true });
+      return Promise.resolve(null);
+    });
+    render(<WebGamesView />);
+    expect(await screen.findByText("Changed since you shared")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Share the cheats for Outbreak" }));
+    const dialog = await screen.findByRole("dialog", { name: "Share the cheats for Outbreak" });
+    expect(await within(dialog).findByText("Update your shared cheats for Outbreak")).toBeInTheDocument();
+    // Who found them and the notes come from the list.
+    await waitFor(() => expect(within(dialog).getByLabelText("Who found these cheats")).toHaveValue("Jack"));
+    expect(within(dialog).getByLabelText("Notes")).toHaveValue("lock to 99");
+    const changes = within(dialog).getByRole("list", { name: "What changed" });
+    expect(changes).toHaveTextContent("New: No virus (whole team)");
+    expect(changes).toHaveTextContent("Infinite health (Kevin) → Infinite health (my character, any)");
+    expect(changes).toHaveTextContent("Removed: Weak enemy 2");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Update the community list…" }));
+    fireEvent.click(await within(dialog).findByRole("checkbox"));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send the update" }));
+    expect(await within(dialog).findByText(/earlier update was still waiting/)).toBeInTheDocument();
+    expect(invoke).toHaveBeenCalledWith("community_share_web", { id: "testbed-1", by: "Jack", notes: "lock to 99" });
+  });
+
+  it("says when the shared cheats are already up to date (v1.38.0)", async () => {
+    const online = { ...game, url: "https://games.example/play" };
+    invoke.mockImplementation((cmd: string) => {
+      if (cmd === "web_games") return Promise.resolve([online]);
+      if (cmd === "community_list") return Promise.resolve({ web: [] });
+      if (cmd === "agreement_status") return Promise.resolve(null);
+      if (cmd === "community_web_status")
+        return Promise.resolve({
+          listed: true,
+          by: "Jack",
+          notes: null,
+          added: "2026-11-11",
+          listedCheats: 1,
+          myCheats: 1,
+          changes: { added: [], changed: [], renamed: [], removed: [], details: false },
+        });
+      return Promise.resolve(null);
+    });
+    render(<WebGamesView />);
+    expect(await screen.findByText("On the community list")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Share the cheats for Web Testbed" }));
+    const dialog = await screen.findByRole("dialog", { name: "Share the cheats for Web Testbed" });
+    expect(await within(dialog).findByText(/nothing to update/)).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Update the community list…" })).toBeDisabled();
+  });
+
   it("opens a friend's cheats file, shows what's in it and adds it", async () => {
     render(<WebGamesView />);
     fireEvent.click(await screen.findByRole("button", { name: "Open a cheats file" }));

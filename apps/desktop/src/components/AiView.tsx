@@ -620,7 +620,7 @@ export function AiView({ processes, games, onRefreshProcesses, webFirst = false,
         </form>
       )}
       {sharing === "pack" && sharePack && <ShareDialog pack={sharePack} onClose={() => setSharing(null)} />}
-      {sharing === "web" && webGame && <WebShareDialog key={webGame.id} game={webGame} onClose={() => setSharing(null)} />}
+      {sharing === "web" && webGame && <WebShareDialog key={`share-${webGame.id}`} game={webGame} onClose={() => setSharing(null)} />}
     </div>
   );
 }

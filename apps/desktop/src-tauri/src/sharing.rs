@@ -664,6 +664,115 @@ pub async fn community_list(
     })
 }
 
+/// A web game's cheats on the community list, compared with the player's own (v1.38.0).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WebShareStatus {
+    /// The list has cheats for this game.
+    pub listed: bool,
+    /// Who found the listed cheats, their notes and when they were added.
+    pub by: Option<String>,
+    pub notes: Option<String>,
+    pub added: Option<String>,
+    /// How many cheats the list has, and how many the player has now.
+    pub listed_cheats: usize,
+    pub my_cheats: usize,
+    /// What's different in the player's cheats.
+    pub changes: jb_packs::changes::Changes,
+}
+
+/// Compares a web game's saved cheats with the community list's.
+#[tauri::command]
+pub async fn community_web_status(
+    id: String,
+    state: State<'_, SharingState>,
+) -> CmdResult<WebShareStatus> {
+    let dir = crate::web::app_dir()?;
+    // The pack's id comes from the game's name and address; who and notes come from the list.
+    let mine = crate::web::pack_for(&dir, &id, "?", None, &jb_packs::share::today())?;
+    let index = index(&state, false).await?.index;
+    let Some(listed) = index.web.into_iter().find(|w| w.id == mine.id) else {
+        return Ok(WebShareStatus {
+            listed: false,
+            by: None,
+            notes: None,
+            added: None,
+            listed_cheats: 0,
+            my_cheats: mine.cheats.len(),
+            changes: jb_packs::changes::Changes::default(),
+        });
+    };
+    let mine = jb_packs::web::WebPack {
+        by: listed.by.clone(),
+        notes: listed.notes.clone(),
+        ..mine
+    };
+    Ok(WebShareStatus {
+        listed: true,
+        by: Some(listed.by.clone()),
+        notes: listed.notes.clone(),
+        added: listed.added.clone(),
+        listed_cheats: listed.cheats.len(),
+        my_cheats: mine.cheats.len(),
+        changes: jb_packs::changes::web(&listed, &mine),
+    })
+}
+
+/// One of the player's packs on the community list, compared with theirs (v1.38.0).
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PackShareStatus {
+    pub listed: bool,
+    pub author: Option<String>,
+    pub version: Option<String>,
+    pub listed_cheats: usize,
+    pub my_cheats: usize,
+    pub changes: jb_packs::changes::Changes,
+}
+
+/// Compares one of the player's packs with the community list's pack for the same game.
+#[tauri::command]
+pub async fn community_pack_status(
+    key: String,
+    state: State<'_, SharingState>,
+) -> CmdResult<PackShareStatus> {
+    let found = store::all()
+        .into_iter()
+        .find(|f| f.key == key)
+        .ok_or_else(|| CommandError::new("notFound", format!("no pack '{key}'")))?;
+    let text = found
+        .text
+        .map_err(|e| CommandError::new("io", e.to_string()))?;
+    let (mine, _) =
+        jb_packs::parse(&text).map_err(|e| CommandError::new("invalidPack", e.to_string()))?;
+    let id = mine.game.id.clone();
+    let listed = index(&state, false)
+        .await?
+        .index
+        .packs
+        .iter()
+        .any(|e| e.id == id);
+    if !listed {
+        return Ok(PackShareStatus {
+            listed: false,
+            author: None,
+            version: None,
+            listed_cheats: 0,
+            my_cheats: mine.cheats.len(),
+            changes: jb_packs::changes::Changes::default(),
+        });
+    }
+    let (_, theirs, _, _) = download(&state, &id).await?;
+    Ok(PackShareStatus {
+        listed: true,
+        author: Some(theirs.meta.author.clone()),
+        version: Some(theirs.meta.pack_version.clone()),
+        listed_cheats: theirs.cheats.len(),
+        my_cheats: mine.cheats.len(),
+        changes: jb_packs::changes::pack(&theirs, &mine),
+    })
+}
+
 /// Opens a community pack maker's page (`page`: where the cheats were
 /// published) or support page (`support`) in the browser: only addresses the
 /// list gives for that pack, on a known table or support site.

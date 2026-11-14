@@ -684,7 +684,44 @@ export interface SharedPack {
   number: number;
   /** The list already had a pack for this game. */
   update: boolean;
+  /** The player's earlier request was still waiting: it now has this version (v1.38.0). */
+  refreshed?: boolean;
 }
+
+/** What changed between shared cheats and the player's own (v1.38.0). */
+export interface CheatChanges {
+  added: string[];
+  changed: string[];
+  /** [old name, new name] */
+  renamed: [string, string][];
+  removed: string[];
+  /** Notes or who found them changed. */
+  details: boolean;
+}
+
+/** A web game's cheats on the community list, compared with the player's (v1.38.0). */
+export interface WebShareStatus {
+  listed: boolean;
+  by: string | null;
+  notes: string | null;
+  added: string | null;
+  listedCheats: number;
+  myCheats: number;
+  changes: CheatChanges;
+}
+
+/** One of the player's packs on the community list, compared with theirs (v1.38.0). */
+export interface PackShareStatus {
+  listed: boolean;
+  author: string | null;
+  version: string | null;
+  listedCheats: number;
+  myCheats: number;
+  changes: CheatChanges;
+}
+
+export const noChanges = (c: CheatChanges) =>
+  c.added.length + c.changed.length + c.renamed.length + c.removed.length === 0 && !c.details;
 
 /** Author text of packs converted from a Cheat Engine table. */
 export const TABLE_AUTHOR = "Cheat Engine table (imported)";
@@ -1421,6 +1458,10 @@ export const api = {
   webReadFile: (path: string) => invoke<WebPack>("web_read_file", { path }),
   webInstall: (pack: WebPack) => invoke<WebInstalled>("web_install", { pack }),
   communityShareWeb: (id: string, by: string, notes: string | null) => invoke<SharedPack>("community_share_web", { id, by, notes }),
+  /** A web game's cheats on the community list, compared with the player's own. */
+  communityWebStatus: (id: string) => invoke<WebShareStatus>("community_web_status", { id }),
+  /** One of the player's packs on the community list, compared with theirs. */
+  communityPackStatus: (key: string) => invoke<PackShareStatus>("community_pack_status", { key }),
   /** Opens a search for the game's Cheat Engine tables in the browser. */
   tablesSearch: (site: TableSite, game: string) => invoke<void>("tables_search", { site, game }),
   /** Cheat Engine tables downloaded in the last 30 days, newest first. */
