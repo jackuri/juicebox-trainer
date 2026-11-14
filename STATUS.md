@@ -440,6 +440,9 @@ _Last updated: 2026-11-13 — v1.38.0_
   structural readers (PLAN §2.3), LZ4 wrappers.
 
 ## Known issues
+- The community list's checker (juicebox-packs `scripts/build-index.mjs`) repeats the app's web cheat rules
+  (`jb_packs::web::check_pack`). It fell behind 1.31.0 (groups, `keep`), so the user's Outbreak update failed
+  to build the index until it was fixed on 2026-11-14 (juicebox-packs 6f80f78). Change both together.
 - JuiceBox Remote (1.36.0): not tried yet on a real phone or with a real camera (BlueStacks has none;
   pairing was tested with a pasted link). Finding a PC whose address changed was tested on this PC
   only (BlueStacks' network can't see broadcasts). It targets Android 16 (API 36).
